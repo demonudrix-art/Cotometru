@@ -16,6 +16,7 @@ public final class MonitorService extends Service {
   private volatile HttpURLConnection streamConnection;
   private Thread runner;
   private String matchUrl="";
+  private String lastGoalEvent="";
   @Override public IBinder onBind(Intent i){return null;}
   @Override public void onCreate(){
     super.onCreate();NotificationManager m=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
@@ -54,6 +55,14 @@ public final class MonitorService extends Service {
     }
     int code=c.getResponseCode();c.disconnect();if(code!=200)throw new IOException(path+" HTTP "+code);
   }
+  private void onSseGoal(JSONObject e){
+    String unique=e.optString("eventId","")+"#"+e.optInt("goalNumber",-1);
+    if(unique.equals(lastGoalEvent))return;
+    lastGoalEvent=unique;
+    long receivedNs=SystemClock.elapsedRealtimeNanos();
+    TapService.onGoalSse(this,e,receivedNs);
+    alertGoal(e);
+  }
   private void alertGoal(JSONObject e){
     String message="Gol "+e.optInt("goalNumber",0)+" · "+e.optString("match","meci")
       +" · "+e.optString("scorer","echipă");
@@ -78,7 +87,7 @@ public final class MonitorService extends Service {
           while(active&&(line=input.readLine())!=null){
             if(line.startsWith("event:"))kind=line.substring(6).trim();
             else if(line.startsWith("data:")&&"goal".equals(kind)){
-              try{JSONObject ev=new JSONObject(line.substring(5).trim());if("goal".equals(ev.optString("kind")))alertGoal(ev);}
+              try{JSONObject ev=new JSONObject(line.substring(5).trim());if("goal".equals(ev.optString("kind")))onSseGoal(ev);}
               catch(Exception ex){Log.w("BEAST","Goal payload",ex);}
             }else if(line.length()==0)kind="";
           }

@@ -26,8 +26,8 @@ public final class MainActivity extends Activity {
       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},40);
     ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(Color.rgb(17,17,23));
     LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(18),dp(18),dp(18),dp(18));scroll.addView(box);
-    label(box,"BEAST X-RAY · Android",23);
-    label(box,"Monitorizare SSE până la 120 minute. Orice gol este notificat. Nu se plasează automat pariuri.",14);
+    label(box,"BEAST X-RAY · Android v1.1",23);
+    label(box,"Monitorizare SSE timp de 120 minute. La gol, aplicația apasă automat ținta salvată pe ecran (inclusiv peste un buton din Chrome). Confirmă personal ce face site-ul în urma atingerii.",14);
     label(box,"Cheie BEAST · salvare criptată",14);
     keyField=new EditText(this);keyField.setSingleLine(true);keyField.setTextColor(Color.WHITE);
     keyField.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -38,6 +38,10 @@ public final class MainActivity extends Activity {
     matchField.setHint("https://superbet.ro/cote/fotbal/...-12345678");
     matchField.setText(getPreferences(0).getString("match",""));box.addView(matchField);
     status=label(box,"Gata pentru conectare.",15);
+    TextView savedTarget=label(box,TapService.hasTarget(this)
+      ? "Țintă salvată: x="+getSharedPreferences(TapService.PREFS,0).getInt("x",0)+
+        " y="+getSharedPreferences(TapService.PREFS,0).getInt("y",0)
+      : "Țintă nesetată: mută bula peste buton.",14);
     button(box,"Pornește SSE 120 minute",v->{
       String key=keyField.getText().toString().trim(),match=matchField.getText().toString().trim();
       if(key.length()!=48){status.setText("Cheia BEAST trebuie să conțină 48 caractere.");return;}
@@ -51,12 +55,26 @@ public final class MainActivity extends Activity {
       }catch(Exception e){status.setText("Eroare: "+e.getMessage());}
     });
     button(box,"Oprește SSE",v->{Intent i=new Intent(this,MonitorService.class);i.setAction(MonitorService.STOP);startService(i);status.setText("Monitorizare oprită.");});
-    label(box,"Test atingere manuală Android",18);
-    label(box,"Activează BEAST la Setări → Accesibilitate. Apoi afișează bula, mut-o cu degetul și atinge-o scurt pentru un test de atingere în acel punct. Un gol SSE NU declanșează atingerea.",14);
+    label(box,"ATINGERE AUTOMATĂ · SSE → CHROME",18);
+    label(box,"1. Activează BEAST în Accesibilitate. 2. Afișează bula peste butonul din Chrome și mut-o exact pe țintă. 3. Revino aici, pornește SSE și lasă Chrome deschis, cu ecranul deblocat. La orice gol SSE se trimite automat o atingere reală către coordonatele salvate.",14);
+    CheckBox autoTap=new CheckBox(this);
+    autoTap.setText("ATUNCI CÂND VINE GOLUL SSE: ATINGERE AUTOMATĂ");
+    autoTap.setTextColor(Color.rgb(178,255,135));
+    autoTap.setChecked(getSharedPreferences(TapService.PREFS,0).getBoolean("enabled",true));
+    autoTap.setOnCheckedChangeListener((b,checked)->{
+      getSharedPreferences(TapService.PREFS,0).edit().putBoolean("enabled",checked).apply();
+      status.setText(checked?"Atingere automată activată.":"Atingere automată dezactivată.");
+    });
+    box.addView(autoTap);
+    button(box,"Execută acum atingerea la ținta aleasă",v->{
+      if(TapService.active==null){status.setText("Activează serviciul BEAST din Accesibilitate.");return;}
+      TapService.active.manualTap();
+      status.setText("Atingere Android trimisă către țintă.");
+    });
     button(box,"Deschide setările Accesibilitate",v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
     button(box,"Arată / ascunde bula BEAST",v->{
       if(TapService.active==null)status.setText("Activează BEAST în Accesibilitate înainte.");
-      else {TapService.active.toggle();status.setText("Bulă BEAST comutată.");}
+      else {TapService.active.toggle();status.setText("Bulă BEAST comutată. Mută bula peste buton și ridică degetul pentru salvarea coordonatelor.");}
     });
     setContentView(scroll);
   }
