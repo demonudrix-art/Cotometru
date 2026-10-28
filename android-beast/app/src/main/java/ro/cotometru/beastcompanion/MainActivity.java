@@ -26,7 +26,7 @@ public final class MainActivity extends Activity {
       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},40);
     ScrollView scroll=new ScrollView(this);scroll.setBackgroundColor(Color.rgb(17,17,23));
     LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(18),dp(18),dp(18),dp(18));scroll.addView(box);
-    label(box,"BEAST X-RAY · Android v1.1",23);
+    label(box,"BEAST X-RAY · Android v1.2 Sportmonks + SSE",23);
     label(box,"Monitorizare SSE timp de 120 minute. La gol, aplicația apasă automat ținta salvată pe ecran (inclusiv peste un buton din Chrome). Confirmă personal ce face site-ul în urma atingerii.",14);
     label(box,"Cheie BEAST · salvare criptată",14);
     keyField=new EditText(this);keyField.setSingleLine(true);keyField.setTextColor(Color.WHITE);
@@ -55,6 +55,50 @@ public final class MainActivity extends Activity {
       }catch(Exception e){status.setText("Eroare: "+e.getMessage());}
     });
     button(box,"Oprește SSE",v->{Intent i=new Intent(this,MonitorService.class);i.setAction(MonitorService.STOP);startService(i);status.setText("Monitorizare oprită.");});
+    label(box,"SPORTMONKS API v3 · GOL → ATINGERE AUTOMATĂ",18);
+    label(box,"Sursa nouă: goluri Sportmonks (nu SSE Superbet). Gestul Android este IDENTIC cu v1.1. Prima citire ignoră golurile deja marcate.",14);
+    label(box,"Tokenul tău Sportmonks · criptat Android Keystore",14);
+    EditText sportToken = new EditText(this);
+    sportToken.setTextColor(Color.WHITE);
+    sportToken.setSingleLine(true);
+    sportToken.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
+    sportToken.setHint("Token Sportmonks API v3");
+    sportToken.setText(SportmonksTokenStore.read(this));
+    box.addView(sportToken);
+    label(box,"ID fixture SPORTMONKS (nu ID-ul Superbet)",14);
+    EditText sportFixture = new EditText(this);
+    sportFixture.setTextColor(Color.WHITE);
+    sportFixture.setSingleLine(true);
+    sportFixture.setInputType(InputType.TYPE_CLASS_NUMBER);
+    sportFixture.setHint("Exemplu: 19429278");
+    sportFixture.setText(getSharedPreferences(SportmonksMonitorService.PREFS,0).getString("fixture_id",""));
+    box.addView(sportFixture);
+    button(box,"PORNEȘTE SPORTMONKS · 120 minute",v->{
+      String token=sportToken.getText().toString().trim();
+      String fixture=sportFixture.getText().toString().trim();
+      if(token.length()<8){status.setText("Introdu tokenul Sportmonks.");return;}
+      if(!fixture.matches("[0-9]{1,15}")){status.setText("Introdu ID-ul numeric al meciului Sportmonks.");return;}
+      try{
+        SportmonksTokenStore.save(this,token);
+        getSharedPreferences(SportmonksMonitorService.PREFS,0).edit().putString("fixture_id",fixture).apply();
+        Intent i=new Intent(this,SportmonksMonitorService.class);
+        i.setAction(SportmonksMonitorService.START);
+        i.putExtra("fixture_id",fixture);
+        startForegroundService(i);
+        status.setText("Sportmonks pornit · meci "+fixture+" · 10 secunde / verificare. Atenție la limita API.");
+      }catch(Exception e){status.setText("Sportmonks: "+e.getClass().getSimpleName());}
+    });
+    button(box,"OPREȘTE SPORTMONKS",v->{
+      Intent i=new Intent(this,SportmonksMonitorService.class);
+      i.setAction(SportmonksMonitorService.STOP);
+      startService(i);
+      status.setText("Sportmonks oprit.");
+    });
+    button(box,"VEZI ULTIMUL STATUS SPORTMONKS",v->{
+      String info=getSharedPreferences(SportmonksMonitorService.PREFS,0).getString("status","Încă nu a pornit");
+      status.setText(info);
+    });
+    label(box,"MOD VECHI (opțional): SSE Superbet. Nu porni ambele monitoare simultan.",13);
     label(box,"ATINGERE AUTOMATĂ · SSE → CHROME",18);
     label(box,"1. Activează BEAST în Accesibilitate. 2. Afișează bula peste butonul din Chrome și mut-o exact pe țintă. 3. Revino aici, pornește SSE și lasă Chrome deschis, cu ecranul deblocat. La orice gol SSE se trimite automat o atingere reală către coordonatele salvate.",14);
     CheckBox autoTap=new CheckBox(this);
