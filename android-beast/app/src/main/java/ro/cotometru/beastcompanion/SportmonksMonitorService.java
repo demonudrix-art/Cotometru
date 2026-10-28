@@ -90,8 +90,7 @@ public final class SportmonksMonitorService extends Service {
     }
 
     private JSONObject fetchFixture(String fixtureId, String token) throws Exception {
-        URL url = new URL("https://api.sportmonks.com/v3/football/fixtures/" +
-            fixtureId + "?include=events");
+        URL url = new URL("https://api.sportmonks.com/v3/football/livescores/inplay?include=events");
         HttpURLConnection c = (HttpURLConnection)url.openConnection();
         connection = c;
         try {
