@@ -86,7 +86,8 @@ public class AlertService extends Service {
                 String fixture=a.optString("fixture","Meci necunoscut");
                 int minute=a.optInt("minute",0);double px=a.optDouble("px",0);
                 String title=stage.equals("BET_NOW")?"🔴 SB Radar • BET NOW X":"🟠 SB Radar • Pregătește X";
-                String body=fixture+" • "+minute+"' • X "+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",px);
+                String score=(a.has("home_score")&&!a.isNull("home_score")&&!a.isNull("away_score"))?a.optInt("home_score")+"-"+a.optInt("away_score"):"scor neconfirmat";
+                String body=fixture+" • "+minute+"' • "+score+" • X "+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",px);
                 showAlert(this,title,body,a.optString("url",MainActivity.BASE+"/app"),key,stage.equals("BET_NOW"));
                 try{acknowledge(token,evt,stage);}catch(Exception ex){android.util.Log.w("DrixPulse","Acknowledgement retry not available");}
             }
