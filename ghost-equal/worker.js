@@ -1,3 +1,4 @@
+import {searchHistoricMatches,auditSlip} from './sb-history.js';
 import {enroll,licenseInfo,adminApi} from './sb-control.js';
 import {radarSnapshot} from './sb-radar.js';
 import {appHtml} from './sb-app-ui.js';
@@ -210,6 +211,16 @@ async function mobileApi(req,env,path){
  if(!lic.active)return json({error:'LICENTA_'+lic.status,license:lic},403);
 
  if(path==='/api/mobile/dashboard'&&req.method==='GET')return json(await mobileDashboard(env,who.device_id));
+ if(path==='/api/mobile/match-search'&&req.method==='GET'){
+  const data=await searchHistoricMatches(env,new URL(req.url).searchParams.get('q'));
+  return json({...data,matches:data.matches.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)}))});
+ }
+ if(path==='/api/mobile/bet-audit'&&req.method==='GET'){
+  const id=Number(new URL(req.url).searchParams.get('id'));
+  if(!Number.isSafeInteger(id)||id<1)return json({error:'Slip invalid'},400);
+  const audit=await auditSlip(env,who.device_id,id);
+  return audit?json(audit):json({error:'Slip inexistent'},404);
+ }
  if(path==='/api/mobile/radar-history'&&req.method==='GET'){
   const eventId=Number(new URL(req.url).searchParams.get('event_id'));
   if(!Number.isSafeInteger(eventId)||eventId<1)return json({error:'Meci invalid'},400);
@@ -232,9 +243,9 @@ async function mobileApi(req,env,path){
   return json({ok:true});
  }
  if(path==='/api/mobile/bets'&&req.method==='POST'){
-  const j=await req.json(),ref=String(j.client_ref||''),fixture=String(j.fixture||'').trim(),eventId=j.event_id==null?null:Number(j.event_id),stake=Number(j.stake_lei),odds=Number(j.odds),selection=String(j.selection||'X').trim();
-  if(!/^[0-9a-f-]{36}$/.test(ref)||fixture.length<3||fixture.length>180||!Number.isFinite(stake)||stake<.01||stake>1000000||!Number.isFinite(odds)||odds<1.001||odds>10000||!['X','GG - Nu','GG - Da','Peste 1.5','Sub 2.5','Alta selectie'].includes(selection)||(eventId!==null&&(!Number.isSafeInteger(eventId)||eventId<1)))return json({error:'Date pariului invalide'},400);
-  await env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status) VALUES(?,?,?,?,?,?,?,?,'OPEN')").bind(ref,who.device_id,selection==='X'?eventId:null,fixture,selection,Math.round(stake*100)/100,odds,iso()).run();
+  const j=await req.json(),ref=String(j.client_ref||''),fixture=String(j.fixture||'').trim(),eventId=j.event_id==null?null:Number(j.event_id),stake=Number(j.stake_lei),odds=Number(j.odds),selection=String(j.selection||'X').trim(),boost=Number(j.boost_lei||0);
+  if(!/^[0-9a-f-]{36}$/.test(ref)||fixture.length<3||fixture.length>180||!Number.isFinite(stake)||stake<.01||stake>1000000||!Number.isFinite(odds)||odds<1.001||odds>10000||!Number.isFinite(boost)||boost<0||boost>1e6||!['X','GG - Nu','GG - Da','Peste 1.5','Sub 2.5','Alta selectie'].includes(selection)||(eventId!==null&&(!Number.isSafeInteger(eventId)||eventId<1)))return json({error:'Date pariului invalide'},400);
+  await env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,boost_lei,potential_return_lei) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?)").bind(ref,who.device_id,selection==='X'?eventId:null,fixture,selection,Math.round(stake*100)/100,odds,iso(),boost,boost>0?Math.round((stake*odds+boost)*100)/100:null).run();
   const b=await env.DB.prepare('SELECT id,status,placed_utc FROM ghost_equal_bets WHERE client_ref=? AND device_id=?').bind(ref,who.device_id).first();
   return b?json({ok:true,bet:b}):json({error:'Pariul nu a putut fi salvat'},500);
  }
