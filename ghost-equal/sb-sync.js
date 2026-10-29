@@ -59,13 +59,3 @@ export async function syncActiveBets(env){
  }
  return {checked:active.length,extended_samples:samples,verified_finals:finals,errors};
 }
-export async function queueWinningNotifications(env){
- // Historical wins were seeded as acknowledged at rollout, so no retroactive noise.
- return await env.DB.prepare(
-  "INSERT OR IGNORE INTO sb_bet_win_notices(bet_id,device_id,event_id,fixture,stake_lei,returned_lei,created_utc,acked_utc) "+
-  "SELECT b.id,b.device_id,b.event_id,b.fixture,b.stake_lei,b.returned_lei,b.settled_utc,NULL "+
-  "FROM ghost_equal_bets b JOIN match_results r ON r.event_id=b.event_id "+
-  "WHERE b.status='WON' AND b.returned_lei>0 AND b.settled_utc IS NOT NULL "+
-  "AND r.verified=1 AND r.event_status='FINISHED' AND r.winner_1x2='X' "
- ).run();
-}
