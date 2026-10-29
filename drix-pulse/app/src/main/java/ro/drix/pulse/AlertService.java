@@ -75,30 +75,37 @@ public class AlertService extends Service {
             for(int i=rows.length()-1;i>=0;i--){
                 JSONObject a=rows.optJSONObject(i);if(a==null)continue;
                 String stage=a.optString("stage",""),evt=a.optString("event_id","");
-                if(!stage.equals("PREGATIRE")&&!stage.equals("BET_NOW"))continue;
+                if(!stage.equals("BET_NOW")&&!stage.equals("WIN"))continue;
                 String stamp=a.optString("triggered_utc","");
                 long at;
                 try{at=Instant.parse(stamp).toEpochMilli();}catch(Exception e){continue;}
-                if(now-at<0 || now-at>180000)continue;
-                String key="seen_"+evt+"_"+stage;
+                if(now-at<0 || now-at>(stage.equals("WIN")?21600000:180000))continue;
+                String betId=a.optString("bet_id","");
+                if(stage.equals("WIN")&&(betId.isEmpty()||!betId.matches("[0-9]+")))continue;
+                String key=stage.equals("WIN")?"seen_win_"+betId:"seen_event_"+evt;
                 if(prefs.getBoolean(key,false))continue;
-                prefs.edit().putBoolean(key,true).apply();
                 String fixture=a.optString("fixture","Meci necunoscut");
                 int minute=a.optInt("minute",0);double px=a.optDouble("px",0);
-                String title=stage.equals("BET_NOW")?"🔴 SB Radar • Alertă de intrare X":"🟠 SB Radar • Meci în apropierea pragului";
+                boolean isWin=stage.equals("WIN");
+                String title=isWin?"🏆 SB Radar • Bilet câștigător":"🔴 SB Radar • Alertă de intrare X";
                 String score=(a.has("home_score")&&!a.isNull("home_score")&&!a.isNull("away_score"))?a.optInt("home_score")+"-"+a.optInt("away_score"):"scor neconfirmat";
-                String body=fixture+" • "+minute+"' • "+score+" • X "+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",px);
-                showAlert(this,title,body,a.optString("url",MainActivity.BASE+"/app"),key,stage.equals("BET_NOW"));
-                try{acknowledge(token,evt,stage);}catch(Exception ex){android.util.Log.w("DrixPulse","Acknowledgement retry not available");}
+                String body;
+                if(isWin){
+                    double amount=a.optDouble("returned_lei",0),stake=a.optDouble("stake_lei",0);
+                    body=fixture+" • Încasare "+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",amount)+" lei • Profit +"+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",Math.max(0,amount-stake))+" lei";
+                }else body=fixture+" • "+minute+"' • "+score+" • X "+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",px);
+                showAlert(this,title,body,MainActivity.BASE+"/app",key,!isWin,isWin?betId:null,evt);
+                prefs.edit().putBoolean(key,true).apply();
+                try{acknowledge(token,evt,stage,betId);}catch(Exception ex){android.util.Log.w("DrixPulse","Alert acknowledgment pending local dedup");}
             }
         }finally{c.disconnect();}
     }
-    private void acknowledge(String token,String evt,String stage) throws Exception {
+    private void acknowledge(String token,String evt,String stage,String betId) throws Exception {
         HttpURLConnection cn=(HttpURLConnection)new URL(MainActivity.BASE+"/api/mobile/ack").openConnection();
         cn.setRequestMethod("POST");cn.setDoOutput(true);cn.setConnectTimeout(5000);cn.setReadTimeout(5000);
         cn.setRequestProperty("Authorization","Bearer "+token);
         cn.setRequestProperty("Content-Type","application/json");
-        JSONObject data=new JSONObject().put("event_id",evt).put("stage",stage);
+        JSONObject data=new JSONObject().put("event_id",evt).put("stage",stage);if("WIN".equals(stage))data.put("bet_id",betId);
         try(java.io.OutputStream os=cn.getOutputStream()){os.write(data.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}
         try{cn.getResponseCode();}finally{cn.disconnect();}
     }
@@ -122,12 +129,17 @@ public class AlertService extends Service {
             m.createNotificationChannel(high);
         }
     }
-    public static void showAlert(Context ctx,String title,String content,String link,String key,boolean urgent){
+    public static void showAlert(Context ctx,String title,String content,String link,String key,boolean urgent){showAlert(ctx,title,content,link,key,urgent,null,null);}
+    public static void showAlert(Context ctx,String title,String content,String link,String key,boolean urgent,String betId,String eventId){
         ensureChannels(ctx);
-        Intent open;
-        try{open=new Intent(Intent.ACTION_VIEW,Uri.parse(link));}
-        catch(Exception ex){open=new Intent(ctx,MainActivity.class);}
-        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        // Explicit in-app intent: external bookmaker is opened ONLY by the user.
+        Intent open=new Intent(ctx,MainActivity.class);
+        open.setAction("ro.drix.pulse.OPEN_ALERT");
+        open.putExtra("sb_open",true);
+        open.putExtra("sb_tab",betId!=null?"slip":"live");
+        if(betId!=null)open.putExtra("sb_bet_id",betId);
+        if(eventId!=null)open.putExtra("sb_event_id",eventId);
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pi=PendingIntent.getActivity(ctx,key.hashCode(),open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification n=new Notification.Builder(ctx,CH_ALERT)
                 .setSmallIcon(R.drawable.drix_icon)
