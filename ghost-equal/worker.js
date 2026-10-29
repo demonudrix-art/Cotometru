@@ -63,7 +63,7 @@ async function webpush(env,sub,payload){
 }
 async function sendAll(env,a){
  const rows=(await env.DB.prepare("SELECT token_hash,subscription FROM ghost_equal_devices WHERE enabled=1 AND subscription IS NOT NULL LIMIT 8").all()).results||[];
- const title=a.stage==='BET_NOW'?'GHOST EGAL | BET NOW X':'GHOST EGAL | PREGĂTEȘTE-TE';
+ const title=a.stage==='BET_NOW'?'SB Radar | Alertă de intrare X':'SB Radar | Meci în apropierea pragului';
  const body=a.fixture+' | '+a.minute+"' "+a.home_score+'-'+a.away_score+' | X '+Number(a.px).toFixed(2)+(a.stage==='BET_NOW'?' | Verifică prețul înainte de miză':' | verificare din minutul 57');
  const payload={title,body,eventId:a.event_id,stage:a.stage,url:matchUrl(a.event_id,a.fixture),tag:'ghost-'+a.event_id+'-'+a.stage};
  let ok=0;for(const d of rows){try{const sub=JSON.parse(d.subscription);const r=await webpush(env,sub,payload);if(r.ok)ok++;else if(r.status===404||r.status===410)await env.DB.prepare('UPDATE ghost_equal_devices SET enabled=0 WHERE token_hash=?').bind(d.token_hash).run()}catch(e){console.error('push error',String(e).slice(0,120))}}return ok;
