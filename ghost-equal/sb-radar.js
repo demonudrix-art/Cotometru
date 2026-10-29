@@ -44,7 +44,7 @@ export async function radarSnapshot(env){
    {key:'minute',label:'Pragul 57+',ok:fresh&&minute>=57}
   ];
   const approx=Math.max(0,Math.floor((Date.now()-Date.parse(r.kickoff_utc))/60000));
-  return {event_id:r.event_id,fixture:r.fixture,kickoff_utc:r.kickoff_utc,minute:fresh?minute:null,estimated_minute:fresh?null:approx,score:hasScore?String(r.home_score)+'–'+r.away_score:null,px:fresh?r.px:r.quoted_x,stage,steps,eligible:pressure&&priced&&tied&&fresh,alert:!!r.bet_now_stage,prepared:!!r.prepared_stage,updated_utc:r.sample_utc,url:urlFor(r.event_id,r.fixture),fresh};
+  return {event_id:r.event_id,fixture:r.fixture,kickoff_utc:r.kickoff_utc,minute:fresh?minute:null,last_observed_minute:minute,estimated_minute:fresh?null:approx,score:hasScore?String(r.home_score)+'–'+r.away_score:null,px:fresh?r.px:r.quoted_x,stage,steps,eligible:pressure&&priced&&tied&&fresh,alert:!!r.bet_now_stage,prepared:!!r.prepared_stage,updated_utc:r.sample_utc,url:urlFor(r.event_id,r.fixture),fresh};
  });
  const counts={tracked:radar.length,live:radar.filter(x=>x.fresh).length,nearing:radar.filter(x=>x.stage==='NEAR_57').length,signals:radar.filter(x=>x.stage==='BET_NOW').length,feedFresh:radar.some(x=>x.fresh)};
  return {radar,counts,checked_utc:now.toISOString()};
