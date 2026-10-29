@@ -25,6 +25,7 @@ import android.graphics.Color;
 
 public class AlertService extends Service {
     private static final String CH_ALERT="sb_bet_now_v2";
+    private static final String CH_WON="sb_ticket_won_v1";
     private static final String CH_MONITOR="sb_monitor_v2";
     private volatile boolean active=false;
     private ExecutorService executor;
@@ -128,6 +129,18 @@ public class AlertService extends Service {
             high.setSound(sound,new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT).build());
             m.createNotificationChannel(high);
         }
+        if(m.getNotificationChannel(CH_WON)==null){
+            NotificationChannel won=new NotificationChannel(CH_WON,"SB Radar • Bilete câștigătoare",NotificationManager.IMPORTANCE_HIGH);
+            won.setDescription("Confirmări de câștig pentru bilete decontate");
+            won.enableVibration(true);
+            won.setVibrationPattern(new long[]{0,180,120,180,120,500});
+            won.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            won.enableLights(true);
+            won.setLightColor(Color.rgb(54,208,144));
+            Uri sound=android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION);
+            won.setSound(sound,new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT).build());
+            m.createNotificationChannel(won);
+        }
     }
     public static void showAlert(Context ctx,String title,String content,String link,String key,boolean urgent){showAlert(ctx,title,content,link,key,urgent,null,null);}
     public static void showAlert(Context ctx,String title,String content,String link,String key,boolean urgent,String betId,String eventId){
@@ -141,13 +154,13 @@ public class AlertService extends Service {
         if(eventId!=null)open.putExtra("sb_event_id",eventId);
         open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pi=PendingIntent.getActivity(ctx,key.hashCode(),open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-        Notification n=new Notification.Builder(ctx,CH_ALERT)
+        Notification n=new Notification.Builder(ctx,betId!=null?CH_WON:CH_ALERT)
                 .setSmallIcon(R.drawable.drix_icon)
-                .setColor(Color.rgb(255,117,104))
+                .setColor(betId!=null?Color.rgb(54,208,144):Color.rgb(255,117,104))
                 .setColorized(urgent)
                 .setContentTitle(title)
                 .setContentText(content)
-                .setStyle(new Notification.BigTextStyle().bigText(content+" • Verifică prețul actual înainte de orice pariu"))
+                .setStyle(new Notification.BigTextStyle().bigText(betId!=null?content:content+" • Verifică prețul actual înainte de orice pariu"))
                 .setContentIntent(pi).setAutoCancel(true)
                 .setWhen(System.currentTimeMillis()).setShowWhen(true)
                 .setCategory(Notification.CATEGORY_EVENT)
