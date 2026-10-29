@@ -252,8 +252,8 @@ export default {
  async scheduled(event,env,ctx){ctx.waitUntil((async()=>{const r=await scan(env);if(r.fixtures>0)await armFastLane(env)})().catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}))},
  async fetch(req,env){const url=new URL(req.url),path=url.pathname;
   try{
-   if(path==='/app')return new Response(appHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
-   if(path==='/admin')return new Response(adminHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
+   if(path==='/app')return new Response(appHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
+   if(path==='/admin')return new Response(adminHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
    if(path.startsWith('/api/admin/'))return adminApi(req,env,path);
    if(path.startsWith('/api/mobile/'))return mobileApi(req,env,path);
    if(path==='/health')return json({service:'ghost-equal',status:'ok',version:'2.0.1'});
