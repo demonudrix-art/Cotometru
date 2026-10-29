@@ -8,6 +8,7 @@ async function pw(p,s){const k=await crypto.subtle.importKey('raw',te.encode(p),
 function origin(req){const u=new URL(req.url);return u.protocol==='https:'&&req.headers.get('Origin')===u.origin}
 function cookie(req){const c=req.headers.get('Cookie')||'';return c.split(';').map(x=>x.trim()).find(x=>x.startsWith('sbr_session='))?.slice(12)||''}
 async function logged(req,env){const t=cookie(req);if(!/^[a-zA-Z0-9_-]{30,80}$/.test(t))return false;return !!await env.DB.prepare('SELECT 1 yes FROM sb_admin_sessions WHERE token_hash=? AND expires_utc>?').bind(await digest(t),utc()).first()}
+export async function adminAuthenticated(req,env){return logged(req,env)}
 async function attempts(req,env){const h=await digest('sbr-admin|'+(req.headers.get('CF-Connecting-IP')||'unknown'));const o=await env.DB.prepare('SELECT count,window_utc FROM sb_login_attempts WHERE ip_hash=?').bind(h).first();if(o&&Date.now()-Date.parse(o.window_utc)<900000&&o.count>=10)return true;if(!o||Date.now()-Date.parse(o.window_utc)>=900000)await env.DB.prepare('INSERT INTO sb_login_attempts(ip_hash,count,window_utc) VALUES(?,1,?) ON CONFLICT(ip_hash) DO UPDATE SET count=1,window_utc=excluded.window_utc').bind(h,utc()).run();else await env.DB.prepare('UPDATE sb_login_attempts SET count=count+1 WHERE ip_hash=?').bind(h).run();return false}
 export async function licenseInfo(env,device){
  const x=await env.DB.prepare('SELECT d.blocked,l.status,l.expires_utc FROM ghost_equal_mobile_devices d LEFT JOIN sb_licenses l ON l.device_id=d.device_id WHERE d.device_id=?').bind(device).first();
