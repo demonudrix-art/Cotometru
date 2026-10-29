@@ -199,6 +199,34 @@ async function settleVerified(env){
  ).bind(at).run();
  return {settled:Number(result.meta?.changes||0),checked_utc:at};
 }
+// Server-trusted role: never derive permissions from a name supplied by Android.
+async function hasPrivateAnalytics(env,deviceId){
+ const row=await env.DB.prepare(
+  "SELECT 1 AS permitted FROM sb_device_profiles p "+
+  "JOIN sb_admin a ON LOWER(a.username)=LOWER(p.username) AND a.id=1 "+
+  "JOIN ghost_equal_mobile_devices d ON d.device_id=p.device_id "+
+  "JOIN sb_licenses l ON l.device_id=p.device_id "+
+  "WHERE p.device_id=? AND p.is_owner=1 AND d.blocked=0 AND l.status='ACTIVE' AND l.expires_utc>? LIMIT 1"
+ ).bind(deviceId,iso()).first();
+ return !!row;
+}
+function publicRadarItem(x){
+ const {steps,eligible,prepared,reason,...safe}=x;
+ return {...safe,reason:x.bucket==='ARCHIVED'?'Meci încheiat sau retras':x.bucket==='WATCH'?'Actualizare în curs':'Monitorizare activă'};
+}
+function publicMatchAudit(a){
+ // Explicit allowlist: never serialize generosity, market differential, raw
+ // samples, reference capture, private strategy thresholds or source metadata.
+ const s=a.signal;
+ return {
+  visibility:'public',event_id:a.event_id,fixture:a.fixture,kickoff_utc:a.kickoff_utc,
+  status:s?'ALERTED':'MONITORING',
+  signal:s?{stage:s.stage,minute:s.minute,triggered_utc:s.triggered_utc,home_score:s.home_score,away_score:s.away_score,px:s.px}:null,
+  result:a.result?{event_status:a.result.event_status,verified:a.result.verified,home_score:a.result.home_score,away_score:a.result.away_score}:null,
+  bets:a.bets,bet:a.bet
+ };
+}
+
 async function mobileDashboard(env,deviceId){
  await settleVerified(env);
  const alerts=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,home_score,away_score,px FROM ghost_equal_alerts WHERE triggered_utc>=? ORDER BY triggered_utc DESC LIMIT 45").bind(new Date(Date.now()-72*3600000).toISOString()).all()).results||[];
@@ -223,8 +251,13 @@ async function mobileApi(req,env,path){
  if(path==='/api/mobile/license'&&req.method==='GET')return json({license:lic});
  if(!lic.active)return json({error:'LICENTA_'+lic.status,license:lic},403);
  if(path==='/api/mobile/profile'||path==='/api/mobile/profile/link-owner')return profileApi(req,env,path,who.device_id,adminAuthenticated);
+ const privateAnalytics=await hasPrivateAnalytics(env,who.device_id);
 
- if(path==='/api/mobile/dashboard'&&req.method==='GET')return json(await mobileDashboard(env,who.device_id));
+ if(path==='/api/mobile/dashboard'&&req.method==='GET'){
+  const d=await mobileDashboard(env,who.device_id);
+  if(privateAnalytics)return json({...d,detailAccess:'owner'});
+  return json({...d,detailAccess:'public',radar:d.radar.map(publicRadarItem),watchlist:d.watchlist.map(publicRadarItem),archived:d.archived.map(publicRadarItem)});
+ }
  if(path==='/api/mobile/match-search'&&req.method==='GET'){
   const data=await searchHistoricMatches(env,new URL(req.url).searchParams.get('q'));
   return json({...data,matches:data.matches.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)}))});
@@ -234,15 +267,18 @@ async function mobileApi(req,env,path){
   const eventId=Number(params.get('event_id')),betId=params.has('bet_id')?Number(params.get('bet_id')):null;
   if(!Number.isSafeInteger(eventId)||eventId<1||(betId!==null&&(!Number.isSafeInteger(betId)||betId<1)))return json({error:'Identificator invalid'},400);
   const audit=await auditMatch(env,who.device_id,eventId,betId);
-  return audit?json(audit):json({error:'Meci negăsit în istoric'},404);
+  return audit?json(privateAnalytics?{...audit,visibility:'owner'}:publicMatchAudit(audit)):json({error:'Meci negăsit în istoric'},404);
  }
  if(path==='/api/mobile/bet-audit'&&req.method==='GET'){
   const id=Number(new URL(req.url).searchParams.get('id'));
   if(!Number.isSafeInteger(id)||id<1)return json({error:'Slip invalid'},400);
   const audit=await auditSlip(env,who.device_id,id);
-  return audit?json(audit):json({error:'Slip inexistent'},404);
+  if(!audit)return json({error:'Slip inexistent'},404);
+  if(privateAnalytics)return json({...audit,visibility:'owner'});
+  return json({visibility:'public',bet:audit.bet,result:audit.result?{event_status:audit.result.event_status,verified:audit.result.verified,home_score:audit.result.home_score,away_score:audit.result.away_score}:null,signal:audit.signal?{stage:audit.signal.stage,minute:audit.signal.minute,triggered_utc:audit.signal.triggered_utc}:null});
  }
  if(path==='/api/mobile/radar-history'&&req.method==='GET'){
+  if(!privateAnalytics)return json({error:'Analiza detaliată este disponibilă numai în contul proprietarului'},403);
   const eventId=Number(new URL(req.url).searchParams.get('event_id'));
   if(!Number.isSafeInteger(eventId)||eventId<1)return json({error:'Meci invalid'},400);
   const exists=await env.DB.prepare("SELECT 1 ok FROM quote_state WHERE event_id=? LIMIT 1").bind(eventId).first();
