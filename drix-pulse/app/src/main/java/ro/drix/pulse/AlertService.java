@@ -86,8 +86,18 @@ public class AlertService extends Service {
                 String title=stage.equals("BET_NOW")?"🔴 DRIX Pulse • BET NOW X":"🟠 DRIX Pulse • Pregătește X";
                 String body=fixture+" • "+minute+"' • X "+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",px);
                 showAlert(this,title,body,a.optString("url",MainActivity.BASE+"/app"),key,stage.equals("BET_NOW"));
+                try{acknowledge(token,evt,stage);}catch(Exception ex){android.util.Log.w("DrixPulse","Acknowledgement retry not available");}
             }
         }finally{c.disconnect();}
+    }
+    private void acknowledge(String token,String evt,String stage) throws Exception {
+        HttpURLConnection cn=(HttpURLConnection)new URL(MainActivity.BASE+"/api/mobile/ack").openConnection();
+        cn.setRequestMethod("POST");cn.setDoOutput(true);cn.setConnectTimeout(5000);cn.setReadTimeout(5000);
+        cn.setRequestProperty("Authorization","Bearer "+token);
+        cn.setRequestProperty("Content-Type","application/json");
+        JSONObject data=new JSONObject().put("event_id",evt).put("stage",stage);
+        try(java.io.OutputStream os=cn.getOutputStream()){os.write(data.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));}
+        try{cn.getResponseCode();}finally{cn.disconnect();}
     }
     public static void ensureChannels(Context ctx){
         NotificationManager m=(NotificationManager)ctx.getSystemService(Context.NOTIFICATION_SERVICE);
