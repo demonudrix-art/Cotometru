@@ -36,7 +36,7 @@ public class AlertService extends Service {
         Notification n=new Notification.Builder(this,CH_MONITOR)
                 .setSmallIcon(R.drawable.drix_icon)
                 .setContentTitle("SB Radar • Monitor activ")
-                .setContentText("Urmărește semnalele GHOST EGAL în fundal")
+                .setContentText("Monitorizare fotbal live și alerte personalizate")
                 .setOngoing(true).setVisibility(Notification.VISIBILITY_PRIVATE)
                 .build();
         startForeground(42,n);
@@ -85,7 +85,7 @@ public class AlertService extends Service {
                 prefs.edit().putBoolean(key,true).apply();
                 String fixture=a.optString("fixture","Meci necunoscut");
                 int minute=a.optInt("minute",0);double px=a.optDouble("px",0);
-                String title=stage.equals("BET_NOW")?"🔴 SB Radar • BET NOW X":"🟠 SB Radar • Pregătește X";
+                String title=stage.equals("BET_NOW")?"🔴 SB Radar • Alertă de intrare X":"🟠 SB Radar • Meci în apropierea pragului";
                 String score=(a.has("home_score")&&!a.isNull("home_score")&&!a.isNull("away_score"))?a.optInt("home_score")+"-"+a.optInt("away_score"):"scor neconfirmat";
                 String body=fixture+" • "+minute+"' • "+score+" • X "+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",px);
                 showAlert(this,title,body,a.optString("url",MainActivity.BASE+"/app"),key,stage.equals("BET_NOW"));
@@ -111,7 +111,7 @@ public class AlertService extends Service {
             m.createNotificationChannel(low);
         }
         if(m.getNotificationChannel(CH_ALERT)==null){
-            NotificationChannel high=new NotificationChannel(CH_ALERT,"SB Radar • Alerte BET NOW",NotificationManager.IMPORTANCE_HIGH);
+            NotificationChannel high=new NotificationChannel(CH_ALERT,"SB Radar • Alerte de joc",NotificationManager.IMPORTANCE_HIGH);
             high.setDescription("Alerte cu sunet, vibrație și afișare pe ecran blocat");
             high.enableVibration(true);
             high.setVibrationPattern(new long[]{0,220,110,330,130,420});
