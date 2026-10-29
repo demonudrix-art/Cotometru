@@ -4,7 +4,7 @@ const json=(x,s=200,h={})=>new Response(JSON.stringify(x),{status:s,headers:{"Co
 async function digest(t){const a=new Uint8Array(await crypto.subtle.digest('SHA-256',te.encode(t)));return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
 async function oldDigest(t){const a=new Uint8Array(await crypto.subtle.digest('SHA-256',te.encode(t)));return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function random(n=32){const a=crypto.getRandomValues(new Uint8Array(n));return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
-async function pw(p,s){const k=await crypto.subtle.importKey('raw',te.encode(p),'PBKDF2',false,['deriveBits']);const a=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:te.encode(s),iterations:160000,hash:'SHA-256'},k,256));return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
+async function pw(p,s){const k=await crypto.subtle.importKey('raw',te.encode(p),'PBKDF2',false,['deriveBits']);const a=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:te.encode(s),iterations:100000,hash:'SHA-256'},k,256));return Array.from(a,b=>b.toString(16).padStart(2,'0')).join('')}
 function origin(req){const u=new URL(req.url);return u.protocol==='https:'&&req.headers.get('Origin')===u.origin}
 function cookie(req){const c=req.headers.get('Cookie')||'';return c.split(';').map(x=>x.trim()).find(x=>x.startsWith('sbr_session='))?.slice(12)||''}
 async function logged(req,env){const t=cookie(req);if(!/^[a-zA-Z0-9_-]{30,80}$/.test(t))return false;return !!await env.DB.prepare('SELECT 1 yes FROM sb_admin_sessions WHERE token_hash=? AND expires_utc>?').bind(await digest(t),utc()).first()}
