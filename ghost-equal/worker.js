@@ -184,19 +184,23 @@ showMonitor();$('placed').value=tm(new Date().toISOString());load();setInterval(
 </script></body></html>`}
 async function mobileWho(req,env){const t=(req.headers.get('Authorization')||'').replace(/^Bearer /,'');if(t.length<35)return null;return await env.DB.prepare('SELECT device_id FROM ghost_equal_mobile_devices WHERE token_hash=?').bind(await hash(t)).first();}
 async function settleVerified(env){
- await env.DB.prepare("UPDATE ghost_equal_bets SET status=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN 'WON' ELSE 'LOST' END,returned_lei=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN ROUND(stake_lei*odds,2) ELSE 0 END,settled_utc=? WHERE status='OPEN' AND event_id IS NOT NULL AND event_id IN (SELECT event_id FROM match_results WHERE verified=1 AND winner_1x2 IN ('1','X','2'))").bind(iso()).run();
+ await env.DB.prepare("UPDATE ghost_equal_bets SET status=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN 'WON' ELSE 'LOST' END,returned_lei=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN ROUND(stake_lei*odds,2) ELSE 0 END,settled_utc=? WHERE selection='X' AND status='OPEN' AND event_id IS NOT NULL AND event_id IN (SELECT event_id FROM match_results WHERE verified=1 AND event_status='FINISHED' AND winner_1x2 IN ('1','X','2'))").bind(iso()).run();
 }
 async function mobileDashboard(env,deviceId){
  await settleVerified(env);
  const alerts=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,home_score,away_score,px FROM ghost_equal_alerts WHERE triggered_utc>=? ORDER BY triggered_utc DESC LIMIT 45").bind(new Date(Date.now()-72*3600000).toISOString()).all()).results||[];
  const bets=(await env.DB.prepare('SELECT id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,returned_lei,settled_utc FROM ghost_equal_bets WHERE device_id=? ORDER BY placed_utc DESC,id DESC LIMIT 300').bind(deviceId).all()).results||[];
- const a=await env.DB.prepare("SELECT COUNT(*) total, SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) open, SUM(CASE WHEN status<>'OPEN' THEN stake_lei ELSE 0 END) settledStake, SUM(CASE WHEN status<>'OPEN' THEN returned_lei-stake_lei ELSE 0 END) net, SUM(CASE WHEN status='WON' THEN 1 ELSE 0 END) wins, SUM(CASE WHEN status IN ('WON','LOST') THEN 1 ELSE 0 END) graded FROM ghost_equal_bets WHERE device_id=?").bind(deviceId).first();
- const settledStake=Number(a?.settledStake||0),net=Number(a?.net||0),graded=Number(a?.graded||0);
+ const roiQuery="SELECT COUNT(*) total, SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) open, SUM(CASE WHEN status<>'OPEN' THEN stake_lei ELSE 0 END) settledStake, SUM(CASE WHEN status<>'OPEN' THEN returned_lei-stake_lei ELSE 0 END) net, SUM(CASE WHEN status='WON' THEN 1 ELSE 0 END) wins, SUM(CASE WHEN status IN ('WON','LOST') THEN 1 ELSE 0 END) graded FROM ghost_equal_bets WHERE device_id=?";
+ const a=await env.DB.prepare(roiQuery).bind(deviceId).first();
+ const g=await env.DB.prepare(roiQuery+" AND selection='X'").bind(deviceId).first();
+ const metrics=r=>{const settledStake=Number(r?.settledStake||0),net=Number(r?.net||0),graded=Number(r?.graded||0);return {total:Number(r?.total||0),open:Number(r?.open||0),settledStake,net:Math.round(net*100)/100,roi:settledStake?Math.round(net/settledStake*10000)/100:null,winrate:graded?Math.round(Number(r?.wins||0)/graded*10000)/100:null}};
+ 
+ 
  const radarInfo=await radarSnapshot(env);
  const scan=await env.DB.prepare('SELECT checked_utc FROM ghost_equal_runs ORDER BY id DESC LIMIT 1').first();
  const receipt=await env.DB.prepare('SELECT r.received_utc,a.triggered_utc FROM ghost_equal_mobile_receipts r JOIN ghost_equal_alerts a ON r.event_id=a.event_id AND r.stage=a.stage WHERE r.device_id=? ORDER BY r.received_utc DESC LIMIT 1').bind(deviceId).first();
  const lastDelivery=receipt?{received_utc:receipt.received_utc,lag_sec:Math.max(0,Math.round((Date.parse(receipt.received_utc)-Date.parse(receipt.triggered_utc))/1000))}:null;
- return {lastScan:scan?.checked_utc||null,radar:radarInfo.radar,counts:radarInfo.counts,lastDelivery,alerts:alerts.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)})),bets,roi:{total:Number(a?.total||0),open:Number(a?.open||0),settledStake,net:Math.round(net*100)/100,roi:settledStake?Math.round(net/settledStake*10000)/100:null,winrate:graded?Math.round(Number(a?.wins||0)/graded*10000)/100:null}};
+ return {lastScan:scan?.checked_utc||null,radar:radarInfo.radar,counts:radarInfo.counts,lastDelivery,alerts:alerts.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)})),bets,roi:metrics(a),roiGhost:metrics(g)};
 }
 async function mobileApi(req,env,path){
  if(path==='/api/mobile/claim'&&req.method==='POST')return enroll(env,await req.json());
@@ -228,9 +232,9 @@ async function mobileApi(req,env,path){
   return json({ok:true});
  }
  if(path==='/api/mobile/bets'&&req.method==='POST'){
-  const j=await req.json(),ref=String(j.client_ref||''),fixture=String(j.fixture||'').trim(),eventId=j.event_id==null?null:Number(j.event_id),stake=Number(j.stake_lei),odds=Number(j.odds);
-  if(!/^[0-9a-f-]{36}$/.test(ref)||fixture.length<3||fixture.length>180||!Number.isFinite(stake)||stake<.01||stake>1000000||!Number.isFinite(odds)||odds<1.01||odds>10000||(eventId!==null&&(!Number.isSafeInteger(eventId)||eventId<1)))return json({error:'Date pariului invalide'},400);
-  await env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status) VALUES(?,?,?,?, 'X',?,?,?,'OPEN')").bind(ref,who.device_id,eventId,fixture,Math.round(stake*100)/100,odds,iso()).run();
+  const j=await req.json(),ref=String(j.client_ref||''),fixture=String(j.fixture||'').trim(),eventId=j.event_id==null?null:Number(j.event_id),stake=Number(j.stake_lei),odds=Number(j.odds),selection=String(j.selection||'X').trim();
+  if(!/^[0-9a-f-]{36}$/.test(ref)||fixture.length<3||fixture.length>180||!Number.isFinite(stake)||stake<.01||stake>1000000||!Number.isFinite(odds)||odds<1.001||odds>10000||!['X','GG - Nu','GG - Da','Peste 1.5','Sub 2.5','Alta selectie'].includes(selection)||(eventId!==null&&(!Number.isSafeInteger(eventId)||eventId<1)))return json({error:'Date pariului invalide'},400);
+  await env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status) VALUES(?,?,?,?,?,?,?,?,'OPEN')").bind(ref,who.device_id,selection==='X'?eventId:null,fixture,selection,Math.round(stake*100)/100,odds,iso()).run();
   const b=await env.DB.prepare('SELECT id,status,placed_utc FROM ghost_equal_bets WHERE client_ref=? AND device_id=?').bind(ref,who.device_id).first();
   return b?json({ok:true,bet:b}):json({error:'Pariul nu a putut fi salvat'},500);
  }
