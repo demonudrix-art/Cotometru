@@ -9,7 +9,7 @@ export async function ticketOverlay(env,bets){
   const marks=ids.map(()=>'?').join(',');
   const sql="SELECT q.event_id,q.fixture,q.kickoff_utc,q.last_status,q.settled AS fixture_settled,q.captured_utc AS quote_utc,"+
    "s.minute,s.home_score,s.away_score,s.captured_utc AS sample_utc,"+
-   "m.event_status,m.verified AS result_verified,m.home_score AS final_home,m.away_score AS final_away "+
+   "m.event_status,m.verified AS result_verified,m.winner_1x2,m.result_market_json,m.home_score AS final_home,m.away_score AS final_away "+
    "FROM quote_state q "+
    "LEFT JOIN ghost_equal_samples s ON s.event_id=q.event_id AND s.minute=(SELECT MAX(z.minute) FROM ghost_equal_samples z WHERE z.event_id=q.event_id) "+
    "LEFT JOIN match_results m ON m.event_id=q.event_id WHERE q.event_id IN ("+marks+")";
@@ -20,7 +20,7 @@ export async function ticketOverlay(env,bets){
   const r=map.get(Number(b.event_id));
   const sampleMinute=r?.minute==null?null:Number(r.minute),sampleUtc=r?.sample_utc||null;
   const stale=sampleUtc===null||!Number.isFinite(Date.parse(sampleUtc))||now-Date.parse(sampleUtc)>210000;
-  const completed=Number(r?.result_verified)===1&&String(r?.event_status||'').toUpperCase()==='FINISHED';
+  const completed=Number(r?.result_verified)===1&&['1','X','2'].includes(String(r?.winner_1x2||''))&&r?.result_market_json!=null;
   // Live state never equals the final betting outcome. No red on stale/unknown data.
   // Only X tickets receive "draw / not draw" status.
   const liveTicketState=completed?'FINISHED':b.selection!=='X'?'OTHER_MARKET':stale?'UNKNOWN':
@@ -47,7 +47,7 @@ export async function ticketOverlay(env,bets){
  }).filter(t=>!t.finished_verified);
  // A confirmed final result removes the OPEN ticket from radar at once,
  // even if the finance settlement pass has not yet run. SLIP/ROI persists.
- return {tickets:cards,hiddenFinishedEventIds:[...new Set(wanted.filter(b=>map.get(Number(b.event_id)) && Number(map.get(Number(b.event_id)).result_verified)===1 && String(map.get(Number(b.event_id)).event_status||'').toUpperCase()==='FINISHED').map(b=>Number(b.event_id)))],counts:{
+ return {tickets:cards,hiddenFinishedEventIds:[...new Set(wanted.filter(b=>map.get(Number(b.event_id)) && Number(map.get(Number(b.event_id)).result_verified)===1 && ['1','X','2'].includes(String(map.get(Number(b.event_id)).winner_1x2||''))&&map.get(Number(b.event_id)).result_market_json!=null).map(b=>Number(b.event_id)))],counts:{
   open:cards.filter(x=>x.status==='OPEN').length,
   recent_finished:cards.filter(x=>x.status!=='OPEN').length,
   open_stake:Math.round(cards.filter(x=>x.status==='OPEN').reduce((a,x)=>a+x.stake_lei,0)*100)/100
