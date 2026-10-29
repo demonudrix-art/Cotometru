@@ -38,7 +38,7 @@ export async function profileApi(req,env,path,deviceId,adminAuthenticated){
   if(admin&&String(p.username).toLowerCase()===String(admin.username).toLowerCase()&&username.toLowerCase()!==String(admin.username).toLowerCase())return json({error:'Utilizatorul administratorului este protejat. Poți modifica doar numele afișat și avatarul.'},409);
   if(p.is_owner&&admin&&username.toLowerCase()!==String(admin.username).toLowerCase())return json({error:'Numele contului proprietar este gestionat din administrare'},409);
   try{
-   const res=await env.DB.prepare('UPDATE sb_device_profiles SET username=?,username_locked=1,display_name=?,avatar_theme=?,avatar_icon=?,updated_utc=? WHERE device_id=?').bind(username,displayName,theme,avatarIcon,utc(),deviceId).run();
+   const res=await env.DB.prepare('UPDATE sb_device_profiles SET username=?,username_locked=CASE WHEN LOWER(username)<>LOWER(?) THEN 1 ELSE username_locked END,display_name=?,avatar_theme=?,avatar_icon=?,updated_utc=? WHERE device_id=?').bind(username,p.username,displayName,theme,avatarIcon,utc(),deviceId).run();
    if(!res.meta?.changes)return json({error:'Profil indisponibil'},404);
   }catch(e){if(/UNIQUE|constraint/i.test(String(e)))return json({error:'Numele de utilizator este deja folosit'},409);throw e}
   p=await ensureProfile(env,deviceId);return json({ok:true,profile:{...p,is_owner:!!p.is_owner}});
