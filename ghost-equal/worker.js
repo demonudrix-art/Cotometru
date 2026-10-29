@@ -186,7 +186,17 @@ showMonitor();$('placed').value=tm(new Date().toISOString());load();setInterval(
 </script></body></html>`}
 async function mobileWho(req,env){const t=(req.headers.get('Authorization')||'').replace(/^Bearer /,'');if(t.length<35)return null;return await env.DB.prepare('SELECT device_id FROM ghost_equal_mobile_devices WHERE token_hash=?').bind(await hash(t)).first();}
 async function settleVerified(env){
- await env.DB.prepare("UPDATE ghost_equal_bets SET status=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN 'WON' ELSE 'LOST' END,returned_lei=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN COALESCE(potential_return_lei,ROUND(stake_lei*odds,2)) ELSE 0 END,settled_utc=? WHERE selection='X' AND status='OPEN' AND event_id IS NOT NULL AND event_id IN (SELECT event_id FROM match_results WHERE verified=1 AND event_status='FINISHED' AND winner_1x2 IN ('1','X','2'))").bind(iso()).run();
+ // Only verified FINAL result for the correct event, never live 0-0 / halftime / guess.
+ // Using a single conditional UPDATE prevents duplicate decontări across dashboard and cron.
+ const at=iso();
+ const result=await env.DB.prepare(
+  "UPDATE ghost_equal_bets SET "+
+  "status=CASE WHEN (SELECT winner_1x2 FROM match_results m WHERE m.event_id=ghost_equal_bets.event_id AND m.verified=1 AND m.event_status='FINISHED')='X' THEN 'WON' ELSE 'LOST' END,"+
+  "returned_lei=CASE WHEN (SELECT winner_1x2 FROM match_results m WHERE m.event_id=ghost_equal_bets.event_id AND m.verified=1 AND m.event_status='FINISHED')='X' THEN COALESCE(potential_return_lei,ROUND(stake_lei*odds,2)) ELSE 0 END,"+
+  "settled_utc=? WHERE selection='X' AND status='OPEN' AND event_id IS NOT NULL "+
+  "AND event_id IN (SELECT event_id FROM match_results WHERE verified=1 AND event_status='FINISHED' AND winner_1x2 IN ('1','X','2'))"
+ ).bind(at).run();
+ return {settled:Number(result.meta?.changes||0),checked_utc:at};
 }
 async function mobileDashboard(env,deviceId){
  await settleVerified(env);
@@ -273,7 +283,11 @@ async function mobileApi(req,env,path){
 }
 
 export default {
- async scheduled(event,env,ctx){ctx.waitUntil((async()=>{const r=await scan(env);if(r.fixtures>0)await armFastLane(env)})().catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}))},
+ async scheduled(event,env,ctx){
+  // Independent cron pipelines: bet settlement runs every minute even if the live scan fails.
+  ctx.waitUntil(settleVerified(env).catch(e=>console.error('AUTO_SETTLEMENT_ERROR',String(e))));
+  ctx.waitUntil((async()=>{const r=await scan(env);if(r.fixtures>0)await armFastLane(env)})().catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}));
+ },
  async fetch(req,env){const url=new URL(req.url),path=url.pathname;
   try{
    if(path==='/app')return new Response(appHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
