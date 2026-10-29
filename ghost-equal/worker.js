@@ -209,10 +209,10 @@ async function settleVerified(env){
  const at=iso();
  const result=await env.DB.prepare(
   "UPDATE ghost_equal_bets SET "+
-  "status=CASE WHEN (SELECT winner_1x2 FROM match_results m WHERE m.event_id=ghost_equal_bets.event_id AND m.verified=1 AND m.event_status='FINISHED')='X' THEN 'WON' ELSE 'LOST' END,"+
-  "returned_lei=CASE WHEN (SELECT winner_1x2 FROM match_results m WHERE m.event_id=ghost_equal_bets.event_id AND m.verified=1 AND m.event_status='FINISHED')='X' THEN COALESCE(potential_return_lei,ROUND(stake_lei*odds,2)) ELSE 0 END,"+
+  "status=CASE WHEN (SELECT winner_1x2 FROM match_results m WHERE m.event_id=ghost_equal_bets.event_id AND m.verified=1 AND m.result_market_json IS NOT NULL)='X' THEN 'WON' ELSE 'LOST' END,"+
+  "returned_lei=CASE WHEN (SELECT winner_1x2 FROM match_results m WHERE m.event_id=ghost_equal_bets.event_id AND m.verified=1 AND m.result_market_json IS NOT NULL)='X' THEN COALESCE(potential_return_lei,ROUND(stake_lei*odds,2)) ELSE 0 END,"+
   "settled_utc=? WHERE selection='X' AND status='OPEN' AND event_id IS NOT NULL "+
-  "AND event_id IN (SELECT event_id FROM match_results WHERE verified=1 AND event_status='FINISHED' AND winner_1x2 IN ('1','X','2'))"
+  "AND event_id IN (SELECT event_id FROM match_results WHERE verified=1 AND result_market_json IS NOT NULL AND winner_1x2 IN ('1','X','2'))"
  ).bind(at).run();
  return {settled:Number(result.meta?.changes||0),checked_utc:at};
 }
@@ -319,7 +319,7 @@ async function mobileApi(req,env,path){
   const w=(await env.DB.prepare(
    "SELECT b.id AS bet_id,b.event_id,b.fixture,b.selection,b.stake_lei,b.returned_lei,b.settled_utc,b.odds "+
    "FROM ghost_equal_bets b JOIN match_results r ON r.event_id=b.event_id "+
-   "WHERE b.device_id=? AND b.status='WON' AND r.verified=1 AND r.event_status='FINISHED' AND r.winner_1x2='X' "+
+   "WHERE b.device_id=? AND b.status='WON' AND r.verified=1 AND r.result_market_json IS NOT NULL AND r.winner_1x2='X' "+
    "AND b.settled_utc >= (SELECT start_utc FROM sb_notification_settings WHERE kind='WIN') "+
    "AND NOT EXISTS(SELECT 1 FROM sb_win_notification_receipts seen WHERE seen.bet_id=b.id AND seen.device_id=b.device_id) "+
    "ORDER BY b.settled_utc DESC LIMIT 10"
@@ -334,7 +334,7 @@ async function mobileApi(req,env,path){
   if(stage==='WIN'){
    const betId=Number(j.bet_id);
    if(!Number.isSafeInteger(betId)||betId<1)return json({error:'Slip invalid'},400);
-   const verified=await env.DB.prepare("SELECT 1 AS ok FROM ghost_equal_bets b JOIN match_results r ON r.event_id=b.event_id WHERE b.id=? AND b.device_id=? AND b.status='WON' AND r.verified=1 AND r.event_status='FINISHED' AND r.winner_1x2='X' LIMIT 1").bind(betId,who.device_id).first();
+   const verified=await env.DB.prepare("SELECT 1 AS ok FROM ghost_equal_bets b JOIN match_results r ON r.event_id=b.event_id WHERE b.id=? AND b.device_id=? AND b.status='WON' AND r.verified=1 AND r.result_market_json IS NOT NULL AND r.winner_1x2='X' LIMIT 1").bind(betId,who.device_id).first();
    if(!verified)return json({error:'Câștig neconfirmat'},404);
    await env.DB.prepare('INSERT OR IGNORE INTO sb_win_notification_receipts(bet_id,device_id,received_utc) VALUES(?,?,?)').bind(betId,who.device_id,iso()).run();
    return json({ok:true});
