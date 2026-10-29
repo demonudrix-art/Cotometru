@@ -226,7 +226,7 @@ async function mobileApi(req,env,path){
   if(!Number.isSafeInteger(eventId)||eventId<1)return json({error:'Meci invalid'},400);
   const exists=await env.DB.prepare("SELECT 1 ok FROM quote_state WHERE event_id=? LIMIT 1").bind(eventId).first();
   if(!exists)return json({error:'Meci indisponibil'},404);
-  const rows=(await env.DB.prepare("SELECT minute,home_score,away_score,gh,ga,px,captured_utc FROM ghost_equal_samples WHERE event_id=? ORDER BY minute DESC LIMIT 65").bind(eventId).all()).results||[];
+  const rows=(await env.DB.prepare("SELECT minute,home_score,away_score,gh,ga,px,captured_utc FROM ghost_equal_samples WHERE event_id=? ORDER BY minute DESC LIMIT 110").bind(eventId).all()).results||[];
   return json({event_id:eventId,samples:rows.reverse().map(x=>({...x,minute:Number(x.minute),gh:x.gh===null?null:Number(x.gh),ga:x.ga===null?null:Number(x.ga)}))});
  }
 
@@ -243,9 +243,9 @@ async function mobileApi(req,env,path){
   return json({ok:true});
  }
  if(path==='/api/mobile/bets'&&req.method==='POST'){
-  const j=await req.json(),ref=String(j.client_ref||''),fixture=String(j.fixture||'').trim(),eventId=j.event_id==null?null:Number(j.event_id),stake=Number(j.stake_lei),odds=Number(j.odds),selection=String(j.selection||'X').trim(),boost=Number(j.boost_lei||0);
-  if(!/^[0-9a-f-]{36}$/.test(ref)||fixture.length<3||fixture.length>180||!Number.isFinite(stake)||stake<.01||stake>1000000||!Number.isFinite(odds)||odds<1.001||odds>10000||!Number.isFinite(boost)||boost<0||boost>1e6||!['X','GG - Nu','GG - Da','Peste 1.5','Sub 2.5','Alta selectie'].includes(selection)||(eventId!==null&&(!Number.isSafeInteger(eventId)||eventId<1)))return json({error:'Date pariului invalide'},400);
-  await env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,boost_lei,potential_return_lei) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?)").bind(ref,who.device_id,selection==='X'?eventId:null,fixture,selection,Math.round(stake*100)/100,odds,iso(),boost,boost>0?Math.round((stake*odds+boost)*100)/100:null).run();
+  const j=await req.json(),ref=String(j.client_ref||''),fixture=String(j.fixture||'').trim(),eventId=j.event_id==null?null:Number(j.event_id),stake=Number(j.stake_lei),odds=Number(j.odds),selection=String(j.selection||'X').trim(),boost=Number(j.boost_lei||0),placed=j.placed_utc?String(j.placed_utc):iso();
+  if(!/^[0-9a-f-]{36}$/.test(ref)||fixture.length<3||fixture.length>180||!Number.isFinite(stake)||stake<.01||stake>1000000||!Number.isFinite(odds)||odds<1.001||odds>10000||!Number.isFinite(boost)||boost<0||boost>1e6||!Number.isFinite(Date.parse(placed))||Date.parse(placed)>Date.now()+300000||Date.parse(placed)<Date.now()-365*86400000||!['X','GG - Nu','GG - Da','Peste 1.5','Sub 2.5','Alta selectie'].includes(selection)||(eventId!==null&&(!Number.isSafeInteger(eventId)||eventId<1)))return json({error:'Date pariului invalide'},400);
+  await env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,boost_lei,potential_return_lei) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?)").bind(ref,who.device_id,selection==='X'?eventId:null,fixture,selection,Math.round(stake*100)/100,odds,new Date(placed).toISOString(),boost,boost>0?Math.round((stake*odds+boost)*100)/100:null).run();
   const b=await env.DB.prepare('SELECT id,status,placed_utc FROM ghost_equal_bets WHERE client_ref=? AND device_id=?').bind(ref,who.device_id).first();
   return b?json({ok:true,bet:b}):json({error:'Pariul nu a putut fi salvat'},500);
  }
