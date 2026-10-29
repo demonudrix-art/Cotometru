@@ -62,10 +62,14 @@ async function webpush(env,sub,payload){
  return fetch(endpoint.toString(),{method:'POST',headers:{'Authorization':'vapid t='+jwt+', k='+(await getVapid(env)).publicKey,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream','TTL':'180'},body:data});
 }
 async function sendAll(env,a){
- const rows=(await env.DB.prepare("SELECT token_hash,subscription FROM ghost_equal_devices WHERE enabled=1 AND subscription IS NOT NULL LIMIT 8").all()).results||[];
+ if(a.stage!=='BET_NOW')return 0; // One actionable alert per event; PREP stays visible in the app.
+ const rows=(await env.DB.prepare("SELECT p.token_hash,p.subscription FROM ghost_equal_devices p "+
+ "LEFT JOIN ghost_equal_mobile_devices m ON m.token_hash=p.token_hash "+
+ "WHERE p.enabled=1 AND p.subscription IS NOT NULL "+
+ "AND NOT EXISTS(SELECT 1 FROM ghost_equal_bets b WHERE b.device_id=m.device_id AND b.event_id=?) LIMIT 8").bind(a.event_id).all()).results||[];
  const title=a.stage==='BET_NOW'?'SB Radar | Alertă de intrare X':'SB Radar | Meci în apropierea pragului';
  const body=a.fixture+' | '+a.minute+"' "+a.home_score+'-'+a.away_score+' | X '+Number(a.px).toFixed(2)+(a.stage==='BET_NOW'?' | Verifică prețul înainte de miză':' | verificare din minutul 57');
- const payload={title,body,eventId:a.event_id,stage:a.stage,url:matchUrl(a.event_id,a.fixture),tag:'ghost-'+a.event_id+'-'+a.stage};
+ const payload={title,body,eventId:a.event_id,stage:a.stage,url:'/app?tab=live&event_id='+a.event_id,tag:'sb-radar-'+a.event_id};
  let ok=0;for(const d of rows){try{const sub=JSON.parse(d.subscription);const r=await webpush(env,sub,payload);if(r.ok)ok++;else if(r.status===404||r.status===410)await env.DB.prepare('UPDATE ghost_equal_devices SET enabled=0 WHERE token_hash=?').bind(d.token_hash).run()}catch(e){console.error('push error',String(e).slice(0,120))}}return ok;
 }
 async function scan(env){
@@ -97,7 +101,7 @@ async function scan(env){
    const stage=minute>=57?'BET_NOW':(minute>=50?'PREGATIRE':null);
    if(!stage)continue;
    const ins=await env.DB.prepare('INSERT OR IGNORE INTO ghost_equal_alerts(event_id,stage,triggered_utc,minute,fixture,home_score,away_score,gh,ga,dgh10,dga10,p1,px,p2,source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(eventId,stage,t,minute,f.fixture,h,a,gh,ga,dh,da,p1,px,p2,'LIVE_EQUAL_ANY_V2').run();
-   if(ins.meta?.changes){alerts++;await sendAll(env,{event_id:eventId,stage,minute,fixture:f.fixture,px,home_score:h,away_score:a})}
+   if(ins.meta?.changes){alerts++;if(stage==='BET_NOW')await sendAll(env,{event_id:eventId,stage,minute,fixture:f.fixture,px,home_score:h,away_score:a})}
   }
  }
  await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,?,?,?,?,?)').bind(t,fixtures.length,saved,ready,alerts,errors.slice(0,4).join(',')||null).run();
@@ -228,7 +232,6 @@ function publicMatchAudit(a){
 }
 
 async function mobileDashboard(env,deviceId){
- await settleVerified(env);
  const alerts=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,home_score,away_score,px FROM ghost_equal_alerts WHERE triggered_utc>=? ORDER BY triggered_utc DESC LIMIT 45").bind(new Date(Date.now()-72*3600000).toISOString()).all()).results||[];
  const bets=(await env.DB.prepare('SELECT id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,returned_lei,settled_utc,boost_lei,potential_return_lei FROM ghost_equal_bets WHERE device_id=? ORDER BY placed_utc DESC,id DESC LIMIT 300').bind(deviceId).all()).results||[];
  const roiQuery="SELECT COUNT(*) total, SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) open, SUM(CASE WHEN status NOT IN ('OPEN','VOID') THEN stake_lei ELSE 0 END) settledStake, SUM(CASE WHEN status<>'OPEN' THEN returned_lei-stake_lei ELSE 0 END) net, SUM(CASE WHEN status='WON' THEN 1 ELSE 0 END) wins, SUM(CASE WHEN status IN ('WON','LOST') THEN 1 ELSE 0 END) graded FROM ghost_equal_bets WHERE device_id=?";
@@ -288,12 +291,41 @@ async function mobileApi(req,env,path){
  }
 
  if(path==='/api/mobile/alerts'&&req.method==='GET'){
-  const a=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,home_score,away_score,px FROM ghost_equal_alerts WHERE triggered_utc >= ? ORDER BY triggered_utc DESC LIMIT 30").bind(new Date(Date.now()-6*3600000).toISOString()).all()).results||[];
-  return json({alerts:a.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)}))});
+  // One BET_NOW per event and device. No PREP notifications, and never alert
+  // on events already in this device's SLIP (OPEN, WON, LOST, CASHOUT, VOID).
+  const a=(await env.DB.prepare(
+   "SELECT a.event_id,a.stage,a.triggered_utc,a.minute,a.fixture,a.home_score,a.away_score,a.px "+
+   "FROM ghost_equal_alerts a WHERE a.stage='BET_NOW' AND a.triggered_utc>=? "+
+   "AND NOT EXISTS(SELECT 1 FROM ghost_equal_bets b WHERE b.device_id=? AND b.event_id=a.event_id) "+
+   "AND NOT EXISTS(SELECT 1 FROM ghost_equal_mobile_receipts r WHERE r.device_id=? AND r.event_id=a.event_id AND r.stage='BET_NOW') "+
+   "ORDER BY a.triggered_utc DESC LIMIT 15"
+  ).bind(new Date(Date.now()-3*60000).toISOString(),who.device_id,who.device_id).all()).results||[];
+  // Only notify after verified final and database settlement. No historical
+  // windfall of notifications on deployment; each receipt is idempotent.
+  const w=(await env.DB.prepare(
+   "SELECT b.id AS bet_id,b.event_id,b.fixture,b.selection,b.stake_lei,b.returned_lei,b.settled_utc,b.odds "+
+   "FROM ghost_equal_bets b JOIN match_results r ON r.event_id=b.event_id "+
+   "WHERE b.device_id=? AND b.status='WON' AND r.verified=1 AND r.event_status='FINISHED' AND r.winner_1x2='X' "+
+   "AND b.settled_utc >= (SELECT start_utc FROM sb_notification_settings WHERE kind='WIN') "+
+   "AND NOT EXISTS(SELECT 1 FROM sb_win_notification_receipts seen WHERE seen.bet_id=b.id AND seen.device_id=b.device_id) "+
+   "ORDER BY b.settled_utc DESC LIMIT 10"
+  ).bind(who.device_id).all()).results||[];
+  return json({alerts:[
+   ...a.map(x=>({...x,url:'/app?tab=live&event_id='+x.event_id})),
+   ...w.map(x=>({event_id:x.event_id,bet_id:x.bet_id,stage:'WIN',triggered_utc:x.settled_utc,fixture:x.fixture,minute:null,px:x.odds,stake_lei:x.stake_lei,returned_lei:x.returned_lei,url:'/app?tab=slip&bet_id='+x.bet_id}))
+  ]});
  }
  if(path==='/api/mobile/ack'&&req.method==='POST'){
   const j=await req.json(),id=Number(j.event_id),stage=String(j.stage||'');
-  if(!Number.isSafeInteger(id)||id<1||!['BET_NOW','PREGATIRE'].includes(stage))return json({error:'Confirmare invalidă'},400);
+  if(stage==='WIN'){
+   const betId=Number(j.bet_id);
+   if(!Number.isSafeInteger(betId)||betId<1)return json({error:'Slip invalid'},400);
+   const verified=await env.DB.prepare("SELECT 1 AS ok FROM ghost_equal_bets b JOIN match_results r ON r.event_id=b.event_id WHERE b.id=? AND b.device_id=? AND b.status='WON' AND r.verified=1 AND r.event_status='FINISHED' AND r.winner_1x2='X' LIMIT 1").bind(betId,who.device_id).first();
+   if(!verified)return json({error:'Câștig neconfirmat'},404);
+   await env.DB.prepare('INSERT OR IGNORE INTO sb_win_notification_receipts(bet_id,device_id,received_utc) VALUES(?,?,?)').bind(betId,who.device_id,iso()).run();
+   return json({ok:true});
+  }
+  if(!Number.isSafeInteger(id)||id<1||stage!=='BET_NOW')return json({error:'Confirmare invalidă'},400);
   const seen=await env.DB.prepare('SELECT 1 AS ok FROM ghost_equal_alerts WHERE event_id=? AND stage=?').bind(id,stage).first();
   if(!seen)return json({error:'Semnal inexistent'},404);
   await env.DB.prepare('INSERT OR IGNORE INTO ghost_equal_mobile_receipts(event_id,stage,device_id,received_utc) VALUES(?,?,?,?)').bind(id,stage,who.device_id,iso()).run();
