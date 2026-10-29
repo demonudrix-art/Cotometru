@@ -1,4 +1,5 @@
 import {ticketOverlay} from './sb-tickets.js';
+import {syncActiveBets} from './sb-sync.js';
 import {searchHistoricMatches,auditSlip,auditMatch} from './sb-history.js';
 import {enroll,licenseInfo,adminApi,adminAuthenticated} from './sb-control.js';
 import {profileApi} from './sb-profiles.js';
@@ -355,7 +356,7 @@ async function mobileApi(req,env,path){
 export default {
  async scheduled(event,env,ctx){
   // Independent cron pipelines: bet settlement runs every minute even if the live scan fails.
-  ctx.waitUntil(settleVerified(env).catch(e=>console.error('AUTO_SETTLEMENT_ERROR',String(e))));
+  ctx.waitUntil((async()=>{const sync=await syncActiveBets(env);if(sync.errors?.length)console.error('TICKET_SYNC_ERRORS',JSON.stringify(sync.errors));await settleVerified(env)})().catch(e=>console.error('AUTO_SETTLEMENT_ERROR',String(e))));
   ctx.waitUntil((async()=>{const r=await scan(env);if(r.fixtures>0)await armFastLane(env)})().catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}));
  },
  async fetch(req,env){const url=new URL(req.url),path=url.pathname;
