@@ -47,7 +47,7 @@ export async function ticketOverlay(env,bets){
  }).filter(t=>!t.finished_verified);
  // A confirmed final result removes the OPEN ticket from radar at once,
  // even if the finance settlement pass has not yet run. SLIP/ROI persists.
- return {tickets:cards,counts:{
+ return {tickets:cards,hiddenFinishedEventIds:[...new Set(wanted.filter(b=>map.get(Number(b.event_id)) && Number(map.get(Number(b.event_id)).result_verified)===1 && String(map.get(Number(b.event_id)).event_status||'').toUpperCase()==='FINISHED').map(b=>Number(b.event_id)))],counts:{
   open:cards.filter(x=>x.status==='OPEN').length,
   recent_finished:cards.filter(x=>x.status!=='OPEN').length,
   open_stake:Math.round(cards.filter(x=>x.status==='OPEN').reduce((a,x)=>a+x.stake_lei,0)*100)/100
