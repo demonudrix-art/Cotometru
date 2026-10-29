@@ -25,7 +25,7 @@ jobs:
           gradle-version: '8.9'
       - name: Include supplied SB Radar icon
         run: |
-          python3 -c 'import base64,json,re,pathlib; p=pathlib.Path("ghost-equal/sb-logo.js").read_text(); b=json.loads(re.search(r"SB_LOGO_BASE64=(\\"[^\\"]+\\")",p).group(1)); o=pathlib.Path("drix-pulse/app/src/main/res/drawable-nodpi/sb_radar_icon.webp"); o.parent.mkdir(parents=True,exist_ok=True); o.write_bytes(base64.b64decode(b)); print("icon bytes:",o.stat().st_size)'
+          python3 -c 'import base64,json,pathlib; p=pathlib.Path("ghost-equal/sb-logo.js").read_text(); b=json.loads(p.split("SB_LOGO_BASE64=",1)[1].split(";",1)[0]); o=pathlib.Path("drix-pulse/app/src/main/res/drawable-nodpi/sb_radar_icon.webp"); o.parent.mkdir(parents=True,exist_ok=True); o.write_bytes(base64.b64decode(b)); print("icon bytes:",o.stat().st_size)'
       - name: Build DRIX Pulse debug APK
         working-directory: drix-pulse
         run: gradle --no-daemon :app:assembleDebug
