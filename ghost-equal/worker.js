@@ -184,12 +184,12 @@ showMonitor();$('placed').value=tm(new Date().toISOString());load();setInterval(
 </script></body></html>`}
 async function mobileWho(req,env){const t=(req.headers.get('Authorization')||'').replace(/^Bearer /,'');if(t.length<35)return null;return await env.DB.prepare('SELECT device_id FROM ghost_equal_mobile_devices WHERE token_hash=?').bind(await hash(t)).first();}
 async function settleVerified(env){
- await env.DB.prepare("UPDATE ghost_equal_bets SET status=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN 'WON' ELSE 'LOST' END,returned_lei=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN ROUND(stake_lei*odds,2) ELSE 0 END,settled_utc=? WHERE selection='X' AND status='OPEN' AND event_id IS NOT NULL AND event_id IN (SELECT event_id FROM match_results WHERE verified=1 AND event_status='FINISHED' AND winner_1x2 IN ('1','X','2'))").bind(iso()).run();
+ await env.DB.prepare("UPDATE ghost_equal_bets SET status=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN 'WON' ELSE 'LOST' END,returned_lei=CASE WHEN (SELECT winner_1x2 FROM match_results WHERE event_id=ghost_equal_bets.event_id AND verified=1)='X' THEN COALESCE(potential_return_lei,ROUND(stake_lei*odds,2)) ELSE 0 END,settled_utc=? WHERE selection='X' AND status='OPEN' AND event_id IS NOT NULL AND event_id IN (SELECT event_id FROM match_results WHERE verified=1 AND event_status='FINISHED' AND winner_1x2 IN ('1','X','2'))").bind(iso()).run();
 }
 async function mobileDashboard(env,deviceId){
  await settleVerified(env);
  const alerts=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,home_score,away_score,px FROM ghost_equal_alerts WHERE triggered_utc>=? ORDER BY triggered_utc DESC LIMIT 45").bind(new Date(Date.now()-72*3600000).toISOString()).all()).results||[];
- const bets=(await env.DB.prepare('SELECT id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,returned_lei,settled_utc FROM ghost_equal_bets WHERE device_id=? ORDER BY placed_utc DESC,id DESC LIMIT 300').bind(deviceId).all()).results||[];
+ const bets=(await env.DB.prepare('SELECT id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,returned_lei,settled_utc,boost_lei,potential_return_lei FROM ghost_equal_bets WHERE device_id=? ORDER BY placed_utc DESC,id DESC LIMIT 300').bind(deviceId).all()).results||[];
  const roiQuery="SELECT COUNT(*) total, SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) open, SUM(CASE WHEN status<>'OPEN' THEN stake_lei ELSE 0 END) settledStake, SUM(CASE WHEN status<>'OPEN' THEN returned_lei-stake_lei ELSE 0 END) net, SUM(CASE WHEN status='WON' THEN 1 ELSE 0 END) wins, SUM(CASE WHEN status IN ('WON','LOST') THEN 1 ELSE 0 END) graded FROM ghost_equal_bets WHERE device_id=?";
  const a=await env.DB.prepare(roiQuery).bind(deviceId).first();
  const g=await env.DB.prepare(roiQuery+" AND selection='X'").bind(deviceId).first();
@@ -200,7 +200,7 @@ async function mobileDashboard(env,deviceId){
  const scan=await env.DB.prepare('SELECT checked_utc FROM ghost_equal_runs ORDER BY id DESC LIMIT 1').first();
  const receipt=await env.DB.prepare('SELECT r.received_utc,a.triggered_utc FROM ghost_equal_mobile_receipts r JOIN ghost_equal_alerts a ON r.event_id=a.event_id AND r.stage=a.stage WHERE r.device_id=? ORDER BY r.received_utc DESC LIMIT 1').bind(deviceId).first();
  const lastDelivery=receipt?{received_utc:receipt.received_utc,lag_sec:Math.max(0,Math.round((Date.parse(receipt.received_utc)-Date.parse(receipt.triggered_utc))/1000))}:null;
- return {lastScan:scan?.checked_utc||null,radar:radarInfo.radar,counts:radarInfo.counts,lastDelivery,alerts:alerts.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)})),bets,roi:metrics(a),roiGhost:metrics(g)};
+ return {lastScan:scan?.checked_utc||null,radar:radarInfo.radar,watchlist:radarInfo.watchlist,archived:radarInfo.archived,counts:radarInfo.counts,lastDelivery,alerts:alerts.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)})),bets,roi:metrics(a),roiGhost:metrics(g)};
 }
 async function mobileApi(req,env,path){
  if(path==='/api/mobile/claim'&&req.method==='POST')return enroll(env,await req.json());
@@ -242,9 +242,9 @@ async function mobileApi(req,env,path){
  if(m&&req.method==='POST'){
   const j=await req.json(),state=String(j.status||''),id=Number(m[1]);
   if(!['WON','LOST','VOID','CASHOUT'].includes(state)||!Number.isSafeInteger(id))return json({error:'Rezultat invalid'},400);
-  const bet=await env.DB.prepare("SELECT stake_lei,odds,status FROM ghost_equal_bets WHERE id=? AND device_id=?").bind(id,who.device_id).first();
+  const bet=await env.DB.prepare("SELECT stake_lei,odds,status,potential_return_lei FROM ghost_equal_bets WHERE id=? AND device_id=?").bind(id,who.device_id).first();
   if(!bet||bet.status!=='OPEN')return json({error:'Pariul nu este deschis'},409);
-  const returned=state==='WON'?Math.round(Number(bet.stake_lei)*Number(bet.odds)*100)/100:state==='VOID'?Number(bet.stake_lei):state==='LOST'?0:Number(j.returned_lei);
+  const returned=state==='WON'?Number(bet.potential_return_lei??Math.round(Number(bet.stake_lei)*Number(bet.odds)*100)/100):state==='VOID'?Number(bet.stake_lei):state==='LOST'?0:Number(j.returned_lei);
   if(!Number.isFinite(returned)||returned<0||returned>1e8)return json({error:'Sumă primită invalidă'},400);
   await env.DB.prepare("UPDATE ghost_equal_bets SET status=?,returned_lei=?,settled_utc=? WHERE id=? AND device_id=? AND status='OPEN'").bind(state,returned,iso(),id,who.device_id).run();
   return json({ok:true});
