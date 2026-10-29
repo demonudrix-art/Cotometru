@@ -206,6 +206,15 @@ async function mobileApi(req,env,path){
  if(!lic.active)return json({error:'LICENTA_'+lic.status,license:lic},403);
 
  if(path==='/api/mobile/dashboard'&&req.method==='GET')return json(await mobileDashboard(env,who.device_id));
+ if(path==='/api/mobile/radar-history'&&req.method==='GET'){
+  const eventId=Number(new URL(req.url).searchParams.get('event_id'));
+  if(!Number.isSafeInteger(eventId)||eventId<1)return json({error:'Meci invalid'},400);
+  const exists=await env.DB.prepare("SELECT 1 ok FROM quote_state WHERE event_id=? LIMIT 1").bind(eventId).first();
+  if(!exists)return json({error:'Meci indisponibil'},404);
+  const rows=(await env.DB.prepare("SELECT minute,home_score,away_score,gh,ga,px,captured_utc FROM ghost_equal_samples WHERE event_id=? ORDER BY minute DESC LIMIT 65").bind(eventId).all()).results||[];
+  return json({event_id:eventId,samples:rows.reverse().map(x=>({...x,minute:Number(x.minute),gh:x.gh===null?null:Number(x.gh),ga:x.ga===null?null:Number(x.ga)}))});
+ }
+
  if(path==='/api/mobile/alerts'&&req.method==='GET'){
   const a=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,home_score,away_score,px FROM ghost_equal_alerts WHERE triggered_utc >= ? ORDER BY triggered_utc DESC LIMIT 30").bind(new Date(Date.now()-6*3600000).toISOString()).all()).results||[];
   return json({alerts:a.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)}))});
