@@ -125,8 +125,38 @@ async function iconPng(n){
  return cat(new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',ih),chunk('IDAT',compressed),chunk('IEND',new Uint8Array()));
 }
 const sw="self.addEventListener('push',function(e){let d={};try{d=e.data?e.data.json():{}}catch(_){}e.waitUntil(self.registration.showNotification(d.title||'GHOST EGAL',{body:d.body||'Semnal LIVE',tag:d.tag||'ghost-eq',renotify:true,requireInteraction:d.stage==='BET_NOW',data:{url:d.url||'/'}}))});self.addEventListener('notificationclick',function(e){e.notification.close();e.waitUntil(clients.openWindow(e.notification.data.url||'/'))})";
+
+// Fast lane: 25-second polling only while kickoff-window candidates exist.
+// The 1-minute Cloudflare Cron is retained as watchdog and starter.
+async function armFastLane(env){
+ if(!env.FAST_TICK)return;
+ const id=env.FAST_TICK.idFromName('ghost-equal-global');
+ await env.FAST_TICK.get(id).fetch('https://timer.internal/arm',{method:'POST'});
+}
+export class GhostEqualFastTicker {
+ constructor(state,env){this.state=state;this.env=env;}
+ async fetch(request){
+  const at=await this.state.storage.getAlarm();
+  if(at===null)await this.state.storage.setAlarm(Date.now()+5000);
+  return new Response('armed',{status:202});
+ }
+ async alarm(){
+  try{
+   const now=Date.now();
+   const current=await this.env.DB.prepare('SELECT COUNT(*) n FROM quote_state WHERE settled=0 AND kickoff_utc<=? AND kickoff_utc>=?').bind(new Date(now).toISOString(),new Date(now-3*3600000).toISOString()).first();
+   if(!current?.n)return;
+   // Schedule next iteration before external IO, so a temporary feed problem doesn't stop watching.
+   await this.state.storage.setAlarm(Date.now()+25000);
+   await scan(this.env);
+  }catch(e){
+   console.error('GHOST_FAST_TICK_ERROR',String(e).slice(0,240));
+   await this.state.storage.setAlarm(Date.now()+60000);
+  }
+ }
+}
+
 export default {
- async scheduled(event,env,ctx){ctx.waitUntil(scan(env).catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}))},
+ async scheduled(event,env,ctx){ctx.waitUntil((async()=>{const r=await scan(env);if(r.fixtures>0)await armFastLane(env)})().catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}))},
  async fetch(req,env){const url=new URL(req.url),path=url.pathname;
   try{
    if(path==='/health')return json({service:'ghost-equal',status:'ok',version:'1.0.0'});
@@ -141,7 +171,7 @@ export default {
     if(path==='/api/config')return json({vapidPublicKey:env.VAPID_PUBLIC});
     if(path==='/api/subscribe'&&req.method==='POST'){const j=await req.json(),sub=j.subscription;if(!sub||typeof sub.endpoint!=='string'||!sub.keys?.p256dh||!sub.keys?.auth)return json({error:'Invalid subscription'},400);const endpoint=new URL(sub.endpoint);if(endpoint.protocol!=='https:'||sub.endpoint.length>1300)return json({error:'Invalid endpoint'},400);const token=(req.headers.get('Authorization')||'').slice(7);await env.DB.prepare('UPDATE ghost_equal_devices SET subscription=?,enabled=1,last_seen_utc=? WHERE token_hash=?').bind(JSON.stringify(sub),iso(),await hash(token)).run();return json({ok:true})}
     if(path==='/api/test'&&req.method==='POST'){const t=(req.headers.get('Authorization')||'').slice(7),d=await env.DB.prepare('SELECT subscription FROM ghost_equal_devices WHERE token_hash=?').bind(await hash(t)).first();if(!d?.subscription)return json({error:'Activează mai întâi notificările'},400);const r=await webpush(env,JSON.parse(d.subscription),{title:'GHOST EGAL — TEST',body:'Notificările sunt configurate. Nu este un semnal de pariere.',url:'/',stage:'TEST',tag:'test'});return r.ok?json({ok:true,status:r.status}):json({error:'Push respins de gateway: '+r.status},502)}
-    if(path==='/api/scan'&&req.method==='POST'){const last=await env.DB.prepare('SELECT checked_utc FROM ghost_equal_runs ORDER BY id DESC LIMIT 1').first();if(last&&Date.now()-Date.parse(last.checked_utc)<45000)return json({skipped:true,reason:'recent scan'});return json(await scan(env))}
+    if(path==='/api/scan'&&req.method==='POST'){const last=await env.DB.prepare('SELECT checked_utc FROM ghost_equal_runs ORDER BY id DESC LIMIT 1').first();if(last&&Date.now()-Date.parse(last.checked_utc)<45000)return json({skipped:true,reason:'recent scan'});const result=await scan(env);if(result.fixtures>0)await armFastLane(env);return json(result)}
     if(path==='/api/alerts'){const rows=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,home_score,away_score,dgh10,dga10,p1,px,p2 FROM ghost_equal_alerts WHERE triggered_utc>=datetime('now','-3 days') ORDER BY triggered_utc DESC LIMIT 60").all()).results||[];return json({alerts:rows})}
     if(path==='/api/status'){const r=await env.DB.prepare('SELECT checked_utc,fixtures,samples,eligible,alerts,error FROM ghost_equal_runs ORDER BY id DESC LIMIT 1').first();const audit=await env.DB.prepare("SELECT COUNT(*) signals,COALESCE(SUM(CASE WHEN final_1x2 IS NOT NULL THEN 1 ELSE 0 END),0) settled,COALESCE(SUM(CASE WHEN final_1x2='X' THEN 1 ELSE 0 END),0) wins,COALESCE(SUM(CASE WHEN final_1x2 IN('1','2') THEN 1 ELSE 0 END),0) losses,ROUND(COALESCE(SUM(simulated_net_lei),0),2) simulated_net_lei FROM v_ghost_equal_forward_audit").first();return json({lastScan:r?.checked_utc||null,fixtures:r?.fixtures||0,run:r||null,audit})}
    }
