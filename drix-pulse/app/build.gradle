@@ -3,7 +3,7 @@ android {
     namespace 'ro.drix.pulse'
     compileSdk 35
     defaultConfig {
-        applicationId 'ro.drix.pulse'
+        applicationId 'ro.drix.sbradar'
         minSdk 26
         targetSdk 34
         versionCode 2
