@@ -106,7 +106,13 @@ async function scan(env){
   }
  }
  await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,?,?,?,?,?)').bind(t,fixtures.length,saved,ready,alerts,errors.slice(0,4).join(',')||null).run();
- if(Math.random()<0.025){await env.DB.batch([env.DB.prepare("DELETE FROM ghost_equal_samples WHERE captured_utc < datetime('now','-14 days')"),env.DB.prepare("DELETE FROM ghost_equal_runs WHERE checked_utc < datetime('now','-7 days')")])}
+ // Predictable maintenance once a day, not random work during live alerts.
+ if(new Date().getUTCHours()===3&&new Date().getUTCMinutes()===0){
+  await env.DB.batch([
+   env.DB.prepare("DELETE FROM ghost_equal_samples WHERE captured_utc < strftime('%Y-%m-%dT%H:%M:%fZ','now','-14 days')"),
+   env.DB.prepare("DELETE FROM ghost_equal_runs WHERE checked_utc < strftime('%Y-%m-%dT%H:%M:%fZ','now','-7 days')")
+  ]);
+ }
  return{fixtures:fixtures.length,saved,eligible:ready,alerts,error:errors.slice(0,4)};
 }
 async function authorize(req,env){const t=(req.headers.get('Authorization')||'').replace(/^Bearer /,'');if(!t||t.length<25)return false;const d=await env.DB.prepare('SELECT token_hash FROM ghost_equal_devices WHERE token_hash=?').bind(await hash(t)).first();return !!d}
@@ -255,7 +261,8 @@ async function mobileApi(req,env,path){
  if(path==='/api/mobile/license'&&req.method==='GET')return json({license:lic});
  if(!lic.active)return json({error:'LICENTA_'+lic.status,license:lic},403);
  if(path==='/api/mobile/profile'||path==='/api/mobile/profile/link-owner')return profileApi(req,env,path,who.device_id,adminAuthenticated);
- const privateAnalytics=await hasPrivateAnalytics(env,who.device_id);
+ const privateAnalytics=['/api/mobile/dashboard','/api/mobile/match-audit','/api/mobile/bet-audit','/api/mobile/radar-history'].includes(path)?
+  await hasPrivateAnalytics(env,who.device_id):false;
 
  if(path==='/api/mobile/dashboard'&&req.method==='GET'){
   const d=await mobileDashboard(env,who.device_id);
@@ -357,7 +364,13 @@ export default {
  async scheduled(event,env,ctx){
   // Independent cron pipelines: bet settlement runs every minute even if the live scan fails.
   ctx.waitUntil((async()=>{const sync=await syncActiveBets(env);if(sync.errors?.length)console.error('TICKET_SYNC_ERRORS',JSON.stringify(sync.errors));await settleVerified(env)})().catch(e=>console.error('AUTO_SETTLEMENT_ERROR',String(e))));
-  ctx.waitUntil((async()=>{const r=await scan(env);if(r.fixtures>0)await armFastLane(env)})().catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}));
+  ctx.waitUntil((async()=>{
+   const last=await env.DB.prepare('SELECT checked_utc FROM ghost_equal_runs ORDER BY id DESC LIMIT 1').first();
+   // Durable Object already scanned recently: avoid duplicate hourly costs and parallel feed calls.
+   const recent=last?.checked_utc&&Date.now()-Date.parse(last.checked_utc)<22000;
+   if(recent)return;
+   const r=await scan(env);if(r.fixtures>0)await armFastLane(env)
+  })().catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}));
  },
  async fetch(req,env){const url=new URL(req.url),path=url.pathname;
   try{
