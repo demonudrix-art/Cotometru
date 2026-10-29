@@ -40,3 +40,49 @@ export async function auditSlip(env,deviceId,id){
  const delta=signal&&Number.isFinite(Date.parse(bet.placed_utc))?Math.round((Date.parse(bet.placed_utc)-Date.parse(signal.triggered_utc))/60000):null;
  return {bet,samples,signal,alerts,criteria,result,minutes_from_signal_to_bet:delta,history_min:samples[0]?.minute??null,history_max:samples[samples.length-1]?.minute??null};
 }
+
+/**
+ * Immutable event-timestamped GHOST inspection. Never substitute a stale
+ * quote_state price or final-minute score for the BET_NOW snapshot.
+ * Return null for unobservable conditions, rather than a false "failed".
+ */
+export async function auditMatch(env,deviceId,eventId,preferredBetId=null){
+ const meta=await env.DB.prepare("SELECT event_id,fixture,kickoff_utc FROM quote_state WHERE event_id=? LIMIT 1").bind(eventId).first();
+ if(!meta)return null;
+ const bets=(await env.DB.prepare("SELECT id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,returned_lei,settled_utc,boost_lei,potential_return_lei FROM ghost_equal_bets WHERE event_id=? AND device_id=? ORDER BY placed_utc ASC,id ASC LIMIT 25").bind(eventId,deviceId).all()).results||[];
+ const bet=bets.find(b=>Number(b.id)===Number(preferredBetId))||bets[0]||null;
+ const alerts=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,home_score,away_score,gh,ga,dgh10,dga10,p1,px,p2,source FROM ghost_equal_alerts WHERE event_id=? ORDER BY triggered_utc ASC,minute ASC LIMIT 12").bind(eventId).all()).results||[];
+ const signal=alerts.find(a=>a.stage==='BET_NOW')||null;
+ const samples=(await env.DB.prepare("SELECT minute,home_score,away_score,gh,ga,p1,px,p2,captured_utc FROM ghost_equal_samples WHERE event_id=? ORDER BY minute ASC LIMIT 120").bind(eventId).all()).results||[];
+ const result=await env.DB.prepare("SELECT event_status,verified,home_score,away_score,winner_1x2 FROM match_results WHERE event_id=? LIMIT 1").bind(eventId).first();
+ const alertMinute=signal?.minute==null?null:Number(signal.minute);
+ let prior=null;
+ if(signal && alertMinute!==null){
+  const at=Date.parse(signal.triggered_utc);
+  prior=samples.filter(x=>Number(x.minute)>=alertMinute-15&&Number(x.minute)<=alertMinute-7)
+   .filter(x=>Number.isFinite(at)&&Number.isFinite(Date.parse(x.captured_utc))&&at>=Date.parse(x.captured_utc)&&at-Date.parse(x.captured_utc)<=20*60*1000)
+   .sort((a,b)=>Math.abs(Number(a.minute)-(alertMinute-10))-Math.abs(Number(b.minute)-(alertMinute-10))||Date.parse(b.captured_utc)-Date.parse(a.captured_utc))[0]||null;
+ }
+ const sufficient=v=>v!==null&&v!==undefined&&Number.isFinite(Number(v));
+ const check={
+  scored_equal: signal&&sufficient(signal.home_score)&&sufficient(signal.away_score)?Number(signal.home_score)===Number(signal.away_score):null,
+  prior_same_score:signal&&prior&&sufficient(prior.home_score)&&sufficient(prior.away_score)&&sufficient(signal.home_score)&&sufficient(signal.away_score)?
+   Number(prior.home_score)===Number(signal.home_score)&&Number(prior.away_score)===Number(signal.away_score):null,
+  curve_home:signal&&sufficient(signal.dgh10)?Number(signal.dgh10)<=-0.009999:null,
+  curve_away:signal&&sufficient(signal.dga10)?Number(signal.dga10)<=-0.009999:null,
+  price_home:signal&&sufficient(signal.p1)?Number(signal.p1)>=1.8:null,
+  price_draw:signal&&sufficient(signal.px)?Number(signal.px)>=1.75:null,
+  price_away:signal&&sufficient(signal.p2)?Number(signal.p2)>=1.8:null,
+  minute_57:signal&&alertMinute!==null?alertMinute>=57:null
+ };
+ const checks=Object.entries(check).map(([key,passed])=>({key,passed}));
+ const verified=!!signal&&checks.every(x=>x.passed===true);
+ return {
+  event_id:eventId,fixture:meta.fixture,kickoff_utc:meta.kickoff_utc,
+  signal,prior,checks,criteria:check,verified_snapshot:verified,alerts,
+  samples,result,bets,bet,signal_exists:!!signal,
+  // This is a historical audit, never real-time eligibility.
+  historical:true,source:signal?.source??null,
+  data_bounds:{first_minute:samples[0]?.minute??null,last_minute:samples[samples.length-1]?.minute??null}
+ };
+}
