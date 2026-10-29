@@ -65,7 +65,7 @@ public class MainActivity extends Activity {
                 prefs.edit().putString("token",token).apply();
             }
             try {
-                JSONObject request=new JSONObject().put("device_id",device).put("token",token).put("model",android.os.Build.MANUFACTURER+" "+android.os.Build.MODEL).put("os_version",android.os.Build.VERSION.RELEASE).put("app_version","2.0.0");
+                JSONObject request=new JSONObject().put("device_id",device).put("token",token).put("model",android.os.Build.MANUFACTURER+" "+android.os.Build.MODEL).put("os_version",android.os.Build.VERSION.RELEASE).put("app_version","2.2.0");
                 HttpURLConnection cn=(HttpURLConnection)new URL(BASE+"/api/mobile/claim").openConnection();
                 cn.setRequestMethod("POST");cn.setConnectTimeout(12000);cn.setReadTimeout(12000);
                 cn.setDoOutput(true);cn.setRequestProperty("Content-Type","application/json");
