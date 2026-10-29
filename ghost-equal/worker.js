@@ -91,8 +91,14 @@ async function scan(env){
    const p1=n(o['1']?.price),px=n(o.X?.price),p2=n(o['2']?.price),gh=n(o['1']?.metadata?.extra?.generosity_prob_home),ga=n(o['2']?.metadata?.extra?.generosity_prob_away);
    const f=batch.find(x=>Number(x.event_id)===Number(ev.event_id));if(!f)continue;
    const eventId=Number(ev.event_id);
-   const existed=await env.DB.prepare('SELECT 1 present FROM ghost_equal_samples WHERE event_id=? AND minute=? LIMIT 1').bind(eventId,minute).first();
-   if(existed)continue;
+   const existed=await env.DB.prepare('SELECT home_score,away_score FROM ghost_equal_samples WHERE event_id=? AND minute=? LIMIT 1').bind(eventId,minute).first();
+   if(existed){
+    // A goal may arrive in the very same match minute; update the live
+    // score snapshot, but never mint another signal off this correction.
+    if(Number(existed.home_score)!==h||Number(existed.away_score)!==a)
+     await env.DB.prepare('UPDATE ghost_equal_samples SET home_score=?,away_score=?,captured_utc=? WHERE event_id=? AND minute=?').bind(h,a,t,eventId,minute).run();
+    continue;
+   }
    const prior=await env.DB.prepare("SELECT minute,home_score,away_score,gh,ga FROM ghost_equal_samples WHERE event_id=? AND minute BETWEEN ? AND ? AND captured_utc>=? ORDER BY ABS(minute - ?) ASC,captured_utc DESC LIMIT 1").bind(eventId,minute-15,minute-7,new Date(ms-20*60000).toISOString(),minute-10).first();
    await env.DB.prepare('INSERT OR IGNORE INTO ghost_equal_samples(event_id,captured_utc,minute,home_score,away_score,gh,ga,p1,px,p2,fixture) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(eventId,t,minute,h,a,gh,ga,p1,px,p2,f.fixture).run();saved++;
    if(h!==a||!prior||Number(prior.home_score)!==h||Number(prior.away_score)!==a||gh===null||ga===null||prior.gh===null||prior.ga===null||p1===null||p2===null||px===null)continue;
@@ -304,7 +310,7 @@ async function mobileApi(req,env,path){
   const a=(await env.DB.prepare(
    "SELECT a.event_id,a.stage,a.triggered_utc,a.minute,a.fixture,a.home_score,a.away_score,a.px "+
    "FROM ghost_equal_alerts a WHERE a.stage='BET_NOW' AND a.triggered_utc>=? "+
-   "AND NOT EXISTS(SELECT 1 FROM ghost_equal_bets b WHERE b.device_id=? AND b.event_id=a.event_id) "+
+   "AND NOT EXISTS(SELECT 1 FROM ghost_equal_bets b WHERE b.device_id=? AND (b.event_id=a.event_id OR (b.event_id IS NULL AND b.fixture COLLATE NOCASE=a.fixture))) "+
    "AND NOT EXISTS(SELECT 1 FROM ghost_equal_mobile_receipts r WHERE r.device_id=? AND r.event_id=a.event_id AND r.stage='BET_NOW') "+
    "ORDER BY a.triggered_utc DESC LIMIT 15"
   ).bind(new Date(Date.now()-3*60000).toISOString(),who.device_id,who.device_id).all()).results||[];
