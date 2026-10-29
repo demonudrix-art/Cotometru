@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
         loading.setGravity(Gravity.CENTER);
         loading.setTextColor(Color.WHITE);
         loading.setTextSize(20);
-        loading.setText("✕\n\nDRIX Pulse\n\nConectare securizată…");
+        loading.setText("✕\n\nSB Radar\n\nConectare securizată…");
         layout.addView(loading,new FrameLayout.LayoutParams(-1,-1));
         setContentView(layout);
         new Thread(()->{
@@ -60,13 +60,14 @@ public class MainActivity extends Activity {
                 prefs.edit().putString("token",token).apply();
             }
             try {
-                JSONObject request=new JSONObject().put("device_id",device).put("token",token);
+                JSONObject request=new JSONObject().put("device_id",device).put("token",token).put("model",android.os.Build.MANUFACTURER+" "+android.os.Build.MODEL).put("os_version",android.os.Build.VERSION.RELEASE).put("app_version","2.0.0");
                 HttpURLConnection cn=(HttpURLConnection)new URL(BASE+"/api/mobile/claim").openConnection();
                 cn.setRequestMethod("POST");cn.setConnectTimeout(12000);cn.setReadTimeout(12000);
                 cn.setDoOutput(true);cn.setRequestProperty("Content-Type","application/json");
                 try(OutputStream os=cn.getOutputStream()){os.write(request.toString().getBytes(StandardCharsets.UTF_8));}
-                int code=cn.getResponseCode();cn.disconnect();
-                if(code!=200)throw new IllegalStateException(code==409?"Acest cont are deja o instalare asociată.":"Serverul nu acceptă instalarea: "+code);
+                int code=cn.getResponseCode();String response="";if(code==200){try(java.io.InputStream in=cn.getInputStream()){response=new String(in.readAllBytes(),StandardCharsets.UTF_8);}}cn.disconnect();
+                final boolean licensed=code==200 && new JSONObject(response).optJSONObject("license")!=null && new JSONObject(response).getJSONObject("license").optBoolean("active",false);
+                if(code!=200)throw new IllegalStateException(code==409?"Identitatea telefonului diferă de cea înregistrată.":"Serverul nu acceptă instalarea: "+code);
                 runOnUiThread(()->{
                     web=new WebView(this);
                     web.setBackgroundColor(Color.rgb(13,21,27));
@@ -75,6 +76,9 @@ public class MainActivity extends Activity {
                     st.setDomStorageEnabled(true);
                     st.setAllowFileAccess(false);
                     st.setAllowContentAccess(false);
+                    st.setJavaScriptCanOpenWindowsAutomatically(false);
+                    st.setAllowUniversalAccessFromFileURLs(false);
+                    st.setAllowFileAccessFromFileURLs(false);
                     st.setSupportMultipleWindows(false);
                     st.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
                     web.addJavascriptInterface(new Bridge(),"DrixNative");
@@ -92,12 +96,14 @@ public class MainActivity extends Activity {
                     });
                     layout.removeAllViews();layout.addView(web,new FrameLayout.LayoutParams(-1,-1));
                     web.loadUrl(BASE+"/app");
-                    if(Build.VERSION.SDK_INT<33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED)startNativeMonitor();
-                    else requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFY_REQ);
+                    if(licensed){
+                       if(Build.VERSION.SDK_INT<33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED)startNativeMonitor();
+                       else requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},NOTIFY_REQ);
+                    }
                 });
             }catch(Exception e){
                 final String message=e.getMessage();
-                runOnUiThread(()->loading.setText("DRIX Pulse\n\nConectare imposibilă\n"+message+"\n\nÎnchide și redeschide aplicația pentru reîncercare."));
+                runOnUiThread(()->loading.setText("SB Radar\n\nConectare imposibilă\n"+message+"\n\nÎnchide și redeschide aplicația pentru reîncercare."));
             }
         }).start();
     }
@@ -120,7 +126,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public String isMonitoring(){return String.valueOf(prefs.getBoolean("monitor",false));}
         @JavascriptInterface public void startMonitor(){runOnUiThread(()->startNativeMonitor());}
         @JavascriptInterface public void stopMonitor(){runOnUiThread(()->stopNativeMonitor());}
-        @JavascriptInterface public void testNotification(){runOnUiThread(()->AlertService.showAlert(MainActivity.this,"DRIX Pulse • TEST","Sunetul și vibrația sunt active. Acesta nu este un semnal de pariere.",BASE+"/app","test-"+System.currentTimeMillis(),true));}
+        @JavascriptInterface public void testNotification(){runOnUiThread(()->AlertService.showAlert(MainActivity.this,"SB Radar • TEST","Sunetul și vibrația sunt active. Acesta nu este un semnal de pariere.",BASE+"/app","test-"+System.currentTimeMillis(),true));}
     }
     @Override public void onBackPressed(){
         if(web!=null&&web.canGoBack()){web.goBack();return;}
