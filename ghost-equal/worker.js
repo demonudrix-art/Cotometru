@@ -296,7 +296,7 @@ export default {
    if(path==='/admin')return new Response(adminHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
    if(path.startsWith('/api/admin/'))return adminApi(req,env,path);
    if(path.startsWith('/api/mobile/'))return mobileApi(req,env,path);
-   if(path==='/health')return json({service:'ghost-equal',status:'ok',version:'2.0.1'});
+   if(path==='/health')return json({service:'sb-radar',status:'ok',version:'2.2.0'});
    if(path==='/manifest.webmanifest')return new Response(JSON.stringify({name:'GHOST EGAL Live',short_name:'GHOST EGAL',start_url:'/',scope:'/',display:'standalone',background_color:'#101719',theme_color:'#101719',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},{src:'/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}]}),{headers:{'Content-Type':'application/manifest+json'}});
    if(path==='/icon-192.png'||path==='/icon-512.png')return new Response(await iconPng(path==='/icon-192.png'?192:512),{headers:{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
    if(path==='/icon.svg')return new Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="100" fill="#101719"/><circle cx="256" cy="256" r="155" fill="none" stroke="#f46757" stroke-width="35"/><text x="256" y="300" text-anchor="middle" fill="white" font-family="Arial" font-size="140" font-weight="bold">X</text></svg>',{headers:{'Content-Type':'image/svg+xml'}});
