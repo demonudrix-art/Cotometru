@@ -33,6 +33,7 @@ export async function profileApi(req,env,path,deviceId,adminAuthenticated){
   if(!validName(username)||displayName.length<2||displayName.length>50||/[\u0000-\u001f<>]/.test(displayName)||!themes.has(theme))return json({error:'Utilizator 3–30 litere/cifre; nume public 2–50 caractere'},400);
   const admin=await env.DB.prepare('SELECT username FROM sb_admin WHERE id=1').first();
   if(admin&&username.toLowerCase()===String(admin.username).toLowerCase()&& !p.is_owner &&username.toLowerCase()!==String(p.username).toLowerCase())return json({error:'Acest utilizator aparține administratorului'},409);
+  if(admin&&String(p.username).toLowerCase()===String(admin.username).toLowerCase()&&username.toLowerCase()!==String(admin.username).toLowerCase())return json({error:'Utilizatorul administratorului este protejat. Poți modifica doar numele afișat și avatarul.'},409);
   if(p.is_owner&&admin&&username.toLowerCase()!==String(admin.username).toLowerCase())return json({error:'Numele contului proprietar este gestionat din administrare'},409);
   try{
    const res=await env.DB.prepare('UPDATE sb_device_profiles SET username=?,display_name=?,avatar_theme=?,updated_utc=? WHERE device_id=?').bind(username,displayName,theme,utc(),deviceId).run();
