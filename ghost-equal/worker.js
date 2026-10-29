@@ -105,13 +105,27 @@ $('refresh').onclick=refresh;
 async function refresh(){if(!token)return;try{const [j,s]=await Promise.all([api('/api/alerts'),api('/api/status')]);$('health').textContent='Ultima scanare: '+(s.lastScan||'niciuna')+' | Evenimente: '+(s.fixtures??'-')+' | Semnale: '+j.alerts.length+' | BET NOW decontate: '+(s.audit?.settled||0)+' | Simulare: '+(s.audit?.simulated_net_lei||0)+' lei';$('list').replaceChildren();if(!j.alerts.length){$('list').textContent='Momentan nu există semnale. Monitorizarea continuă pe server.'}for(const x of j.alerts){const c=document.createElement('div');c.className='card '+(x.stage==='BET_NOW'?'bet':'prep');const h=document.createElement('div');h.className='title';h.textContent=(x.stage==='BET_NOW'?'🔴 BET NOW X':'🟡 PREGĂTEȘTE-TE')+' — '+x.fixture;const m=document.createElement('p');m.textContent=x.minute+"' | scor "+x.home_score+'–'+x.away_score+' | cota X '+Number(x.px).toFixed(2);const s=document.createElement('small');s.textContent='Scădere curbe: '+Number(x.dgh10).toFixed(3)+' / '+Number(x.dga10).toFixed(3)+' | '+x.triggered_utc;const a=document.createElement('a');a.className='action';a.href='https://superbet.ro/pariuri-sportive/fotbal/live';a.target='_blank';a.rel='noopener noreferrer';a.textContent='Deschide Superbet LIVE';c.append(h,m,s,document.createElement('p'),a);$('list').append(c)}}catch(e){$('health').textContent='Nu se poate încărca: '+e.message;if(e.message.includes('401')){token='';localStorage.removeItem('ghost_eq_token');layout()}}}
 layout();refresh();setInterval(refresh,30000);
 </script></body></html>`}
+async function iconPng(n){
+ const raw=new Uint8Array((4*n+1)*n);
+ for(let y=0;y<n;y++){const pos=y*(4*n+1);raw[pos]=0;for(let x=0;x<n;x++){
+  const dx=(x-n/2)/n,dy=(y-n/2)/n,dist=Math.sqrt(dx*dx+dy*dy);
+  const ring=dist>.292&&dist<.364,letter=Math.abs(dx)<.22&&Math.abs(dy)<.22&&(Math.abs(dx-dy)<.038||Math.abs(dx+dy)<.038);
+  const col=letter?[238,247,245,255]:ring?[244,103,87,255]:[16,23,25,255],at=pos+1+x*4;
+  raw.set(col,at);
+ }}
+ const compressed=new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+ function chunk(t,v){const out=new Uint8Array(v.length+12),dv=new DataView(out.buffer);dv.setUint32(0,v.length);out.set(enc.encode(t),4);out.set(v,8);let crc=0xffffffff;for(let i=4;i<out.length-4;i++){crc^=out[i];for(let j=0;j<8;j++)crc=crc&1?(crc>>>1)^0xedb88320:crc>>>1}dv.setUint32(out.length-4,(crc^0xffffffff)>>>0);return out}
+ const ih=new Uint8Array(13),dv=new DataView(ih.buffer);dv.setUint32(0,n);dv.setUint32(4,n);ih[8]=8;ih[9]=6;
+ return cat(new Uint8Array([137,80,78,71,13,10,26,10]),chunk('IHDR',ih),chunk('IDAT',compressed),chunk('IEND',new Uint8Array()));
+}
 const sw="self.addEventListener('push',function(e){let d={};try{d=e.data?e.data.json():{}}catch(_){}e.waitUntil(self.registration.showNotification(d.title||'GHOST EGAL',{body:d.body||'Semnal LIVE',tag:d.tag||'ghost-eq',renotify:true,requireInteraction:d.stage==='BET_NOW',data:{url:d.url||'/'}}))});self.addEventListener('notificationclick',function(e){e.notification.close();e.waitUntil(clients.openWindow(e.notification.data.url||'/'))})";
 export default {
  async scheduled(event,env,ctx){ctx.waitUntil(scan(env).catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}))},
  async fetch(req,env){const url=new URL(req.url),path=url.pathname;
   try{
    if(path==='/health')return json({service:'ghost-equal',status:'ok',version:'1.0.0'});
-   if(path==='/manifest.webmanifest')return new Response(JSON.stringify({name:'GHOST EGAL Live',short_name:'GHOST EGAL',start_url:'/',scope:'/',display:'standalone',background_color:'#101719',theme_color:'#101719',icons:[{src:'/icon.svg',sizes:'any',type:'image/svg+xml',purpose:'any maskable'}]}),{headers:{'Content-Type':'application/manifest+json'}});
+   if(path==='/manifest.webmanifest')return new Response(JSON.stringify({name:'GHOST EGAL Live',short_name:'GHOST EGAL',start_url:'/',scope:'/',display:'standalone',background_color:'#101719',theme_color:'#101719',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},{src:'/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}]}),{headers:{'Content-Type':'application/manifest+json'}});
+   if(path==='/icon-192.png'||path==='/icon-512.png')return new Response(await iconPng(path==='/icon-192.png'?192:512),{headers:{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
    if(path==='/icon.svg')return new Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="100" fill="#101719"/><circle cx="256" cy="256" r="155" fill="none" stroke="#f46757" stroke-width="35"/><text x="256" y="300" text-anchor="middle" fill="white" font-family="Arial" font-size="140" font-weight="bold">X</text></svg>',{headers:{'Content-Type':'image/svg+xml'}});
    if(path==='/sw.js')return new Response(sw,{headers:{'Content-Type':'application/javascript','Service-Worker-Allowed':'/','Cache-Control':'no-cache'}});
    if(path==='/')return new Response(html(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Frame-Options':'DENY','Referrer-Policy':'no-referrer'}});
