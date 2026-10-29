@@ -10,10 +10,25 @@ function un64(s){s=s.replace(/-/g,'+').replace(/_/g,'/');return Uint8Array.from(
 function cat(...xs){const out=new Uint8Array(xs.reduce((a,x)=>a+x.length,0));let i=0;for(const x of xs){out.set(x,i);i+=x.length}return out}
 async function hash(x){return b64(new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode(x))))}
 async function hkdf(ikm,salt,info,length){const key=await crypto.subtle.importKey('raw',ikm,'HKDF',false,['deriveBits']);return new Uint8Array(await crypto.subtle.deriveBits({name:'HKDF',hash:'SHA-256',salt,info},key,length*8))}
+let vapidCache=null;
+async function getVapid(env){
+ if(vapidCache)return vapidCache;
+ let row=await env.DB.prepare('SELECT public_key,private_key FROM ghost_equal_push_keys WHERE id=1').first();
+ if(!row){
+  const keys=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
+  const raw=new Uint8Array(await crypto.subtle.exportKey('raw',keys.publicKey));
+  const publicKey=b64(raw),privateKey=JSON.stringify(await crypto.subtle.exportKey('jwk',keys.privateKey));
+  await env.DB.prepare('INSERT OR IGNORE INTO ghost_equal_push_keys(id,public_key,private_key) VALUES(1,?,?)').bind(publicKey,privateKey).run();
+  row=await env.DB.prepare('SELECT public_key,private_key FROM ghost_equal_push_keys WHERE id=1').first();
+ }
+ if(!row)throw Error('VAPID key unavailable');
+ vapidCache={publicKey:row.public_key,privateKey:row.private_key};
+ return vapidCache;
+}
 async function webpush(env,sub,payload){
  const endpoint=new URL(sub.endpoint);
  if(endpoint.protocol!=='https:'||!['https://fcm.googleapis.com','https://updates.push.services.mozilla.com','https://push.services.mozilla.com'].some(x=>endpoint.origin===x)&&!endpoint.hostname.endsWith('.push.apple.com'))throw Error('Unsupported push host');
- const key=await crypto.subtle.importKey('jwk',JSON.parse(env.VAPID_PRIVATE_JWK),{name:'ECDSA',namedCurve:'P-256'},false,['sign']);
+ const key=await crypto.subtle.importKey('jwk',JSON.parse((await getVapid(env)).privateKey),{name:'ECDSA',namedCurve:'P-256'},false,['sign']);
  const jwtBody={aud:endpoint.origin,exp:Math.floor(Date.now()/1000)+3600,sub:'https://cotometru.ro'};
  const unsigned=b64(enc.encode(JSON.stringify({typ:'JWT',alg:'ES256'})))+'.'+b64(enc.encode(JSON.stringify(jwtBody)));
  const sign=new Uint8Array(await crypto.subtle.sign({name:'ECDSA',hash:'SHA-256'},key,enc.encode(unsigned)));
@@ -31,7 +46,7 @@ async function webpush(env,sub,payload){
  const plain=cat(enc.encode(JSON.stringify(payload)),new Uint8Array([2]));
  const crypt=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:nonce},aes,plain));
  const data=cat(salt,new Uint8Array([0,0,16,0,65]),sender,crypt);
- return fetch(endpoint.toString(),{method:'POST',headers:{'Authorization':'vapid t='+jwt+', k='+env.VAPID_PUBLIC,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream','TTL':'180'},body:data});
+ return fetch(endpoint.toString(),{method:'POST',headers:{'Authorization':'vapid t='+jwt+', k='+(await getVapid(env)).publicKey,'Content-Encoding':'aes128gcm','Content-Type':'application/octet-stream','TTL':'180'},body:data});
 }
 async function sendAll(env,a){
  const rows=(await env.DB.prepare("SELECT token_hash,subscription FROM ghost_equal_devices WHERE enabled=1 AND subscription IS NOT NULL LIMIT 8").all()).results||[];
