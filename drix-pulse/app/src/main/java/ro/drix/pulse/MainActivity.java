@@ -35,6 +35,23 @@ public class MainActivity extends Activity {
     private static final int NOTIFY_REQ=3610;
     private WebView web;
     private SharedPreferences prefs;
+    private void openPendingNotification(){
+        if(web==null || getIntent()==null || !getIntent().getBooleanExtra("sb_open",false))return;
+        Intent intent=getIntent();
+        String tab=intent.getStringExtra("sb_tab");
+        if(!"slip".equals(tab))tab="live";
+        String bet=intent.getStringExtra("sb_bet_id"),evt=intent.getStringExtra("sb_event_id");
+        String betSafe=bet!=null&&bet.matches("[0-9]{1,16}")?bet:"0";
+        String eventSafe=evt!=null&&evt.matches("[0-9]{1,16}")?evt:"0";
+        intent.removeExtra("sb_open");
+        String js="window.SBRadarOpenAlert && window.SBRadarOpenAlert('"+tab+"',"+betSafe+","+eventSafe+");";
+        web.evaluateJavascript(js,null);
+    }
+    @Override protected void onNewIntent(Intent intent){
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if(web!=null)openPendingNotification();
+    }
 
     private static String readSmall(java.io.InputStream in) throws java.io.IOException {
         java.io.ByteArrayOutputStream b=new java.io.ByteArrayOutputStream();byte[] a=new byte[4096];int n;
@@ -89,6 +106,7 @@ public class MainActivity extends Activity {
                     web.addJavascriptInterface(new Bridge(),"DrixNative");
                     web.setWebChromeClient(new WebChromeClient());
                     web.setWebViewClient(new WebViewClient(){
+                        @Override public void onPageFinished(WebView view,String url){super.onPageFinished(view,url);openPendingNotification();}
                         @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest req){
                             Uri uri=req.getUrl();
                             if(uri.getScheme().equals("https") && uri.getHost()!=null && uri.getHost().equals("ghost-equal-alert-v1.drix-beast-xray.workers.dev")
