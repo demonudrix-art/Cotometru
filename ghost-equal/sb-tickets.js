@@ -1,7 +1,7 @@
 
-/** Per-device ticket overlay, independent of GHOST alert buckets. CASHOUT is closed: retain it in SLIP/ROI, never project it on radar or recent ticket dock. */
+/** Radar only projects OPEN bets while their match is not verified final. Score status uses fresh observed samples; never treats a temporary deficit as settled loss. */
 export async function ticketOverlay(env,bets){
- const now=Date.now(),include=(b)=>b.status!=='CASHOUT'&&(b.status==='OPEN'||(b.settled_utc&&Number.isFinite(Date.parse(b.settled_utc))&&(now-Date.parse(b.settled_utc))<=24*3600000));
+ const now=Date.now(),include=(b)=>b.status==='OPEN';
  const wanted=(bets||[]).filter(include).slice(0,80);
  const ids=[...new Set(wanted.map(b=>Number(b.event_id)).filter(x=>Number.isSafeInteger(x)&&x>0))].slice(0,65);
  let rows=[];
@@ -21,6 +21,11 @@ export async function ticketOverlay(env,bets){
   const sampleMinute=r?.minute==null?null:Number(r.minute),sampleUtc=r?.sample_utc||null;
   const stale=sampleUtc===null||!Number.isFinite(Date.parse(sampleUtc))||now-Date.parse(sampleUtc)>210000;
   const completed=Number(r?.result_verified)===1&&String(r?.event_status||'').toUpperCase()==='FINISHED';
+  // Live state never equals the final betting outcome. No red on stale/unknown data.
+  // Only X tickets receive "draw / not draw" status.
+  const liveTicketState=completed?'FINISHED':b.selection!=='X'?'OTHER_MARKET':stale?'UNKNOWN':
+   r?.home_score==null||r?.away_score==null?'UNKNOWN':
+   Number(r.home_score)===Number(r.away_score)?'DRAW_LIVE':'NOT_DRAW_LIVE';
   const obsScore=r?.home_score==null||r?.away_score==null?null:String(r.home_score)+'–'+r.away_score;
   const finalScore=completed&&r.final_home!=null&&r.final_away!=null?String(r.final_home)+'–'+r.final_away:null;
   // Match-minute progress, NOT the probability of winning. Never extrapolate an unobserved minute.
@@ -36,9 +41,12 @@ export async function ticketOverlay(env,bets){
     sample_utc:sampleUtc,feed_fresh:!stale,
     finished_verified:completed,final_score:finalScore,
     kickoff_utc:r?.kickoff_utc||null,live_status:r?.last_status||null,
+    live_ticket_state:liveTicketState,
     feed_status:completed?'FINISHED':!r?'NOT_IN_FEED':stale?'STALE':'LIVE'
   };
- });
+ }).filter(t=>!t.finished_verified);
+ // A confirmed final result removes the OPEN ticket from radar at once,
+ // even if the finance settlement pass has not yet run. SLIP/ROI persists.
  return {tickets:cards,counts:{
   open:cards.filter(x=>x.status==='OPEN').length,
   recent_finished:cards.filter(x=>x.status!=='OPEN').length,
