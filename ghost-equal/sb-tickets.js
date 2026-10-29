@@ -1,7 +1,7 @@
 
-/** Per-device ticket overlay, independent of GHOST alert buckets. */
+/** Per-device ticket overlay, independent of GHOST alert buckets. CASHOUT is closed: retain it in SLIP/ROI, never project it on radar or recent ticket dock. */
 export async function ticketOverlay(env,bets){
- const now=Date.now(),include=(b)=>b.status==='OPEN'||(b.settled_utc&&Number.isFinite(Date.parse(b.settled_utc))&&(now-Date.parse(b.settled_utc))<=24*3600000);
+ const now=Date.now(),include=(b)=>b.status!=='CASHOUT'&&(b.status==='OPEN'||(b.settled_utc&&Number.isFinite(Date.parse(b.settled_utc))&&(now-Date.parse(b.settled_utc))<=24*3600000));
  const wanted=(bets||[]).filter(include).slice(0,80);
  const ids=[...new Set(wanted.map(b=>Number(b.event_id)).filter(x=>Number.isSafeInteger(x)&&x>0))].slice(0,65);
  let rows=[];
