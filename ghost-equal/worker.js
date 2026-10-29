@@ -1,3 +1,4 @@
+import {ticketOverlay} from './sb-tickets.js';
 import {searchHistoricMatches,auditSlip,auditMatch} from './sb-history.js';
 import {enroll,licenseInfo,adminApi} from './sb-control.js';
 import {radarSnapshot} from './sb-radar.js';
@@ -198,10 +199,11 @@ async function mobileDashboard(env,deviceId){
  
  
  const radarInfo=await radarSnapshot(env);
+ const ticketInfo=await ticketOverlay(env,bets);
  const scan=await env.DB.prepare('SELECT checked_utc FROM ghost_equal_runs ORDER BY id DESC LIMIT 1').first();
  const receipt=await env.DB.prepare('SELECT r.received_utc,a.triggered_utc FROM ghost_equal_mobile_receipts r JOIN ghost_equal_alerts a ON r.event_id=a.event_id AND r.stage=a.stage WHERE r.device_id=? ORDER BY r.received_utc DESC LIMIT 1').bind(deviceId).first();
  const lastDelivery=receipt?{received_utc:receipt.received_utc,lag_sec:Math.max(0,Math.round((Date.parse(receipt.received_utc)-Date.parse(receipt.triggered_utc))/1000))}:null;
- return {lastScan:scan?.checked_utc||null,radar:radarInfo.radar,watchlist:radarInfo.watchlist,archived:radarInfo.archived,counts:radarInfo.counts,lastDelivery,alerts:alerts.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)})),bets,roi:metrics(a),roiGhost:metrics(g)};
+ return {lastScan:scan?.checked_utc||null,radar:radarInfo.radar,watchlist:radarInfo.watchlist,archived:radarInfo.archived,counts:radarInfo.counts,ticketOverlay:ticketInfo.tickets,ticketCounts:ticketInfo.counts,lastDelivery,alerts:alerts.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)})),bets,roi:metrics(a),roiGhost:metrics(g)};
 }
 async function mobileApi(req,env,path){
  if(path==='/api/mobile/claim'&&req.method==='POST')return enroll(env,await req.json());
