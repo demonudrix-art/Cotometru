@@ -239,7 +239,7 @@ function publicMatchAudit(a){
   visibility:'public',event_id:a.event_id,fixture:a.fixture,kickoff_utc:a.kickoff_utc,
   status:s?'ALERTED':'MONITORING',
   signal:s?{stage:s.stage,minute:s.minute,triggered_utc:s.triggered_utc,home_score:s.home_score,away_score:s.away_score,px:s.px}:null,
-  result:a.result?{event_status:a.result.event_status,verified:a.result.verified,home_score:a.result.home_score,away_score:a.result.away_score}:null,
+  result:a.result?{event_status:a.result.event_status,verified:a.result.verified,winner_1x2:a.result.winner_1x2}:null,
   bets:a.bets,bet:a.bet
  };
 }
