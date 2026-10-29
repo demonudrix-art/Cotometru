@@ -18,7 +18,7 @@ Standalone Worker `ghost-equal-alert-v1`, using the existing `beast-xray-history
 
 ## Architecture
 
-`Cloudflare cron 1m → Superbet in-play JSON (fixture + market 547) → isolated ghost_equal_samples + prior 7–15m comparator → ghost_equal_alerts → Web Push (VAPID) → Chrome Android service worker / installed PWA → Superbet LIVE`
+`Cloudflare cron 1m watchdog + conditional 25-second Durable Object fast lane → Superbet in-play JSON (fixture + market 547) → isolated ghost_equal_samples + prior 7–15m comparator → ghost_equal_alerts → Web Push (VAPID) → Chrome Android service worker / installed PWA → Superbet LIVE`
 
 `v_ghost_equal_forward_audit` joins BET NOW signals with independently verified `match_results` for a **hypothetical 50 lei stake**, separate from executed bets. Historical backtest: 15 wins / 5 losses, +566.50 lei hypothetical, not a validated forward return.
 
@@ -32,12 +32,18 @@ Standalone Worker `ghost-equal-alert-v1`, using the existing `beast-xray-history
 2. Enter the pairing code supplied privately in chat. The generated device bearer token stays in local storage.
 3. Tap **Activează notificările Android**, approve notifications, and use **Testează notificarea**.
 4. In Chrome menu select **Add to Home screen / Install app**. Ensure Android Notifications are enabled for the installed app/Chrome. Remove battery restrictions if the device suppresses push.
-5. Tapping a notification goes to the verified Superbet football LIVE landing page. An event-specific deep link has **not** been verified, so none is fabricated.
+5. Tapping a notification uses the observed official event-link pattern (`/cote/fotbal/{home}-vs-{away}-{event_id}`) when the fixture splits into two teams. The pattern has been confirmed on an example, not guaranteed for every fixture; use Superbet LIVE as fallback if a link fails.
 
 ## Operations and limitations
 
-- Runs every minute; cron configuration propagation can take up to 15 minutes.
+- Runs every minute with a 25-second Durable Object fast lane while kickoff-window fixtures exist; cron configuration propagation can take up to 15 minutes. This is not an SLA for minute-perfect push delivery.
 - Depends on Superbet public feed compatibility and Cloudflare cron; the specific 57th minute cannot be guaranteed exactly.
 - Subscription private key is generated server-side and persisted in D1; restrict D1 access and plan secret rotation.
 - Web Push delivery depends on browser, FCM connectivity, Android notification permissions, and battery restrictions. Not yet tested on user's physical S24 Ultra.
 - Alerts are informational, not auto-bets. No automatic placement, and a profitable retrospective backtest is not evidence of future profits.
+
+## State at deployment, 29 Oct 2026 09:31 Romania
+- Cloudflare worker `ghost-equal-alert-v1` deployed with D1, secret pairing code, Durable Object `GhostEqualFastTicker`, active one-minute cron and workers.dev public page.
+- First recorded automatic scan: `2026-10-29T06:30:24.960Z` (08:30 Romania), status no error, **0 active fixtures**, **0 samples**, **0 alerts**.
+- Android device subscription and real push delivery have not been tested yet. The first real BET NOW cannot be considered operationally verified until actual match and push tests pass.
+- Forward-only audit view: `v_ghost_equal_forward_audit` in Cloudflare D1. Not coupled to retrospective backtest.
