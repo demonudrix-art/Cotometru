@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path android:fillColor="#0D151B"
-        android:pathData="M18,4 L90,4 Q104,4 104,18 L104,90 Q104,104 90,104 L18,104 Q4,104 4,90 L4,18 Q4,4 18,4 Z"/>
-    <path android:fillColor="@android:color/transparent"
-        android:strokeColor="#FF7568"
-        android:strokeWidth="5"
-        android:pathData="M54,18 A36,36 0,1 1,53.95 18"/>
-    <path android:fillColor="@android:color/transparent"
-        android:strokeColor="#64E4B0"
-        android:strokeWidth="9"
-        android:strokeLineCap="round"
-        android:pathData="M41,40 L67,68 M67,40 L41,68"/>
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+  <path android:fillColor="#0B090E" android:pathData="M18,2 L90,2 Q106,2 106,18 L106,90 Q106,106 90,106 L18,106 Q2,106 2,90 L2,18 Q2,2 18,2 Z"/>
+  <path android:fillColor="#28030C" android:pathData="M54,8 A45,45 0,1 1,53.95 8"/>
+  <path android:fillColor="#00000000" android:strokeWidth="4" android:strokeColor="#ED132F"
+      android:pathData="M23,40 A40,40 0,0 1,89 31 M28,33 A32,32 0,0 1,83 42 M39,38 A22,22 0,0 1,75 44"/>
+  <path android:fillColor="#FFFFFF" android:pathData="M89,17 A5,5 0,1 1,88.99 17"/>
+  <group android:translateX="9" android:translateY="77" android:scaleX="0.038" android:scaleY="-0.038">
+    <path android:fillColor="#F5F5F5" android:pathData="M1362 1446 1300 1130Q1187 1186 1077 1213.5Q967 1241 862 1241Q718 1241 637.5 1196Q557 1151 557 1071Q557 1020 592.5 991.5Q628 963 739 936L897 897Q1095 847 1187.5 752.5Q1280 658 1280 508Q1280 265 1095.5 118Q911 -29 600 -29Q455 -29 311.5 -2Q168 25 31 78L92 403Q225 326 350.5 288Q476 250 598 250Q730 250 812.5 304Q895 358 895 442Q895 497 858 527.5Q821 558 696 590L539 629Q365 672 280 765Q195 858 195 1006Q195 1239 373.5 1379.5Q552 1520 854 1520Q975 1520 1102.5 1501.5Q1230 1483 1362 1446Z"/>
+  </group>
+  <group android:translateX="47" android:translateY="76" android:scaleX="0.037" android:scaleY="-0.037">
+    <path android:fillColor="#FF102D" android:pathData="M819 915Q922 915 980 967Q1038 1019 1038 1110Q1038 1169 997.5 1200Q957 1231 881 1231H666L604 915ZM705 262Q837 262 908 325Q979 388 979 506Q979 581 930 617Q881 653 780 653H553L477 262ZM1161 799Q1259 771 1312.5 696.5Q1366 622 1366 512Q1366 271 1186.5 135.5Q1007 0 682 0H43L334 1493H911Q1177 1493 1304.5 1415Q1432 1337 1432 1174Q1432 1037 1357 933.5Q1282 830 1161 799Z"/>
+  </group>
 </vector>
