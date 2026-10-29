@@ -36,6 +36,11 @@ public class MainActivity extends Activity {
     private WebView web;
     private SharedPreferences prefs;
 
+    private static String readSmall(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream b=new java.io.ByteArrayOutputStream();byte[] a=new byte[4096];int n;
+        while((n=in.read(a))!=-1&&b.size()<100000)b.write(a,0,n);
+        return new String(b.toByteArray(),StandardCharsets.UTF_8);
+    }
     @Override public void onCreate(Bundle s) {
         super.onCreate(s);
         getWindow().setStatusBarColor(Color.rgb(13,21,27));
@@ -65,7 +70,7 @@ public class MainActivity extends Activity {
                 cn.setRequestMethod("POST");cn.setConnectTimeout(12000);cn.setReadTimeout(12000);
                 cn.setDoOutput(true);cn.setRequestProperty("Content-Type","application/json");
                 try(OutputStream os=cn.getOutputStream()){os.write(request.toString().getBytes(StandardCharsets.UTF_8));}
-                int code=cn.getResponseCode();String response="";if(code==200){try(java.io.InputStream in=cn.getInputStream()){response=new String(in.readAllBytes(),StandardCharsets.UTF_8);}}cn.disconnect();
+                int code=cn.getResponseCode();String response="";if(code==200){try(java.io.InputStream in=cn.getInputStream()){response=readSmall(in);}}cn.disconnect();
                 final boolean licensed=code==200 && new JSONObject(response).optJSONObject("license")!=null && new JSONObject(response).getJSONObject("license").optBoolean("active",false);
                 if(code!=200)throw new IllegalStateException(code==409?"Identitatea telefonului diferă de cea înregistrată.":"Serverul nu acceptă instalarea: "+code);
                 runOnUiThread(()->{
