@@ -29,7 +29,13 @@ export async function syncActiveBets(env){
    if(!row)continue;
    const st=ev.inplay_stats||{},meta=ev.inplay_stats_metadata||{};
    const min=num(st.minutes),h=num(st.home_team_score),a=num(st.away_team_score);
-   if(min!==null&&min>=78&&min<=180&&h!==null&&a!==null&&String(meta.status||'').toUpperCase()!=='FINISHED'){
+   const market=(ev.results||[]).find(x=>Number(x.id)===547);
+   const odds=market?.odds||[],names=new Set(odds.map(o=>o.metadata?.name));
+   const w=odds.filter(o=>Number(o.status)===3).map(o=>o.metadata?.name);
+   const verified=odds.length===3&&names.size===3&&['1','X','2'].every(x=>names.has(x))&&
+     odds.every(o=>Number(o.status)===3||Number(o.status)===4)&&w.length===1&&['1','X','2'].includes(w[0]);
+
+   if(min!==null&&min>=78&&min<=180&&h!==null&&a!==null&&!verified&&String(meta.status||'').toUpperCase()!=='FINISHED'){
     // Track matches beyond the separate 78' analytical alert cutoff.
     // Never invent minute advances; overwrite a same-minute row only when score changed.
     const res=await env.DB.prepare(
@@ -39,20 +45,18 @@ export async function syncActiveBets(env){
     ).bind(id,at,min,h,a,row.fixture).run();
     samples+=Number(res.meta?.changes||0);
    }
-   if(String(meta.status||'').toUpperCase()!=='FINISHED')continue;
-   // Final result is accepted only after market-547 verifies exactly one winner.
-   const market=(ev.results||[]).find(x=>Number(x.id)===547);
-   const odds=market?.odds||[],names=new Set(odds.map(o=>o.metadata?.name)),w=odds.filter(o=>Number(o.status)===3).map(o=>o.metadata?.name);
-   const verified=odds.length===3&&names.size===3&&['1','X','2'].every(x=>names.has(x))&&
-     odds.every(o=>Number(o.status)===3||Number(o.status)===4)&&w.length===1&&['1','X','2'].includes(w[0]);
+   // The 1-X-2 market may settle before penalties. Do not read penalty score as 90-minute result.
    if(!verified)continue;
+   const matchFinished=String(meta.status||'').toUpperCase()==='FINISHED';
+   const phase=matchFinished?'FINISHED':'MARKET_SETTLED';
+   const marketHome=matchFinished?h:null,marketAway=matchFinished?a:null;
    await env.DB.prepare(
     "INSERT INTO match_results(event_id,fixture,kickoff_utc,checked_utc,event_status,home_score,away_score,winner_1x2,result_market_json,result_source,verified) "+
-    "VALUES(?,?,?,?,'FINISHED',?,?,?,?,?,1) "+
-    "ON CONFLICT(event_id) DO UPDATE SET checked_utc=excluded.checked_utc,event_status='FINISHED',"+
+    "VALUES(?,?,?,?,?,?,?,?,?,?,1) "+
+    "ON CONFLICT(event_id) DO UPDATE SET checked_utc=excluded.checked_utc,event_status=excluded.event_status,"+
     "home_score=excluded.home_score,away_score=excluded.away_score,winner_1x2=excluded.winner_1x2,"+
     "result_market_json=excluded.result_market_json,result_source=excluded.result_source,verified=1"
-   ).bind(id,row.fixture,row.kickoff_utc,at,h,a,w[0],JSON.stringify(market),'Verified market 547 • active slip sync').run();
+   ).bind(id,row.fixture,row.kickoff_utc,at,phase,marketHome,marketAway,w[0],JSON.stringify(market),'Verified market 547 • active slip sync').run();
    await env.DB.prepare('UPDATE quote_state SET settled=1,last_result_check_utc=? WHERE event_id=?').bind(at,id).run();
    finals++;
   }
