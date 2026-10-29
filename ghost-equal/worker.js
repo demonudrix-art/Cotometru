@@ -1,4 +1,4 @@
-import {searchHistoricMatches,auditSlip} from './sb-history.js';
+import {searchHistoricMatches,auditSlip,auditMatch} from './sb-history.js';
 import {enroll,licenseInfo,adminApi} from './sb-control.js';
 import {radarSnapshot} from './sb-radar.js';
 import {appHtml} from './sb-app-ui.js';
@@ -214,6 +214,13 @@ async function mobileApi(req,env,path){
  if(path==='/api/mobile/match-search'&&req.method==='GET'){
   const data=await searchHistoricMatches(env,new URL(req.url).searchParams.get('q'));
   return json({...data,matches:data.matches.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)}))});
+ }
+ if(path==='/api/mobile/match-audit'&&req.method==='GET'){
+  const params=new URL(req.url).searchParams;
+  const eventId=Number(params.get('event_id')),betId=params.has('bet_id')?Number(params.get('bet_id')):null;
+  if(!Number.isSafeInteger(eventId)||eventId<1||(betId!==null&&(!Number.isSafeInteger(betId)||betId<1)))return json({error:'Identificator invalid'},400);
+  const audit=await auditMatch(env,who.device_id,eventId,betId);
+  return audit?json(audit):json({error:'Meci negăsit în istoric'},404);
  }
  if(path==='/api/mobile/bet-audit'&&req.method==='GET'){
   const id=Number(new URL(req.url).searchParams.get('id'));
