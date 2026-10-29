@@ -1,6 +1,7 @@
 import {ticketOverlay} from './sb-tickets.js';
 import {searchHistoricMatches,auditSlip,auditMatch} from './sb-history.js';
-import {enroll,licenseInfo,adminApi} from './sb-control.js';
+import {enroll,licenseInfo,adminApi,adminAuthenticated} from './sb-control.js';
+import {profileApi} from './sb-profiles.js';
 import {radarSnapshot} from './sb-radar.js';
 import {appHtml} from './sb-app-ui.js';
 import {adminHtml} from './sb-admin-ui.js';
@@ -221,6 +222,7 @@ async function mobileApi(req,env,path){
  const lic=await licenseInfo(env,who.device_id);
  if(path==='/api/mobile/license'&&req.method==='GET')return json({license:lic});
  if(!lic.active)return json({error:'LICENTA_'+lic.status,license:lic},403);
+ if(path==='/api/mobile/profile'||path==='/api/mobile/profile/link-owner')return profileApi(req,env,path,who.device_id,adminAuthenticated);
 
  if(path==='/api/mobile/dashboard'&&req.method==='GET')return json(await mobileDashboard(env,who.device_id));
  if(path==='/api/mobile/match-search'&&req.method==='GET'){
