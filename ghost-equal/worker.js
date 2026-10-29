@@ -1,3 +1,7 @@
+import {enroll,licenseInfo,adminApi} from './sb-control.js';
+import {radarSnapshot} from './sb-radar.js';
+import {appHtml} from './sb-app-ui.js';
+import {adminHtml} from './sb-admin-ui.js';
 
 const API='https://production-superbet-offer-ro.freetls.fastly.net/v3/ro-RO/events';
 const LIVE='https://superbet.ro/pariuri-sportive/fotbal/live';
@@ -73,7 +77,7 @@ async function scan(env){
    const s=ev.inplay_stats,m=ev.inplay_stats_metadata;
    if(!s||!(m?.status==='STARTED'||s.minutes!==undefined))continue;
    const minute=n(s.minutes),h=n(s.home_team_score),a=n(s.away_team_score);
-   if(minute===null||minute<42||minute>78||h===null||a===null)continue;
+   if(minute===null||minute<0||minute>78||h===null||a===null)continue;
    const market=(ev.markets||[]).find(x=>x.id===547);
    const o=Object.fromEntries((market?.odds||[]).filter(x=>['1','X','2'].includes(x.metadata?.name)).map(x=>[x.metadata.name,x]));
    const p1=n(o['1']?.price),px=n(o.X?.price),p2=n(o['2']?.price),gh=n(o['1']?.metadata?.extra?.generosity_prob_home),ga=n(o['2']?.metadata?.extra?.generosity_prob_away);
@@ -188,21 +192,19 @@ async function mobileDashboard(env,deviceId){
  const bets=(await env.DB.prepare('SELECT id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,returned_lei,settled_utc FROM ghost_equal_bets WHERE device_id=? ORDER BY placed_utc DESC,id DESC LIMIT 300').bind(deviceId).all()).results||[];
  const a=await env.DB.prepare("SELECT COUNT(*) total, SUM(CASE WHEN status='OPEN' THEN 1 ELSE 0 END) open, SUM(CASE WHEN status<>'OPEN' THEN stake_lei ELSE 0 END) settledStake, SUM(CASE WHEN status<>'OPEN' THEN returned_lei-stake_lei ELSE 0 END) net, SUM(CASE WHEN status='WON' THEN 1 ELSE 0 END) wins, SUM(CASE WHEN status IN ('WON','LOST') THEN 1 ELSE 0 END) graded FROM ghost_equal_bets WHERE device_id=?").bind(deviceId).first();
  const settledStake=Number(a?.settledStake||0),net=Number(a?.net||0),graded=Number(a?.graded||0);
+ const radarInfo=await radarSnapshot(env);
  const scan=await env.DB.prepare('SELECT checked_utc FROM ghost_equal_runs ORDER BY id DESC LIMIT 1').first();
  const receipt=await env.DB.prepare('SELECT r.received_utc,a.triggered_utc FROM ghost_equal_mobile_receipts r JOIN ghost_equal_alerts a ON r.event_id=a.event_id AND r.stage=a.stage WHERE r.device_id=? ORDER BY r.received_utc DESC LIMIT 1').bind(deviceId).first();
  const lastDelivery=receipt?{received_utc:receipt.received_utc,lag_sec:Math.max(0,Math.round((Date.parse(receipt.received_utc)-Date.parse(receipt.triggered_utc))/1000))}:null;
- return {lastScan:scan?.checked_utc||null,lastDelivery,alerts:alerts.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)})),bets,roi:{total:Number(a?.total||0),open:Number(a?.open||0),settledStake,net:Math.round(net*100)/100,roi:settledStake?Math.round(net/settledStake*10000)/100:null,winrate:graded?Math.round(Number(a?.wins||0)/graded*10000)/100:null}};
+ return {lastScan:scan?.checked_utc||null,radar:radarInfo.radar,counts:radarInfo.counts,lastDelivery,alerts:alerts.map(x=>({...x,url:matchUrl(x.event_id,x.fixture)})),bets,roi:{total:Number(a?.total||0),open:Number(a?.open||0),settledStake,net:Math.round(net*100)/100,roi:settledStake?Math.round(net/settledStake*10000)/100:null,winrate:graded?Math.round(Number(a?.wins||0)/graded*10000)/100:null}};
 }
 async function mobileApi(req,env,path){
- if(path==='/api/mobile/claim'&&req.method==='POST'){
-  const j=await req.json(),deviceId=String(j.device_id||''),token=String(j.token||'');
-  if(!/^[A-Za-z0-9-]{30,80}$/.test(deviceId)||!(/^[A-Za-z0-9_-]{40,128}$/.test(token)))return json({error:'Instalare invalidă'},400);
-  const h=await hash(token);
-  await env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_mobile_devices(device_id,token_hash,created_utc,last_seen_utc) SELECT ?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM ghost_equal_mobile_devices)").bind(deviceId,h,iso(),iso()).run();
-  const ok=await env.DB.prepare('SELECT 1 yes FROM ghost_equal_mobile_devices WHERE device_id=? AND token_hash=?').bind(deviceId,h).first();
-  return ok?json({ok:true}):json({error:'Aplicația este deja asociată altui dispozitiv. Nu s-a activat o nouă instalare.'},409);
- }
+ if(path==='/api/mobile/claim'&&req.method==='POST')return enroll(env,await req.json());
  const who=await mobileWho(req,env);if(!who)return json({error:'Acces Android neautorizat'},401);
+ const lic=await licenseInfo(env,who.device_id);
+ if(path==='/api/mobile/license'&&req.method==='GET')return json({license:lic});
+ if(!lic.active)return json({error:'LICENTA_'+lic.status,license:lic},403);
+
  if(path==='/api/mobile/dashboard'&&req.method==='GET')return json(await mobileDashboard(env,who.device_id));
  if(path==='/api/mobile/alerts'&&req.method==='GET'){
   const a=(await env.DB.prepare("SELECT event_id,stage,triggered_utc,minute,fixture,px FROM ghost_equal_alerts WHERE triggered_utc >= ? ORDER BY triggered_utc DESC LIMIT 30").bind(new Date(Date.now()-6*3600000).toISOString()).all()).results||[];
@@ -241,9 +243,11 @@ export default {
  async scheduled(event,env,ctx){ctx.waitUntil((async()=>{const r=await scan(env);if(r.fixtures>0)await armFastLane(env)})().catch(async e=>{console.error('scan error',String(e));await env.DB.prepare('INSERT INTO ghost_equal_runs(checked_utc,fixtures,samples,eligible,alerts,error) VALUES(?,0,0,0,0,?)').bind(iso(),String(e).slice(0,350)).run()}))},
  async fetch(req,env){const url=new URL(req.url),path=url.pathname;
   try{
-   if(path==='/app')return new Response(nativeAppHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
+   if(path==='/app')return new Response(appHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
+   if(path==='/admin')return new Response(adminHtml(),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",'X-Frame-Options':'DENY'}});
+   if(path.startsWith('/api/admin/'))return adminApi(req,env,path);
    if(path.startsWith('/api/mobile/'))return mobileApi(req,env,path);
-   if(path==='/health')return json({service:'ghost-equal',status:'ok',version:'1.2.0'});
+   if(path==='/health')return json({service:'ghost-equal',status:'ok',version:'2.0.0'});
    if(path==='/manifest.webmanifest')return new Response(JSON.stringify({name:'GHOST EGAL Live',short_name:'GHOST EGAL',start_url:'/',scope:'/',display:'standalone',background_color:'#101719',theme_color:'#101719',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},{src:'/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}]}),{headers:{'Content-Type':'application/manifest+json'}});
    if(path==='/icon-192.png'||path==='/icon-512.png')return new Response(await iconPng(path==='/icon-192.png'?192:512),{headers:{'Content-Type':'image/png','Cache-Control':'public, max-age=86400'}});
    if(path==='/icon.svg')return new Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="100" fill="#101719"/><circle cx="256" cy="256" r="155" fill="none" stroke="#f46757" stroke-width="35"/><text x="256" y="300" text-anchor="middle" fill="white" font-family="Arial" font-size="140" font-weight="bold">X</text></svg>',{headers:{'Content-Type':'image/svg+xml'}});
