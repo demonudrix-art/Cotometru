@@ -56,7 +56,7 @@ export async function adminApi(req,env,path){
  }
  if(!await logged(req,env))return json({error:'Acces admin neautorizat'},401);
  if(path==='/api/admin/devices'&&req.method==='GET'){
-  const r=(await env.DB.prepare('SELECT d.device_id,d.model,d.os_version,d.app_version,d.created_utc,d.last_seen_utc,d.blocked,l.status,l.issued_utc,l.expires_utc FROM ghost_equal_mobile_devices d LEFT JOIN sb_licenses l ON l.device_id=d.device_id ORDER BY d.created_utc DESC LIMIT 250').all()).results||[];
+  const r=(await env.DB.prepare('SELECT d.device_id,d.model,d.os_version,d.app_version,d.created_utc,d.last_seen_utc,d.blocked,l.status,l.issued_utc,l.expires_utc,p.username AS profile_username,p.display_name AS profile_name,p.is_owner AS profile_is_owner FROM ghost_equal_mobile_devices d LEFT JOIN sb_licenses l ON l.device_id=d.device_id LEFT JOIN sb_device_profiles p ON p.device_id=d.device_id ORDER BY d.created_utc DESC LIMIT 250').all()).results||[];
   return json({devices:r.map(d=>({...d,license_status:d.blocked?'BLOCKED':d.status==='REVOKED'?'REVOKED':d.status!=='ACTIVE'?'PENDING':Date.parse(d.expires_utc)>Date.now()?'ACTIVE':'EXPIRED'}))});
  }
  if(path==='/api/admin/license'&&req.method==='POST'){
