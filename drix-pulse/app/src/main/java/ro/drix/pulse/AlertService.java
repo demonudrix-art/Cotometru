@@ -24,8 +24,8 @@ import java.util.concurrent.Executors;
 import android.graphics.Color;
 
 public class AlertService extends Service {
-    private static final String CH_ALERT="drix_bet_now_v1";
-    private static final String CH_MONITOR="drix_monitor_v1";
+    private static final String CH_ALERT="sb_bet_now_v2";
+    private static final String CH_MONITOR="sb_monitor_v2";
     private volatile boolean active=false;
     private ExecutorService executor;
     private SharedPreferences prefs;
@@ -35,7 +35,7 @@ public class AlertService extends Service {
         ensureChannels(this);
         Notification n=new Notification.Builder(this,CH_MONITOR)
                 .setSmallIcon(R.drawable.drix_icon)
-                .setContentTitle("DRIX Pulse • Radar pornit")
+                .setContentTitle("SB Radar • Monitor activ")
                 .setContentText("Urmărește semnalele GHOST EGAL în fundal")
                 .setOngoing(true).setVisibility(Notification.VISIBILITY_PRIVATE)
                 .build();
@@ -61,7 +61,9 @@ public class AlertService extends Service {
         c.setRequestProperty("Authorization","Bearer "+token);
         c.setRequestProperty("Accept","application/json");
         try{
-            if(c.getResponseCode()!=200)return;
+            int status=c.getResponseCode();
+            if(status==401 || status==403){prefs.edit().putBoolean("monitor",false).apply();stopSelf();return;}
+            if(status!=200)return;
             ByteArrayOutputStream bytes=new ByteArrayOutputStream();
             try(InputStream in=c.getInputStream()){
                 byte[] buffer=new byte[8192];int n;
@@ -83,7 +85,7 @@ public class AlertService extends Service {
                 prefs.edit().putBoolean(key,true).apply();
                 String fixture=a.optString("fixture","Meci necunoscut");
                 int minute=a.optInt("minute",0);double px=a.optDouble("px",0);
-                String title=stage.equals("BET_NOW")?"🔴 DRIX Pulse • BET NOW X":"🟠 DRIX Pulse • Pregătește X";
+                String title=stage.equals("BET_NOW")?"🔴 SB Radar • BET NOW X":"🟠 SB Radar • Pregătește X";
                 String body=fixture+" • "+minute+"' • X "+String.format(java.util.Locale.forLanguageTag("ro-RO"),"%.2f",px);
                 showAlert(this,title,body,a.optString("url",MainActivity.BASE+"/app"),key,stage.equals("BET_NOW"));
                 try{acknowledge(token,evt,stage);}catch(Exception ex){android.util.Log.w("DrixPulse","Acknowledgement retry not available");}
@@ -102,13 +104,13 @@ public class AlertService extends Service {
     public static void ensureChannels(Context ctx){
         NotificationManager m=(NotificationManager)ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if(m.getNotificationChannel(CH_MONITOR)==null){
-            NotificationChannel low=new NotificationChannel(CH_MONITOR,"DRIX Pulse • Monitor",NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel low=new NotificationChannel(CH_MONITOR,"SB Radar • Monitor",NotificationManager.IMPORTANCE_LOW);
             low.setDescription("Notificare permanentă cât timp radarul este activ");
             low.setShowBadge(false);
             m.createNotificationChannel(low);
         }
         if(m.getNotificationChannel(CH_ALERT)==null){
-            NotificationChannel high=new NotificationChannel(CH_ALERT,"DRIX Pulse • Alerte BET NOW",NotificationManager.IMPORTANCE_HIGH);
+            NotificationChannel high=new NotificationChannel(CH_ALERT,"SB Radar • Alerte BET NOW",NotificationManager.IMPORTANCE_HIGH);
             high.setDescription("Alerte cu sunet, vibrație și afișare pe ecran blocat");
             high.enableVibration(true);
             high.setVibrationPattern(new long[]{0,220,110,330,130,420});
