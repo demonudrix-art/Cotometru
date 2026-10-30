@@ -51,7 +51,7 @@ public final class MainActivity extends Activity {
         text(root,"PAS 2 · Înregistrează traseul o singură dată",16,0xffffce61);
         text(root,"MOD CAPTURĂ TOUCH: în Chrome apare banda roșie REC. Atingerile sunt preluate și retransmise către pagină. Derularea este înregistrată. Dacă o atingere nu are etichetă, pasul rămâne diagnostic și nu va fi reprodus automat.",12,0xffb8b8be);
         text(root,"Deschidem un meci Superbet în Chrome. Atinge piața 1X2 → X → miza → butonul final. Ultimul click făcut manual POATE PLASA UN PARIU REAL. Pentru înregistrare folosește o situație de test permisă de operator.",12,0xffdfcfc6);
-        url=field(root,"https://superbet.ro/cote/fotbal/…","");
+        url=field(root,"https://superbet.ro/cote/fotbal/…",GoldenMonitor.TEST_URL);
         button(root,"● PORNEȘTE ÎNREGISTRAREA + CHROME",()->{
             GoldenAccessibility a=GoldenAccessibility.instance;
             if(a==null){
@@ -97,7 +97,19 @@ public final class MainActivity extends Activity {
                     .putInt("daily_limit",d).putBoolean("real",actual.isChecked() && s>0).apply();
             show("Setări salvate · click real: "+(actual.isChecked()&&s>0?"ARMAT":"OPRIT"));
         });
-        text(root,"PAS 4 · Monitorizare Golden Ticket",16,0xffffce61);
+        text(root,"PAS 4 · TEST GOLDEN TICKET · FĂRĂ PARIU REAL",16,0xffffce61);
+        text(root,"Deportivo Pereira vs Jaguares de Córdoba · link exact. Primești notificare locală; dacă traseul este complet și miza este mai mare decât 0, verifică X + miza în Chrome. NU apasă butonul final.",12,0xffb8b8be);
+        button(root,"⚡ TRIMITE GOLDEN TICKET TEST",()->{
+            GoldenMonitor.localTest(this);
+            boolean complete=RouteStore.isComplete(RouteStore.read(this));
+            boolean enabled=GoldenAccessibility.instance!=null;
+            int s=RouteStore.prefs(this).getInt("stake",0);
+            if(!complete)show("⚡ TEST trimis în notificări. Traseu INCOMPLET: înregistrează X, miza și butonul final (doar într-un mediu de test). Nicio execuție automată.");
+            else if(!enabled)show("⚡ TEST trimis în notificări. Activează Accessibility pentru a reproduce traseul.");
+            else if(s<=0)show("⚡ TEST trimis în notificări. Miza este 0; setează o miză de simulare >0 pentru testul câmpului, fără confirmare.");
+            else show("⚡ TEST trimis. Se încearcă X + miza. Ultimul click este dezactivat pentru simulare.");
+        });
+        text(root,"PAS 5 · Monitorizare Golden Ticket",16,0xffffce61);
         button(root,"▶ PORNEȘTE MONITORUL GOLDEN",()->{
             Intent i=new Intent(this,GoldenMonitor.class);i.setAction(GoldenMonitor.START);
             try{startForegroundService(i);show("Monitor pornit; consultă notificarea permanentă");}
