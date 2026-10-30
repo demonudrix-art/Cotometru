@@ -18,21 +18,26 @@ final class RouteStore {
     static final class Step {
         String action = "CLICK";
         String viewId = "", label = "", desc = "", klass = "";
-        float x, y;
+        float x, y, endX, endY;
+        long durationMs=0;
         String input = "";
         JSONObject json() throws Exception {
             JSONObject j = new JSONObject(); j.put("action", action); j.put("viewId", viewId);
             j.put("label", label); j.put("desc", desc); j.put("class", klass);
-            j.put("x", (double)x); j.put("y", (double)y); j.put("input", input); return j;
+            j.put("x", (double)x); j.put("y", (double)y);
+            j.put("endX", (double)endX); j.put("endY", (double)endY);
+            j.put("durationMs",durationMs); j.put("input", input); return j;
         }
         static Step from(JSONObject j) {
             Step s = new Step(); s.action = j.optString("action", "CLICK");
             s.viewId = j.optString("viewId"); s.label = j.optString("label");
             s.desc = j.optString("desc"); s.klass = j.optString("class");
             s.x = (float)j.optDouble("x", 0); s.y = (float)j.optDouble("y", 0);
+            s.endX=(float)j.optDouble("endX",s.x);s.endY=(float)j.optDouble("endY",s.y);
+            s.durationMs=j.optLong("durationMs",0);
             s.input = j.optString("input"); return s;
         }
-        String summary() { return action + " · " + (!label.isEmpty() ? label : !desc.isEmpty() ? desc : viewId); }
+        String summary() { return action + " · " + (!label.isEmpty() ? label : !desc.isEmpty() ? desc : !viewId.isEmpty()?viewId:"atingere la "+Math.round(x*100)+"%, "+Math.round(y*100)+"%"); }
     }
     static void save(Context c, List<Step> steps) throws Exception {
         JSONArray a = new JSONArray(); for (Step s:steps) a.put(s.json());
