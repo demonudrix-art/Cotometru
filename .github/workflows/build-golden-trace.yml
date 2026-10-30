@@ -7,7 +7,7 @@ on:
       - 'android/golden-trace/**'
       - '.github/workflows/build-golden-trace.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,3 +34,20 @@ jobs:
           name: SB_Radar_Golden_Trace_debug_APK
           path: android/golden-trace/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Publish compiled APK in repository
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER="$(sed -n "s/.*versionName '\\([^']*\\)'.*/\\1/p" android/golden-trace/app/build.gradle | head -n 1)"
+          test -n "$VER"
+          mkdir -p android/golden-trace/releases
+          cp android/golden-trace/app/build/outputs/apk/debug/app-debug.apk "android/golden-trace/releases/GoldenTrace_v${VER}.apk"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "android/golden-trace/releases/GoldenTrace_v${VER}.apk"
+          if ! git diff --staged --quiet; then
+            git commit -m "Publish Golden Trace v${VER} APK [skip ci]"
+            git push origin HEAD:main
+          fi
