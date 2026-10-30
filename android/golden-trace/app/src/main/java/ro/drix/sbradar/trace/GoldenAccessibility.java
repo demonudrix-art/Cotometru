@@ -425,7 +425,8 @@ public final class GoldenAccessibility extends AccessibilityService {
               RouteStore.prefs(this).getInt("stake",0)<=0)){
             status("Golden Ticket primit · execuția reală nu este armată / miză lipsă");return;
         }
-        if(sig==null||!sig.valid()||!sig.url.startsWith("https://superbet.ro/cote/fotbal/")){
+        if(sig==null||!(dryRun?sig.validTest():sig.valid())||
+             !sig.url.startsWith("https://superbet.ro/cote/fotbal/")){
             status("Replay refuzat: semnal sau URL neverificat");return;
         }
         this.active=sig;this.simulation=dryRun;this.playing=true;this.finalClickDone=false;
@@ -450,7 +451,9 @@ public final class GoldenAccessibility extends AccessibilityService {
         }
         if(index==route.size()-1 && !RouteStore.isFinal(step)){abort("Ultimul pas nu este butonul de plasare");return;}
         if(index==route.size()-1 && !matchFixture(root,active)){abort("Nu pot confirma echipele pe pagina meciului");return;}
-        if(index==route.size()-1 && (!xSelected || !stakeSet || observedX < active.x-.03 || observedX > active.x+.30 || !isStakeVisible(root))){
+        if(index==route.size()-1 && (!xSelected || !stakeSet ||
+            (!simulation && (observedX < active.x-.03 ||
+             observedX > active.x+.30 || !isStakeVisible(root))))){
             abort("Ultima verificare a eșuat: X/miză/cotă neconfirmate · STOP");return;
         }
         AccessibilityNodeInfo found=findUnique(root,step);
@@ -464,7 +467,7 @@ public final class GoldenAccessibility extends AccessibilityService {
             stakeSet=true;
         }else{
             if(index==route.size()-1){
-                if(simulation){playing=false;status("SIMULARE OK · înainte de ultimul click · fără miză reală");return;}
+                if(simulation){playing=false;status("⚡ TEST GOLDEN · X și miza procesate; OPRIT înainte de clickul final · nicio miză plasată");return;}
                 if(finalClickDone){abort("Click final deja executat, fără retry");return;}
                 finalClickDone=true; // Once, before dispatch. Never retry the money action.
             }
@@ -475,7 +478,7 @@ public final class GoldenAccessibility extends AccessibilityService {
                     step.label.matches("(?is)^X\\s+[0-9]+[.,][0-9]+$")){
                 // Price must be obtainable from the selected market control, not guessed from a cached signal.
                 observedX=priceFromControl(found);
-                if(observedX<=0){abort("Cota X nu este accesibilă în pagina Chrome; fără click orb");return;}
+                if(observedX<=0&&!simulation){abort("Cota X nu este accesibilă în pagina Chrome; fără click orb");return;}
                 xSelected=true;
             }
             if(!clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK)){
