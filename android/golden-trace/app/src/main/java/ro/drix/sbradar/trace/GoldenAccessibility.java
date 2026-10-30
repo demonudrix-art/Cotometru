@@ -30,7 +30,14 @@ public final class GoldenAccessibility extends AccessibilityService {
     private long lastEventAt=0, replayStartedAt=0;
     private String lastClickKey="";
 
-    @Override protected void onServiceConnected(){ super.onServiceConnected(); instance=this; status("Accesibilitate activă"); }
+    @Override protected void onServiceConnected(){
+        super.onServiceConnected(); instance=this;
+        if(RouteStore.prefs(this).getBoolean("rec_active",false)){
+            recording.clear(); recording.addAll(RouteStore.read(this));
+            rec=true;
+            status("REC restaurat · "+recording.size()+" pași salvați");
+        }else status("Accesibilitate activă");
+    }
     @Override public void onInterrupt(){ abort("Serviciul Android a fost întrerupt"); }
     @Override public void onDestroy(){ if(instance==this)instance=null; abort("Serviciu închis"); super.onDestroy(); }
     static String statusText(android.content.Context c){return RouteStore.prefs(c).getString("status","Neconfigurat");}
@@ -38,37 +45,107 @@ public final class GoldenAccessibility extends AccessibilityService {
 
     void beginRecording(String startingUrl){
         if(playing){status("Oprește redarea înainte de înregistrare");return;}
+        if(!startingUrl.startsWith("https://superbet.ro/")){
+            status("REC nu a pornit: URL trebuie să înceapă cu https://superbet.ro/");
+            return;
+        }
         recording.clear();lastClickKey="";rec=true;
-        status("REC activ · deschide pagina, selectează X, introdu miza, apoi butonul final");
+        try{RouteStore.save(this,recording);}
+        catch(Exception e){status("Nu pot inițializa fișierul traseului: "+e.getMessage());rec=false;return;}
+        RouteStore.prefs(this).edit()
+            .putBoolean("rec_active",true)
+            .putInt("rec_chrome_events",0).putInt("rec_clicks",0)
+            .putInt("rec_text_edits",0).putInt("rec_unlabelled",0)
+            .putString("rec_last_package","-").putString("rec_last_type","-").apply();
+        status("● REC ACTIV · Chrome este monitorizat; atinge X și câmpul mizei");
         openChrome(startingUrl);
     }
     void endRecording(){
         rec=false;
-        try {RouteStore.save(this,recording);status("Traseu salvat: "+recording.size()+" pași · "+(RouteStore.isComplete(recording)?"COMPLET":"INCOMPLET (lipsește X sau clickul final)"));}
-        catch(Exception e){status("Eroare salvare traseu: "+e.getMessage());}
+        RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
+        List<RouteStore.Step> saved=RouteStore.read(this);
+        if(saved.size()>recording.size()){recording.clear();recording.addAll(saved);}
+        try {
+            RouteStore.save(this,recording);
+            status("Traseu salvat: "+recording.size()+" pași · "+
+                (RouteStore.isComplete(recording)?"COMPLET":"INCOMPLET")+
+                " · Chrome evenimente "+RouteStore.prefs(this).getInt("rec_chrome_events",0));
+        }catch(Exception e){status("Eroare salvare traseu: "+e.getMessage());}
     }
-    void abort(String why){rec=false;playing=false;active=null;status("STOP · "+why);}
+    void abort(String why){
+        rec=false;playing=false;active=null;
+        RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
+        status("STOP · "+why);
+    }
     boolean isRecording(){return rec;}
 
     @Override public void onAccessibilityEvent(AccessibilityEvent ev){
-        if(ev==null || ev.getPackageName()==null || !RouteStore.CHROME.contentEquals(ev.getPackageName()))return;
-        if(rec){
-            int type=ev.getEventType();
+        if(ev==null)return;
+        if(!rec && RouteStore.prefs(this).getBoolean("rec_active",false)){
+            rec=true;recording.clear();recording.addAll(RouteStore.read(this));
+        }
+        if(!rec)return;
+        String pkg=ev.getPackageName()==null?"(fără pachet)":ev.getPackageName().toString();
+        int type=ev.getEventType();
+        if(type==AccessibilityEvent.TYPE_VIEW_CLICKED || type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED){
+            RouteStore.prefs(this).edit().putString("rec_last_package",pkg)
+                .putString("rec_last_type",type==AccessibilityEvent.TYPE_VIEW_CLICKED?"CLICK":"TEXT").apply();
+        }
+        if(!RouteStore.CHROME.equals(pkg))return;
+        if(type==AccessibilityEvent.TYPE_VIEW_CLICKED || type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED){
+            RouteStore.prefs(this).edit()
+                .putInt("rec_chrome_events",RouteStore.prefs(this).getInt("rec_chrome_events",0)+1)
+                .apply();
             if(type==AccessibilityEvent.TYPE_VIEW_CLICKED)recordClick(ev);
-            else if(type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)recordNumericEdit(ev);
-            return;
+            else recordNumericEdit(ev);
         }
     }
+    private static String eventLabel(AccessibilityEvent ev){
+        StringBuilder sb=new StringBuilder();
+        if(ev.getText()!=null)for(CharSequence t:ev.getText()){
+            if(t!=null && sb.length()<140)sb.append(t).append(' ');
+        }
+        return RouteStore.clean(sb);
+    }
+    private static String descendantText(AccessibilityNodeInfo n){
+        if(n==null)return "";
+        StringBuilder sb=new StringBuilder();
+        List<AccessibilityNodeInfo> q=new ArrayList<>();q.add(n);
+        for(int i=0;i<q.size()&&i<20;i++){
+            AccessibilityNodeInfo item=q.get(i);
+            String t=RouteStore.clean(item.getText());
+            if(!t.isEmpty()&&sb.indexOf(t)<0)sb.append(t).append(' ');
+            for(int j=0;j<item.getChildCount()&&j<8;j++){
+                AccessibilityNodeInfo c=item.getChild(j);if(c!=null)q.add(c);
+            }
+        }
+        return RouteStore.clean(sb);
+    }
+    private void saveProgress(){
+        try{RouteStore.save(this,recording);}
+        catch(Exception e){status("REC eroare de scriere: "+e.getMessage());}
+    }
     private void recordClick(AccessibilityEvent ev){
-        AccessibilityNodeInfo src=ev.getSource(); if(src==null)return;
+        RouteStore.prefs(this).edit().putInt("rec_clicks",RouteStore.prefs(this).getInt("rec_clicks",0)+1).apply();
+        AccessibilityNodeInfo src=ev.getSource();
         RouteStore.Step step=RouteStore.capture(src,getResources().getDisplayMetrics(),"CLICK");
-        if(step.label.isEmpty()&&step.desc.isEmpty()&&step.viewId.isEmpty())return;
+        if(step.label.isEmpty())step.label=eventLabel(ev);
+        if(step.desc.isEmpty())step.desc=RouteStore.clean(ev.getContentDescription());
+        if(step.label.isEmpty())step.label=descendantText(src);
+        if(step.label.isEmpty()&&step.desc.isEmpty()&&step.viewId.isEmpty()){
+            RouteStore.prefs(this).edit().putInt("rec_unlabelled",RouteStore.prefs(this).getInt("rec_unlabelled",0)+1).apply();
+            step.label="[click fără etichetă — nu poate fi redat automat]";
+        }
         String key=step.viewId+"|"+step.label+"|"+step.desc;
         long now=android.os.SystemClock.elapsedRealtime();
-        if(now-lastEventAt<450&&key.equals(lastClickKey))return;
+        if(now-lastEventAt<350&&key.equals(lastClickKey))return;
         lastEventAt=now;lastClickKey=key;
-        if(recording.size()>=25){rec=false;status("REC oprit · maxim 25 pași");return;}
-        recording.add(step);status("REC "+recording.size()+": "+step.summary());
+        if(recording.size()>=25){
+            rec=false;RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
+            status("REC oprit · maxim 25 pași");return;
+        }
+        recording.add(step);saveProgress();
+        status("● REC "+recording.size()+" pași · "+step.summary());
     }
     private void recordNumericEdit(AccessibilityEvent ev){
         AccessibilityNodeInfo src=ev.getSource();if(src==null || src.isPassword())return;
@@ -81,10 +158,14 @@ public final class GoldenAccessibility extends AccessibilityService {
             RouteStore.Step prev=recording.get(recording.size()-1);
             if(prev.action.equals("SET_STAKE") && (prev.viewId.equals(step.viewId)||
                   Math.abs(prev.x-step.x)<.02f && Math.abs(prev.y-step.y)<.02f)) {
-                recording.set(recording.size()-1,step);status("REC miză: "+value);return;
+                recording.set(recording.size()-1,step);saveProgress();status("REC miză: "+value);return;
             }
         }
-        if(recording.size()<25){recording.add(step);status("REC câmp miză identificat");}
+        if(recording.size()<25){
+            recording.add(step);saveProgress();
+            RouteStore.prefs(this).edit().putInt("rec_text_edits",RouteStore.prefs(this).getInt("rec_text_edits",0)+1).apply();
+            status("REC câmp miză: "+value);
+        }
     }
     private void openChrome(String url){
         try {
