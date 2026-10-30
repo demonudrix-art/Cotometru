@@ -49,6 +49,7 @@ public final class MainActivity extends Activity {
         });
         button(root,"Activează serviciul Android Accessibility",()->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(root,"PAS 2 · Înregistrează traseul o singură dată",16,0xffffce61);
+        text(root,"MOD CAPTURĂ TOUCH: în Chrome apare banda roșie REC. Atingerile sunt preluate și retransmise către pagină. Derularea este înregistrată. Dacă o atingere nu are etichetă, pasul rămâne diagnostic și nu va fi reprodus automat.",12,0xffb8b8be);
         text(root,"Deschidem un meci Superbet în Chrome. Atinge piața 1X2 → X → miza → butonul final. Ultimul click făcut manual POATE PLASA UN PARIU REAL. Pentru înregistrare folosește o situație de test permisă de operator.",12,0xffdfcfc6);
         url=field(root,"https://superbet.ro/cote/fotbal/…","");
         button(root,"● PORNEȘTE ÎNREGISTRAREA + CHROME",()->{
@@ -77,9 +78,16 @@ public final class MainActivity extends Activity {
         recorderFeedback=text(root,"DIAGNOSTIC REC · nu a pornit",14,0xffffce61);
         trace=text(root,"",12,0xffe5deca);
         text(root,"PAS 3 · Configurează limitele",16,0xffffce61);
-        stake=field(root,"Miză în lei (ex.: 25)",String.valueOf(RouteStore.prefs(this).getInt("stake",0)));
-        limit=field(root,"Plafon pe pariu în lei",String.valueOf(RouteStore.prefs(this).getInt("max_stake",50)));
-        daily=field(root,"Maximum încercări Golden / zi (1–20)",String.valueOf(RouteStore.prefs(this).getInt("daily_limit",5)));
+        text(root,"MIZĂ PE PARIU (LEI)",14,0xffffce61);
+        text(root,"0 = test, fără execuție reală. Introdu suma numai după ce recorderul funcționează.",12,0xffb8b8be);
+        stake=field(root,"Miza în lei",String.valueOf(RouteStore.prefs(this).getInt("stake",0)));
+        stake.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        text(root,"PLAFON MAXIM PER PARIU (LEI)",14,0xffffce61);
+        limit=field(root,"Maximum lei per bilet",String.valueOf(RouteStore.prefs(this).getInt("max_stake",50)));
+        limit.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        text(root,"MAXIMUM ÎNCERCĂRI GOLDEN TICKET / ZI",14,0xffffce61);
+        daily=field(root,"Încercări pe zi (1–20)",String.valueOf(RouteStore.prefs(this).getInt("daily_limit",5)));
+        daily.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         actual=new CheckBox(this);actual.setText("ARMAT: permite ultimul click REAL când apare Golden Ticket");
         actual.setTextColor(0xffffc5ab);actual.setChecked(RouteStore.prefs(this).getBoolean("real",false));root.addView(actual);
         button(root,"Salvează miza și armarea",()->{
@@ -179,10 +187,13 @@ public final class MainActivity extends Activity {
         android.content.SharedPreferences p=RouteStore.prefs(this);
         boolean recording=p.getBoolean("rec_active",false);
         int events=p.getInt("rec_chrome_events",0),clicks=p.getInt("rec_clicks",0),unnamed=p.getInt("rec_unlabelled",0),windows=p.getInt("rec_chrome_windows",0);
+        int touch=p.getInt("rec_overlay_taps",0),swipe=p.getInt("rec_overlay_swipes",0),forwardFailed=p.getInt("rec_forward_failed",0);
         String last=p.getString("rec_last_package","-");
         String diagnostic=(recording?"🔴 REC ACTIV":"REC OPRIT")+
             " · Chrome: "+events+" click/text · "+windows+" schimbări fereastră · clicuri: "+clicks+
             " · fără etichetă: "+unnamed+
+            "\\nTouch capturat: "+touch+" · derulări: "+swipe+
+            " · retransmiteri anulate: "+forwardFailed+
             "\\nUltima aplicație detectată: "+last+
             "\\n"+GoldenAccessibility.statusText(this);
         if(recorderFeedback!=null){
