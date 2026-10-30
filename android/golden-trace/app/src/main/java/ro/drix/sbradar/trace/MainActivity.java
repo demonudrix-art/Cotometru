@@ -19,7 +19,7 @@ import org.json.JSONObject;
 import java.util.List;
 
 public final class MainActivity extends Activity {
-    private TextView info,trace;
+    private TextView info,trace,licenseFeedback;
     private EditText url,stake,limit,daily;
     private CheckBox actual;
     @Override public void onCreate(Bundle saved){super.onCreate(saved);
@@ -35,7 +35,18 @@ public final class MainActivity extends Activity {
         String device=RouteStore.prefs(this).getString("device_id","-");
         text(root,"ID dispozitiv: "+device,12,0xffc2c2c2);
         button(root,"Înregistrează dispozitiv în Cloudflare",()->network(()->Backend.claim(this)));
-        button(root,"Verifică licența",()->network(()->Backend.api(this,"/api/mobile/license",null)));
+        button(root,"Verifică licența",()->network(()->{
+            Backend.claim(this); // idempotent: ensure registration before checking license
+            return Backend.api(this,"/api/mobile/license",null);
+        }));
+        licenseFeedback=text(root,"● LICENȚĂ NEVERIFICATĂ\\nApasă «Verifică licența».",16,0xffffce61);
+        text(root,"Dacă statusul este PENDING, aprobă acest telefon în panoul Administrator → Licențiază, apoi verifică din nou.",12,0xffb8b8be);
+        button(root,"Deschide panoul Administrator (autorizare)",()->{
+            try{
+                Intent intent=new Intent(Intent.ACTION_VIEW,android.net.Uri.parse(RouteStore.BACKEND+"/admin"));
+                startActivity(intent);
+            }catch(Exception e){show("Nu pot deschide panoul: "+e.getMessage());}
+        });
         button(root,"Activează serviciul Android Accessibility",()->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
         text(root,"PAS 2 · Înregistrează traseul o singură dată",16,0xffffce61);
         text(root,"Deschidem un meci Superbet în Chrome. Atinge piața 1X2 → X → miza → butonul final. Ultimul click făcut manual POATE PLASA UN PARIU REAL. Pentru înregistrare folosește o situație de test permisă de operator.",12,0xffdfcfc6);
@@ -89,10 +100,55 @@ public final class MainActivity extends Activity {
     }
     private int parse(String s){try{return Integer.parseInt(s.trim());}catch(Exception e){return -1;}}
     private interface Work{JSONObject run() throws Exception;}
-    private void network(Work w){show("Conectare…");new Thread(()->{
-        String message;try{JSONObject j=w.run();message=j.toString(2);}catch(Exception e){message="Eroare: "+e.getMessage();}
-        final String value=message;runOnUiThread(()->{refresh();show(value);});
-    }).start();}
+    private void network(Work w){
+        if(licenseFeedback!=null){
+            licenseFeedback.setText("⏳ Se conectează la Cloudflare…");
+            licenseFeedback.setTextColor(0xffffce61);
+        }
+        new Thread(()->{
+            JSONObject answer=null;
+            String error=null;
+            try{answer=w.run();}
+            catch(Exception e){error=e.getMessage()==null?e.toString():e.getMessage();}
+            final JSONObject result=answer;
+            final String problem=error;
+            runOnUiThread(()->{
+                refresh();
+                if(problem!=null){
+                    String details="❌ VERIFICARE EȘUATĂ\\n"+problem;
+                    if(problem.contains("401"))details+="\\nReînregistrează telefonul și verifică din nou.";
+                    if(problem.contains("403"))details+="\\nVerifică licența în panoul Administrator.";
+                    if(licenseFeedback!=null){
+                        licenseFeedback.setText(details);
+                        licenseFeedback.setTextColor(0xffff8383);
+                    }
+                    show(details);
+                }else{
+                    displayLicense(result);
+                    show("Răspuns Cloudflare: "+result.toString());
+                }
+            });
+        }).start();
+    }
+    private void displayLicense(JSONObject response){
+        if(licenseFeedback==null)return;
+        JSONObject lic=response.optJSONObject("license");
+        if(lic==null){
+            licenseFeedback.setText("✅ Dispozitiv înregistrat. Acum apasă Verifică licența.");
+            licenseFeedback.setTextColor(0xffb3dfc3);
+            return;
+        }
+        boolean active=lic.optBoolean("active",false);
+        String status=lic.optString("status","UNKNOWN");
+        String text;
+        if(active)text="✅ LICENȚĂ ACTIVE\\nGolden Trace este autorizat pe server.";
+        else if("PENDING".equals(status))text="⏳ LICENȚĂ PENDING\\nÎn panoul Administrator găsește acest telefon → Licențiază → Revino aici.";
+        else text="⚠️ LICENȚĂ "+status+"\\nIntră în panoul Administrator pentru autorizare.";
+        String expires=lic.optString("expires_utc","");
+        if(active&&!expires.isEmpty()&&!expires.equals("null"))text+="\\nExpiră: "+expires;
+        licenseFeedback.setText(text);
+        licenseFeedback.setTextColor(active?0xff9bebad:0xffffce61);
+    }
     private TextView text(LinearLayout parent,String value,int size,int color){
         TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);
         t.setPadding(0,12,0,10);parent.addView(t);return t;
