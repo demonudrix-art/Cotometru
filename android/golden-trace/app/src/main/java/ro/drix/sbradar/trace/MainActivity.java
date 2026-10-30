@@ -19,7 +19,7 @@ import org.json.JSONObject;
 import java.util.List;
 
 public final class MainActivity extends Activity {
-    private TextView info,trace,licenseFeedback;
+    private TextView info,trace,licenseFeedback,recorderFeedback;
     private EditText url,stake,limit,daily;
     private CheckBox actual;
     @Override public void onCreate(Bundle saved){super.onCreate(saved);
@@ -53,19 +53,28 @@ public final class MainActivity extends Activity {
         url=field(root,"https://superbet.ro/cote/fotbal/…","");
         button(root,"● PORNEȘTE ÎNREGISTRAREA + CHROME",()->{
             GoldenAccessibility a=GoldenAccessibility.instance;
-            if(a==null){show("Mai întâi activează Accessibility");return;}
-            a.beginRecording(url.getText().toString().trim());show("REC pornit");
+            if(a==null){
+                String msg="REC NU A PORNIT · Activează serviciul Accessibility, apoi revino.";
+                show(msg);android.widget.Toast.makeText(this,msg,android.widget.Toast.LENGTH_LONG).show();return;
+            }
+            a.beginRecording(url.getText().toString().trim());
+            show(GoldenAccessibility.statusText(this));
+            refresh();
         });
         button(root,"■ OPREȘTE + SALVEAZĂ TRASEUL",()->{
             GoldenAccessibility a=GoldenAccessibility.instance;
-            if(a==null){show("Accessibility inactiv");return;}
-            a.endRecording();refresh();
+            if(a==null){
+                RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
+                show("Accessibility inactiv · pașii salvați până acum se păstrează.");
+            }else a.endRecording();
+            refresh();
         });
         button(root,"Șterge ultimul pas înregistrat",()->{
             List<RouteStore.Step> steps=RouteStore.read(this);
             if(!steps.isEmpty()){steps.remove(steps.size()-1);try{RouteStore.save(this,steps);}catch(Exception ignored){}}
             refresh();
         });
+        recorderFeedback=text(root,"DIAGNOSTIC REC · nu a pornit",14,0xffffce61);
         trace=text(root,"",12,0xffe5deca);
         text(root,"PAS 3 · Configurează limitele",16,0xffffce61);
         stake=field(root,"Miză în lei (ex.: 25)",String.valueOf(RouteStore.prefs(this).getInt("stake",0)));
@@ -167,7 +176,20 @@ public final class MainActivity extends Activity {
         StringBuilder sb=new StringBuilder("Traseu · "+steps.size()+" pași · "+(RouteStore.isComplete(steps)?"COMPLET":"INCOMPLET")+"\n");
         for(int i=0;i<steps.size();i++)sb.append(i+1).append(". ").append(steps.get(i).summary()).append('\n');
         if(trace!=null)trace.setText(sb);
-        info.setText("ACCESS: "+GoldenAccessibility.statusText(this)+"\nMONITOR: "+RouteStore.prefs(this).getString("monitor_status","Oprit"));
+        android.content.SharedPreferences p=RouteStore.prefs(this);
+        boolean recording=p.getBoolean("rec_active",false);
+        int events=p.getInt("rec_chrome_events",0),clicks=p.getInt("rec_clicks",0),unnamed=p.getInt("rec_unlabelled",0);
+        String last=p.getString("rec_last_package","-");
+        String diagnostic=(recording?"🔴 REC ACTIV":"REC OPRIT")+
+            " · Chrome: "+events+" evenimente · clicuri: "+clicks+
+            " · fără etichetă: "+unnamed+
+            "\\nUltima aplicație detectată: "+last+
+            "\\n"+GoldenAccessibility.statusText(this);
+        if(recorderFeedback!=null){
+            recorderFeedback.setText(diagnostic);
+            recorderFeedback.setTextColor(events>0?0xff9bebad:0xffffce61);
+        }
+        info.setText("ACCESS: "+GoldenAccessibility.statusText(this)+"\\nMONITOR: "+p.getString("monitor_status","Oprit"));
     }
     @Override protected void onResume(){super.onResume();if(info!=null)refresh();}
 }
