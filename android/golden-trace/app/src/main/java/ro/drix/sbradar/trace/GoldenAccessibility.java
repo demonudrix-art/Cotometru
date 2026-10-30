@@ -38,8 +38,17 @@ public final class GoldenAccessibility extends AccessibilityService {
             status("REC restaurat · "+recording.size()+" pași salvați");
         }else status("Accesibilitate activă");
     }
-    @Override public void onInterrupt(){ abort("Serviciul Android a fost întrerupt"); }
-    @Override public void onDestroy(){ if(instance==this)instance=null; abort("Serviciu închis"); super.onDestroy(); }
+    @Override public void onInterrupt(){
+        if(playing)abort("Serviciul Android a fost întrerupt în timpul redării");
+        else if(rec)status("REC temporar întrerupt · traseul salvat se păstrează");
+    }
+    @Override public void onDestroy(){
+        if(instance==this)instance=null;
+        playing=false;active=null;rec=false;
+        if(RouteStore.prefs(this).getBoolean("rec_active",false))
+            status("REC suspendat de Android · pașii salvați se păstrează");
+        super.onDestroy();
+    }
     static String statusText(android.content.Context c){return RouteStore.prefs(c).getString("status","Neconfigurat");}
     void status(String text){ RouteStore.prefs(this).edit().putString("status",text).apply(); }
 
@@ -56,6 +65,7 @@ public final class GoldenAccessibility extends AccessibilityService {
             .putBoolean("rec_active",true)
             .putInt("rec_chrome_events",0).putInt("rec_clicks",0)
             .putInt("rec_text_edits",0).putInt("rec_unlabelled",0)
+            .putInt("rec_chrome_windows",0)
             .putString("rec_last_package","-").putString("rec_last_type","-").apply();
         status("● REC ACTIV · Chrome este monitorizat; atinge X și câmpul mizei");
         openChrome(startingUrl);
@@ -92,6 +102,11 @@ public final class GoldenAccessibility extends AccessibilityService {
                 .putString("rec_last_type",type==AccessibilityEvent.TYPE_VIEW_CLICKED?"CLICK":"TEXT").apply();
         }
         if(!RouteStore.CHROME.equals(pkg))return;
+        if(type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+            type==AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED){
+            int seen=RouteStore.prefs(this).getInt("rec_chrome_windows",0);
+            if(seen<9999)RouteStore.prefs(this).edit().putInt("rec_chrome_windows",seen+1).apply();
+        }
         if(type==AccessibilityEvent.TYPE_VIEW_CLICKED || type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED){
             RouteStore.prefs(this).edit()
                 .putInt("rec_chrome_events",RouteStore.prefs(this).getInt("rec_chrome_events",0)+1)
