@@ -1,0 +1,117 @@
+package ro.drix.sbradar.trace;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.view.View;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import org.json.JSONObject;
+import java.util.List;
+
+public final class MainActivity extends Activity {
+    private TextView info,trace;
+    private EditText url,stake,limit,daily;
+    private CheckBox actual;
+    @Override public void onCreate(Bundle saved){super.onCreate(saved);
+        Backend.credentials(this);
+        if(Build.VERSION.SDK_INT>=33)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},8);
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+        LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(22,30,22,30);root.setBackgroundColor(0xff101014);scroll.addView(root);
+        text(root,"⚡ SB RADAR",24,0xffffce61);
+        text(root,"GOLDEN TICKET · RECORDER DE TRASEU",15,Color.WHITE);
+        text(root,"Separat de SB Radar v2.2 · comunică cu același Worker Cloudflare. Nu înlocuiește APK-ul instalat.",12,0xffb8b8be);
+        text(root,"PAS 1 · Autorizează companionul",16,0xffffce61);
+        String device=RouteStore.prefs(this).getString("device_id","-");
+        text(root,"ID dispozitiv: "+device,12,0xffc2c2c2);
+        button(root,"Înregistrează dispozitiv în Cloudflare",()->network(()->Backend.claim(this)));
+        button(root,"Verifică licența",()->network(()->Backend.api(this,"/api/mobile/license",null)));
+        button(root,"Activează serviciul Android Accessibility",()->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+        text(root,"PAS 2 · Înregistrează traseul o singură dată",16,0xffffce61);
+        text(root,"Deschidem un meci Superbet în Chrome. Atinge piața 1X2 → X → miza → butonul final. Ultimul click făcut manual POATE PLASA UN PARIU REAL. Pentru înregistrare folosește o situație de test permisă de operator.",12,0xffdfcfc6);
+        url=field(root,"https://superbet.ro/cote/fotbal/…","");
+        button(root,"● PORNEȘTE ÎNREGISTRAREA + CHROME",()->{
+            GoldenAccessibility a=GoldenAccessibility.instance;
+            if(a==null){show("Mai întâi activează Accessibility");return;}
+            a.beginRecording(url.getText().toString().trim());show("REC pornit");
+        });
+        button(root,"■ OPREȘTE + SALVEAZĂ TRASEUL",()->{
+            GoldenAccessibility a=GoldenAccessibility.instance;
+            if(a==null){show("Accessibility inactiv");return;}
+            a.endRecording();refresh();
+        });
+        button(root,"Șterge ultimul pas înregistrat",()->{
+            List<RouteStore.Step> steps=RouteStore.read(this);
+            if(!steps.isEmpty()){steps.remove(steps.size()-1);try{RouteStore.save(this,steps);}catch(Exception ignored){}}
+            refresh();
+        });
+        trace=text(root,"",12,0xffe5deca);
+        text(root,"PAS 3 · Configurează limitele",16,0xffffce61);
+        stake=field(root,"Miză în lei (ex.: 25)",String.valueOf(RouteStore.prefs(this).getInt("stake",0)));
+        limit=field(root,"Plafon pe pariu în lei",String.valueOf(RouteStore.prefs(this).getInt("max_stake",50)));
+        daily=field(root,"Maximum încercări Golden / zi (1–20)",String.valueOf(RouteStore.prefs(this).getInt("daily_limit",5)));
+        actual=new CheckBox(this);actual.setText("ARMAT: permite ultimul click REAL când apare Golden Ticket");
+        actual.setTextColor(0xffffc5ab);actual.setChecked(RouteStore.prefs(this).getBoolean("real",false));root.addView(actual);
+        button(root,"Salvează miza și armarea",()->{
+            int s=parse(stake.getText().toString()),m=parse(limit.getText().toString()),d=parse(daily.getText().toString());
+            if(m<=0||m>5000||s<0||s>m||d<1||d>20){show("Limite invalide: miză 0..plafon; plafon max 5000");return;}
+            RouteStore.prefs(this).edit().putInt("stake",s).putInt("max_stake",m)
+                    .putInt("daily_limit",d).putBoolean("real",actual.isChecked() && s>0).apply();
+            show("Setări salvate · click real: "+(actual.isChecked()&&s>0?"ARMAT":"OPRIT"));
+        });
+        text(root,"PAS 4 · Monitorizare Golden Ticket",16,0xffffce61);
+        button(root,"▶ PORNEȘTE MONITORUL GOLDEN",()->{
+            Intent i=new Intent(this,GoldenMonitor.class);i.setAction(GoldenMonitor.START);
+            try{startForegroundService(i);show("Monitor pornit; consultă notificarea permanentă");}
+            catch(Exception e){show("Nu s-a putut porni: "+e.getMessage());}
+        });
+        button(root,"■ OPREȘTE MONITORUL",()->{
+            Intent i=new Intent(this,GoldenMonitor.class);i.setAction(GoldenMonitor.STOP);startService(i);show("Monitor oprit");
+        });
+        button(root,"STOP DE URGENȚĂ · dezarmează și anulează",()->{
+            RouteStore.prefs(this).edit().putBoolean("real",false).apply();actual.setChecked(false);
+            if(GoldenAccessibility.instance!=null)GoldenAccessibility.instance.abort("Oprire manuală");
+            Intent i=new Intent(this,GoldenMonitor.class);i.setAction(GoldenMonitor.STOP);startService(i);show("STOP și DEZARMAT");
+        });
+        info=text(root,"",12,0xffb3dfc3);
+        button(root,"Actualizează starea",this::refresh);
+        setContentView(scroll);refresh();
+    }
+    private int parse(String s){try{return Integer.parseInt(s.trim());}catch(Exception e){return -1;}}
+    private interface Work{JSONObject run() throws Exception;}
+    private void network(Work w){show("Conectare…");new Thread(()->{
+        String message;try{JSONObject j=w.run();message=j.toString(2);}catch(Exception e){message="Eroare: "+e.getMessage();}
+        final String value=message;runOnUiThread(()->{refresh();show(value);});
+    }).start();}
+    private TextView text(LinearLayout parent,String value,int size,int color){
+        TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);
+        t.setPadding(0,12,0,10);parent.addView(t);return t;
+    }
+    private EditText field(LinearLayout parent,String hint,String value){
+        EditText f=new EditText(this);f.setText(value);f.setHint(hint);f.setTextColor(Color.WHITE);
+        f.setHintTextColor(0xffa4a4ac);f.setSingleLine(true);parent.addView(f);return f;
+    }
+    private void button(LinearLayout parent,String title,Runnable r){
+        Button b=new Button(this);b.setAllCaps(false);b.setText(title);b.setOnClickListener(v->r.run());parent.addView(b);
+    }
+    private void show(String message){if(info!=null)info.setText(message);}
+    private void refresh(){
+        if(info==null)return;
+        List<RouteStore.Step> steps=RouteStore.read(this);
+        StringBuilder sb=new StringBuilder("Traseu · "+steps.size()+" pași · "+(RouteStore.isComplete(steps)?"COMPLET":"INCOMPLET")+"\n");
+        for(int i=0;i<steps.size();i++)sb.append(i+1).append(". ").append(steps.get(i).summary()).append('\n');
+        if(trace!=null)trace.setText(sb);
+        info.setText("ACCESS: "+GoldenAccessibility.statusText(this)+"\nMONITOR: "+RouteStore.prefs(this).getString("monitor_status","Oprit"));
+    }
+    @Override protected void onResume(){super.onResume();if(info!=null)refresh();}
+}

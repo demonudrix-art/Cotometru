@@ -1,0 +1,13 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'ro.drix.sbradar.trace'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'ro.drix.sbradar.trace'
+        minSdk 28
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
