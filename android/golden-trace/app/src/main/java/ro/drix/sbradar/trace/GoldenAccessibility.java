@@ -5,6 +5,15 @@ import android.accessibilityservice.GestureDescription;
 import android.content.Intent;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -29,9 +38,15 @@ public final class GoldenAccessibility extends AccessibilityService {
     private double observedX=0;
     private long lastEventAt=0, replayStartedAt=0;
     private String lastClickKey="";
+    private WindowManager overlayManager;
+    private View touchOverlay;
+    private boolean overlayVisible=false;
+    private long overlayDownAt=0,ignoreNativeClickUntil=0;
+    private float touchStartX=0,touchStartY=0;
 
     @Override protected void onServiceConnected(){
         super.onServiceConnected(); instance=this;
+        overlayManager=(WindowManager)getSystemService(WINDOW_SERVICE);
         if(RouteStore.prefs(this).getBoolean("rec_active",false)){
             recording.clear(); recording.addAll(RouteStore.read(this));
             rec=true;
@@ -43,6 +58,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         else if(rec)status("REC temporar întrerupt · traseul salvat se păstrează");
     }
     @Override public void onDestroy(){
+        removeTouchOverlay();
         if(instance==this)instance=null;
         playing=false;active=null;rec=false;
         if(RouteStore.prefs(this).getBoolean("rec_active",false))
@@ -66,12 +82,14 @@ public final class GoldenAccessibility extends AccessibilityService {
             .putInt("rec_chrome_events",0).putInt("rec_clicks",0)
             .putInt("rec_text_edits",0).putInt("rec_unlabelled",0)
             .putInt("rec_chrome_windows",0)
+            .putInt("rec_overlay_taps",0).putInt("rec_overlay_swipes",0).putInt("rec_forward_failed",0)
             .putString("rec_last_package","-").putString("rec_last_type","-").apply();
         status("● REC ACTIV · Chrome este monitorizat; atinge X și câmpul mizei");
         openChrome(startingUrl);
+        handler.postDelayed(this::syncTouchOverlay,900);
     }
     void endRecording(){
-        rec=false;
+        rec=false;removeTouchOverlay();
         RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
         List<RouteStore.Step> saved=RouteStore.read(this);
         if(saved.size()>recording.size()){recording.clear();recording.addAll(saved);}
@@ -83,7 +101,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         }catch(Exception e){status("Eroare salvare traseu: "+e.getMessage());}
     }
     void abort(String why){
-        rec=false;playing=false;active=null;
+        rec=false;removeTouchOverlay();playing=false;active=null;
         RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
         status("STOP · "+why);
     }
@@ -101,9 +119,14 @@ public final class GoldenAccessibility extends AccessibilityService {
             RouteStore.prefs(this).edit().putString("rec_last_package",pkg)
                 .putString("rec_last_type",type==AccessibilityEvent.TYPE_VIEW_CLICKED?"CLICK":"TEXT").apply();
         }
+        if(type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+           type==AccessibilityEvent.TYPE_WINDOWS_CHANGED){
+            handler.postDelayed(this::syncTouchOverlay,160);
+        }
         if(!RouteStore.CHROME.equals(pkg))return;
         if(type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             type==AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED){
+            if(!overlayVisible)handler.postDelayed(this::syncTouchOverlay,220);
             int seen=RouteStore.prefs(this).getInt("rec_chrome_windows",0);
             if(seen<9999)RouteStore.prefs(this).edit().putInt("rec_chrome_windows",seen+1).apply();
         }
@@ -111,10 +134,198 @@ public final class GoldenAccessibility extends AccessibilityService {
             RouteStore.prefs(this).edit()
                 .putInt("rec_chrome_events",RouteStore.prefs(this).getInt("rec_chrome_events",0)+1)
                 .apply();
-            if(type==AccessibilityEvent.TYPE_VIEW_CLICKED)recordClick(ev);
+            if(type==AccessibilityEvent.TYPE_VIEW_CLICKED){
+                if(android.os.SystemClock.elapsedRealtime()>=ignoreNativeClickUntil)recordClick(ev);
+            }
             else recordNumericEdit(ev);
         }
     }
+
+    // Android Chrome often does not emit DOM click accessibility events.
+    // During REC, a transparent Accessibility overlay captures touch gestures,
+    // temporarily removes itself, and forwards each gesture to Chrome.
+    private boolean keyboardVisible(){
+        try{
+            List<AccessibilityWindowInfo> windows=getWindows();
+            if(windows!=null)for(AccessibilityWindowInfo w:windows)
+                if(w!=null&&w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD)return true;
+        }catch(Exception ignored){}
+        return false;
+    }
+    private boolean chromeForeground(){
+        AccessibilityNodeInfo r=getRootInActiveWindow();
+        return r!=null&&RouteStore.CHROME.contentEquals(r.getPackageName());
+    }
+    private void syncTouchOverlay(){
+        if(!rec||!RouteStore.prefs(this).getBoolean("rec_active",false)||
+                !chromeForeground()||keyboardVisible()){
+            removeTouchOverlay();return;
+        }
+        if(overlayVisible)return;
+        try{
+            if(overlayManager==null)overlayManager=(WindowManager)getSystemService(WINDOW_SERVICE);
+            FrameLayout full=new FrameLayout(this);
+            full.setBackgroundColor(Color.TRANSPARENT);
+            full.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            full.setOnTouchListener((view,event)->handleOverlayTouch(event));
+            TextView badge=new TextView(this);
+            badge.setText("● REC GOLDEN · atingeri capturate");
+            badge.setTextSize(11);
+            badge.setTextColor(Color.WHITE);
+            badge.setPadding(10,3,10,3);
+            badge.setBackgroundColor(0xbb8f1010);
+            FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP|Gravity.CENTER_HORIZONTAL);
+            full.addView(badge,lp);
+            WindowManager.LayoutParams p=new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN|
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT);
+            p.gravity=Gravity.TOP|Gravity.LEFT;
+            overlayManager.addView(full,p);
+            touchOverlay=full;overlayVisible=true;
+            status("● REC TOUCH ACTIV · gesturile Chrome sunt capturate");
+        }catch(Exception e){
+            status("Overlay REC indisponibil: "+e.getClass().getSimpleName()+
+                " "+(e.getMessage()==null?"":e.getMessage()));
+            removeTouchOverlay();
+        }
+    }
+    private void removeTouchOverlay(){
+        if(touchOverlay!=null && overlayManager!=null){
+            try{overlayManager.removeViewImmediate(touchOverlay);}catch(Exception ignored){}
+        }
+        touchOverlay=null;overlayVisible=false;
+    }
+    private boolean handleOverlayTouch(MotionEvent ev){
+        if(!rec)return true;
+        int a=ev.getActionMasked();
+        if(a==MotionEvent.ACTION_DOWN){
+            touchStartX=ev.getRawX();touchStartY=ev.getRawY();
+            overlayDownAt=android.os.SystemClock.elapsedRealtime();return true;
+        }
+        if(a==MotionEvent.ACTION_UP){
+            final float endX=ev.getRawX(),endY=ev.getRawY();
+            final long duration=Math.max(60,Math.min(1200,
+                 android.os.SystemClock.elapsedRealtime()-overlayDownAt));
+            final float sx=touchStartX,sy=touchStartY;
+            float distance=(float)Math.hypot(endX-sx,endY-sy);
+            boolean swipe=distance>Math.max(35,getResources().getDisplayMetrics().density*28);
+            if(swipe)captureSwipe(sx,sy,endX,endY,duration);
+            else captureTouch(sx,sy);
+            ignoreNativeClickUntil=android.os.SystemClock.elapsedRealtime()+550;
+            removeTouchOverlay();
+            handler.postDelayed(()->forwardTouch(sx,sy,endX,endY,duration,swipe),90);
+            return true;
+        }
+        return true;
+    }
+    private void forwardTouch(float sx,float sy,float ex,float ey,long duration,boolean swipe){
+        if(!rec)return;
+        Path path=new Path();path.moveTo(sx,sy);
+        if(swipe)path.lineTo(ex,ey);
+        else path.lineTo(sx+.1f,sy+.1f);
+        GestureDescription.Builder b=new GestureDescription.Builder();
+        b.addStroke(new GestureDescription.StrokeDescription(
+            path,0,swipe?Math.max(200,Math.min(1100,duration)):65));
+        boolean accepted=dispatchGesture(b.build(),new GestureResultCallback(){
+            @Override public void onCompleted(GestureDescription gesture){
+                handler.postDelayed(GoldenAccessibility.this::syncTouchOverlay,300);
+            }
+            @Override public void onCancelled(GestureDescription gesture){
+                RouteStore.prefs(GoldenAccessibility.this).edit().putInt(
+                    "rec_forward_failed",RouteStore.prefs(GoldenAccessibility.this)
+                        .getInt("rec_forward_failed",0)+1).apply();
+                status("GEST ANULAT · verifică dacă apăsarea a ajuns în Chrome");
+                handler.postDelayed(GoldenAccessibility.this::syncTouchOverlay,300);
+            }
+        },null);
+        if(!accepted){
+            status("Nu am putut trimite atingerea către Chrome");
+            handler.postDelayed(this::syncTouchOverlay,300);
+        }
+    }
+    private void captureSwipe(float sx,float sy,float ex,float ey,long duration){
+        android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+        RouteStore.Step step=new RouteStore.Step();
+        step.action="SWIPE";step.label="derulare Chrome";
+        step.x=sx/dm.widthPixels;step.y=sy/dm.heightPixels;
+        step.endX=ex/dm.widthPixels;step.endY=ey/dm.heightPixels;
+        step.durationMs=duration;recordTouchStep(step,false);
+        RouteStore.prefs(this).edit().putInt("rec_overlay_swipes",
+            RouteStore.prefs(this).getInt("rec_overlay_swipes",0)+1).apply();
+    }
+    private void captureTouch(float screenX,float screenY){
+        RouteStore.Step step=new RouteStore.Step();
+        step.action="CLICK";
+        AccessibilityNodeInfo node=nodeAtTouch(screenX,screenY);
+        if(node!=null){
+            step=RouteStore.capture(node,getResources().getDisplayMetrics(),"CLICK");
+            if(step.label.isEmpty())step.label=descendantText(node);
+            if(step.label.isEmpty()&&node.getParent()!=null){
+                AccessibilityNodeInfo p=node.getParent();
+                String parentText=RouteStore.clean(p.getText());
+                if(!parentText.isEmpty()&&parentText.length()<70)step.label=parentText;
+            }
+            if(node.isEditable()){
+                // Stake values will be recorded from TYPE_VIEW_TEXT_CHANGED instead.
+                RouteStore.prefs(this).edit().putInt("rec_overlay_taps",
+                    RouteStore.prefs(this).getInt("rec_overlay_taps",0)+1).apply();
+                status("REC · câmp editabil · introdu miza");
+                return;
+            }
+        }
+        android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+        step.x=screenX/dm.widthPixels;step.y=screenY/dm.heightPixels;
+        step.endX=step.x;step.endY=step.y;
+        boolean identified=!step.viewId.isEmpty()||!step.label.isEmpty()||!step.desc.isEmpty();
+        if(!identified){
+            step.action="TAP_COORD";step.label="atingere fără identificator · doar diagnostic";
+        }
+        recordTouchStep(step,!identified);
+        RouteStore.prefs(this).edit().putInt("rec_overlay_taps",
+            RouteStore.prefs(this).getInt("rec_overlay_taps",0)+1).apply();
+    }
+    private AccessibilityNodeInfo nodeAtTouch(float x,float y){
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        if(root==null||!RouteStore.CHROME.contentEquals(root.getPackageName()))return null;
+        List<AccessibilityNodeInfo> q=new ArrayList<>();q.add(root);
+        AccessibilityNodeInfo best=null;
+        long bestArea=Long.MAX_VALUE;
+        for(int i=0;i<q.size()&&i<1300;i++){
+            AccessibilityNodeInfo n=q.get(i);
+            Rect rect=new Rect();n.getBoundsInScreen(rect);
+            if(rect.contains((int)x,(int)y) && rect.width()>0&&rect.height()>0){
+                String name=RouteStore.clean(n.getText())+" "+
+                    RouteStore.clean(n.getContentDescription())+" "+
+                    (n.getViewIdResourceName()==null?"":n.getViewIdResourceName());
+                if(!name.trim().isEmpty() || n.isEditable()){
+                    long area=(long)rect.width()*rect.height();
+                    if(area<bestArea){best=n;bestArea=area;}
+                }
+            }
+            for(int j=0;j<n.getChildCount();j++){
+                AccessibilityNodeInfo c=n.getChild(j);if(c!=null)q.add(c);
+            }
+        }
+        return best;
+    }
+    private void recordTouchStep(RouteStore.Step step,boolean unlabeled){
+        if(recording.size()>=25){
+            rec=false;RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
+            removeTouchOverlay();status("REC oprit · maxim 25 pași");return;
+        }
+        recording.add(step);saveProgress();
+        if(unlabeled)RouteStore.prefs(this).edit().putInt("rec_unlabelled",
+            RouteStore.prefs(this).getInt("rec_unlabelled",0)+1).apply();
+        status("REC TOUCH "+recording.size()+" pași · "+step.summary());
+    }
+
     private static String eventLabel(AccessibilityEvent ev){
         StringBuilder sb=new StringBuilder();
         if(ev.getText()!=null)for(CharSequence t:ev.getText()){
