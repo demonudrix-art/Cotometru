@@ -178,10 +178,10 @@ public final class MainActivity extends Activity {
         if(trace!=null)trace.setText(sb);
         android.content.SharedPreferences p=RouteStore.prefs(this);
         boolean recording=p.getBoolean("rec_active",false);
-        int events=p.getInt("rec_chrome_events",0),clicks=p.getInt("rec_clicks",0),unnamed=p.getInt("rec_unlabelled",0);
+        int events=p.getInt("rec_chrome_events",0),clicks=p.getInt("rec_clicks",0),unnamed=p.getInt("rec_unlabelled",0),windows=p.getInt("rec_chrome_windows",0);
         String last=p.getString("rec_last_package","-");
         String diagnostic=(recording?"🔴 REC ACTIV":"REC OPRIT")+
-            " · Chrome: "+events+" evenimente · clicuri: "+clicks+
+            " · Chrome: "+events+" click/text · "+windows+" schimbări fereastră · clicuri: "+clicks+
             " · fără etichetă: "+unnamed+
             "\\nUltima aplicație detectată: "+last+
             "\\n"+GoldenAccessibility.statusText(this);
