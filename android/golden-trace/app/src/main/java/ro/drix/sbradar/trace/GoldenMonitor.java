@@ -1,6 +1,7 @@
 package ro.drix.sbradar.trace;
 
 import android.app.Service;
+import android.content.Context;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -21,6 +22,8 @@ import java.util.concurrent.Executors;
 public final class GoldenMonitor extends Service {
     static final String START="golden.START",STOP="golden.STOP";
     static final String CH="golden_monitor_v1",ALERT="golden_ticket_v1";
+    static final long TEST_ID=1999000168L;
+    static final String TEST_URL="https://superbet.ro/cote/fotbal/deportivo-pereira-vs-jaguares-de-cordoba-15217680?mdt=o";
     private volatile boolean running=false;
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private int failures=0;
@@ -33,6 +36,20 @@ public final class GoldenMonitor extends Service {
             return eventId>0 && timestamp>0 && System.currentTimeMillis()-timestamp>=0 &&
                     System.currentTimeMillis()-timestamp<100_000 && !already && !simulation &&
                     x>1 && home.length()>=3 && away.length()>=3 && url.startsWith("https://superbet.ro/cote/fotbal/");
+        }
+        boolean validTest(){
+            return simulation && eventId==TEST_ID && TEST_URL.equals(url) &&
+                   home.equals("Deportivo Pereira") && away.equals("Jaguares de Cordoba");
+        }
+        static Signal test(){
+            Signal s=new Signal();
+            s.eventId=TEST_ID;s.timestamp=System.currentTimeMillis();s.simulation=true;
+            s.fixture="Deportivo Pereira · Jaguares de Cordoba";
+            s.home="Deportivo Pereira";s.away="Jaguares de Cordoba";
+            s.url=TEST_URL;s.x=0;return s;
+        }
+        static Signal fromTest(JSONObject j){
+            return j.optBoolean("is_test",false) && j.optLong("event_id",0)==TEST_ID?test():null;
         }
         static Signal from(JSONObject j){
             if(!"BET_NOW".equals(j.optString("stage"))||
@@ -89,7 +106,11 @@ public final class GoldenMonitor extends Service {
                     JSONArray alerts=Backend.api(this,"/api/mobile/alerts",null).optJSONArray("alerts");
                     int total=alerts==null?0:alerts.length();
                     for(int idx=0;idx<total;idx++){
-                        Signal sig=Signal.from(alerts.getJSONObject(idx));if(sig!=null)process(sig);
+                        JSONObject item=alerts.getJSONObject(idx);
+                        Signal t=Signal.fromTest(item);
+                        if(t!=null){processTest(t);continue;}
+                        Signal sig=Signal.from(item);
+                        if(sig!=null)process(sig);
                     }
                     failures=0;status("Golden activ · "+total+" mesaje recente · "+new java.util.Date());
                 }
@@ -99,6 +120,42 @@ public final class GoldenMonitor extends Service {
             while(running&&remaining>0){try{Thread.sleep(Math.min(1000,remaining));}catch(InterruptedException e){Thread.currentThread().interrupt();running=false;break;}
                 remaining=seconds*1000L-(SystemClock.elapsedRealtime()-t);}
         }stopSelf();
+    }
+    static void localTest(Context c){
+        Signal t=Signal.test();
+        NotificationManager n=(NotificationManager)c.getSystemService(NOTIFICATION_SERVICE);
+        if(Build.VERSION.SDK_INT>=26){
+            NotificationChannel channel=new NotificationChannel(ALERT,"Golden Ticket · urgent",
+                NotificationManager.IMPORTANCE_HIGH);
+            channel.enableVibration(true);n.createNotificationChannel(channel);
+        }
+        Intent open=new Intent(Intent.ACTION_VIEW,Uri.parse(TEST_URL));
+        open.setPackage(RouteStore.CHROME);open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent p=PendingIntent.getActivity(c,9019,open,
+            PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+        Notification notification=new Notification.Builder(c,ALERT)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("⚡ GOLDEN TICKET · TEST (fără pariu real)")
+            .setContentText(t.fixture+" · test X și miză, fără click final")
+            .setContentIntent(p).setAutoCancel(true).build();
+        n.notify(9019,notification);
+        if(RouteStore.isComplete(RouteStore.read(c)) &&
+            RouteStore.prefs(c).getInt("stake",0)>0){
+            GoldenAccessibility.replay(t,true);
+        }
+    }
+    private void processTest(Signal t){
+        if(RouteStore.prefs(this).getBoolean("seen_test_"+t.eventId,false))return;
+        RouteStore.prefs(this).edit().putBoolean("seen_test_"+t.eventId,true).apply();
+        localTest(this);
+        try{
+            JSONObject ack=new JSONObject();ack.put("event_id",t.eventId);
+            ack.put("stage","BET_NOW");
+            Backend.api(this,"/api/mobile/ack",ack);
+            status("TEST Golden Ticket primit pentru Pereira-Jaguares · fără confirmare finală");
+        }catch(Exception e){
+            status("TEST primit; confirmare server indisponibilă");
+        }
     }
     private void process(Signal s){
         String key="seen_"+s.eventId;
