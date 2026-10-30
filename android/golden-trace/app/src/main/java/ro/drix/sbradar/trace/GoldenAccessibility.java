@@ -442,6 +442,12 @@ public final class GoldenAccessibility extends AccessibilityService {
         if(root==null||!RouteStore.CHROME.contentEquals(root.getPackageName())){retry("Chrome nu este în prim-plan");return;}
         if(index>=route.size()){playing=false;status(finalClickDone?"CLICK FINAL TRIMIS (acceptarea pariului NU este confirmată)":"Simulare încheiată");return;}
         RouteStore.Step step=route.get(index);
+        if("SWIPE".equals(step.action)){
+            replaySwipe(step);return;
+        }
+        if("TAP_COORD".equals(step.action)){
+            abort("Pas doar cu coordonate; identificarea butonului este necesară pentru redare sigură");return;
+        }
         if(index==route.size()-1 && !RouteStore.isFinal(step)){abort("Ultimul pas nu este butonul de plasare");return;}
         if(index==route.size()-1 && !matchFixture(root,active)){abort("Nu pot confirma echipele pe pagina meciului");return;}
         if(index==route.size()-1 && (!xSelected || !stakeSet || observedX < active.x-.03 || observedX > active.x+.30 || !isStakeVisible(root))){
@@ -480,6 +486,28 @@ public final class GoldenAccessibility extends AccessibilityService {
         status("Traseu: "+(index+1)+"/"+route.size()+" · "+step.summary());
         index++;tries=0;
         handler.postDelayed(runNext,850);
+    }
+    private void replaySwipe(RouteStore.Step step){
+        android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+        float x1=step.x*dm.widthPixels,y1=step.y*dm.heightPixels;
+        float x2=step.endX*dm.widthPixels,y2=step.endY*dm.heightPixels;
+        if(x1<0||x1>dm.widthPixels||x2<0||x2>dm.widthPixels||
+                y1<0||y1>dm.heightPixels||y2<0||y2>dm.heightPixels){
+            abort("Derulare invalidă");return;
+        }
+        Path path=new Path();path.moveTo(x1,y1);path.lineTo(x2,y2);
+        GestureDescription.Builder b=new GestureDescription.Builder();
+        b.addStroke(new GestureDescription.StrokeDescription(path,0,
+            Math.max(200,Math.min(1100,step.durationMs>0?step.durationMs:350))));
+        boolean ok=dispatchGesture(b.build(),new GestureResultCallback(){
+            @Override public void onCompleted(GestureDescription gesture){
+                index++;tries=0;handler.postDelayed(runNext,650);
+            }
+            @Override public void onCancelled(GestureDescription gesture){
+                abort("Derularea a fost anulată");
+            }
+        },null);
+        if(!ok)abort("Nu pot reproduce derularea");
     }
     private void retry(String message){
         if(++tries>=8){abort(message+" · STOP");return;}
