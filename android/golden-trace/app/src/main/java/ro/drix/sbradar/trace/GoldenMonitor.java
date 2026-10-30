@@ -107,8 +107,8 @@ public final class GoldenMonitor extends Service {
                     int total=alerts==null?0:alerts.length();
                     for(int idx=0;idx<total;idx++){
                         JSONObject item=alerts.getJSONObject(idx);
-                        Signal t=Signal.fromTest(item);
-                        if(t!=null){processTest(t);continue;}
+                        Signal testSignal=Signal.fromTest(item);
+                        if(testSignal!=null){processTest(testSignal);continue;}
                         Signal sig=Signal.from(item);
                         if(sig!=null)process(sig);
                     }
