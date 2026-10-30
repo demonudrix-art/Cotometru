@@ -40,7 +40,7 @@ public final class GoldenAccessibility extends AccessibilityService {
     private String lastClickKey="";
     private WindowManager overlayManager;
     private View touchOverlay;
-    private boolean overlayVisible=false;
+    private boolean overlayVisible=false,touchForwarding=false;
     private long overlayDownAt=0,ignoreNativeClickUntil=0;
     private float touchStartX=0,touchStartY=0;
 
@@ -89,7 +89,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         handler.postDelayed(this::syncTouchOverlay,900);
     }
     void endRecording(){
-        rec=false;removeTouchOverlay();
+        rec=false;touchForwarding=false;removeTouchOverlay();
         RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
         List<RouteStore.Step> saved=RouteStore.read(this);
         if(saved.size()>recording.size()){recording.clear();recording.addAll(saved);}
@@ -101,7 +101,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         }catch(Exception e){status("Eroare salvare traseu: "+e.getMessage());}
     }
     void abort(String why){
-        rec=false;removeTouchOverlay();playing=false;active=null;
+        rec=false;touchForwarding=false;removeTouchOverlay();playing=false;active=null;
         RouteStore.prefs(this).edit().putBoolean("rec_active",false).apply();
         status("STOP · "+why);
     }
@@ -157,6 +157,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         return r!=null&&RouteStore.CHROME.contentEquals(r.getPackageName());
     }
     private void syncTouchOverlay(){
+        if(touchForwarding)return;
         if(!rec||!RouteStore.prefs(this).getBoolean("rec_active",false)||
                 !chromeForeground()||keyboardVisible()){
             removeTouchOverlay();return;
@@ -219,6 +220,7 @@ public final class GoldenAccessibility extends AccessibilityService {
             if(swipe)captureSwipe(sx,sy,endX,endY,duration);
             else captureTouch(sx,sy);
             ignoreNativeClickUntil=android.os.SystemClock.elapsedRealtime()+550;
+            touchForwarding=true;
             removeTouchOverlay();
             handler.postDelayed(()->forwardTouch(sx,sy,endX,endY,duration,swipe),90);
             return true;
@@ -226,7 +228,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         return true;
     }
     private void forwardTouch(float sx,float sy,float ex,float ey,long duration,boolean swipe){
-        if(!rec)return;
+        if(!rec){touchForwarding=false;return;}
         Path path=new Path();path.moveTo(sx,sy);
         if(swipe)path.lineTo(ex,ey);
         else path.lineTo(sx+.1f,sy+.1f);
@@ -235,6 +237,7 @@ public final class GoldenAccessibility extends AccessibilityService {
             path,0,swipe?Math.max(200,Math.min(1100,duration)):65));
         boolean accepted=dispatchGesture(b.build(),new GestureResultCallback(){
             @Override public void onCompleted(GestureDescription gesture){
+                touchForwarding=false;
                 handler.postDelayed(GoldenAccessibility.this::syncTouchOverlay,300);
             }
             @Override public void onCancelled(GestureDescription gesture){
@@ -242,10 +245,12 @@ public final class GoldenAccessibility extends AccessibilityService {
                     "rec_forward_failed",RouteStore.prefs(GoldenAccessibility.this)
                         .getInt("rec_forward_failed",0)+1).apply();
                 status("GEST ANULAT · verifică dacă apăsarea a ajuns în Chrome");
+                touchForwarding=false;
                 handler.postDelayed(GoldenAccessibility.this::syncTouchOverlay,300);
             }
         },null);
         if(!accepted){
+            touchForwarding=false;
             status("Nu am putut trimite atingerea către Chrome");
             handler.postDelayed(this::syncTouchOverlay,300);
         }
