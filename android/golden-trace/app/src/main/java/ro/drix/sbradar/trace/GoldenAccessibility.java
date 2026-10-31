@@ -129,7 +129,16 @@ public final class GoldenAccessibility extends AccessibilityService {
             handler.postDelayed(this::syncTouchOverlay,160);
             if(lastInputTouchMs>0)handler.postDelayed(this::probeFocusedStake,250);
         }
-        if(!RouteStore.CHROME.equals(pkg))return;
+        if(!RouteStore.CHROME.equals(pkg)){
+            // Do not read keyboard content. Use its change events as a trigger
+            // to inspect only Chrome's focused, non-password numeric input.
+            if(lastInputTouchMs>0 &&
+               (pkg.contains("inputmethod")||pkg.contains("keyboard")) &&
+               (type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
+                type==AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED))
+                handler.postDelayed(this::probeFocusedStake,220);
+            return;
+        }
         if(type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             type==AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED){
             if(!overlayVisible)handler.postDelayed(this::syncTouchOverlay,220);
@@ -161,6 +170,21 @@ public final class GoldenAccessibility extends AccessibilityService {
                 if(w!=null&&w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD)return true;
         }catch(Exception ignored){}
         return false;
+    }
+    private AccessibilityNodeInfo chromeRoot(){
+        AccessibilityNodeInfo activeRoot=getRootInActiveWindow();
+        if(activeRoot!=null && RouteStore.CHROME.contentEquals(activeRoot.getPackageName()))return activeRoot;
+        // When the keyboard is open, the active accessibility root can be the
+        // keyboard rather than Chrome. Retrieve Chrome's application window.
+        try{
+            List<AccessibilityWindowInfo> windows=getWindows();
+            if(windows!=null)for(AccessibilityWindowInfo w:windows){
+                if(w==null||w.getType()!=AccessibilityWindowInfo.TYPE_APPLICATION)continue;
+                AccessibilityNodeInfo root=w.getRoot();
+                if(root!=null && RouteStore.CHROME.contentEquals(root.getPackageName()))return root;
+            }
+        }catch(Exception ignored){}
+        return null;
     }
     private boolean chromeForeground(){
         AccessibilityNodeInfo r=getRootInActiveWindow();
@@ -371,8 +395,8 @@ public final class GoldenAccessibility extends AccessibilityService {
     // inspect only the currently focused Chrome numeric EditText, never IME keys.
     private void probeFocusedStake(){
         if(!rec||lastInputTouchMs==0||SystemClock.elapsedRealtime()-lastInputTouchMs>35000)return;
-        AccessibilityNodeInfo root=getRootInActiveWindow();
-        if(root==null||!RouteStore.CHROME.contentEquals(root.getPackageName()))return;
+        AccessibilityNodeInfo root=chromeRoot();
+        if(root==null)return;
         AccessibilityNodeInfo focus=root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
         if(focus==null||!focus.isEditable()||focus.isPassword())return;
         String value=RouteStore.clean(focus.getText()).replaceAll("\\s+","");
