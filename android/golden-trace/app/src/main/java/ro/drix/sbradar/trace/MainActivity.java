@@ -19,7 +19,7 @@ import org.json.JSONObject;
 import java.util.List;
 
 public final class MainActivity extends Activity {
-    private TextView info,trace,licenseFeedback,recorderFeedback;
+    private TextView info,trace,licenseFeedback,recorderFeedback,missingStages;
     private EditText url,stake,limit,daily;
     private CheckBox actual;
     @Override public void onCreate(Bundle saved){super.onCreate(saved);
@@ -39,7 +39,7 @@ public final class MainActivity extends Activity {
             Backend.claim(this); // idempotent: ensure registration before checking license
             return Backend.api(this,"/api/mobile/license",null);
         }));
-        licenseFeedback=text(root,"● LICENȚĂ NEVERIFICATĂ\\nApasă «Verifică licența».",16,0xffffce61);
+        licenseFeedback=text(root,"● LICENȚĂ NEVERIFICATĂ\nApasă «Verifică licența».",16,0xffffce61);
         text(root,"Dacă statusul este PENDING, aprobă acest telefon în panoul Administrator → Licențiază, apoi verifică din nou.",12,0xffb8b8be);
         button(root,"Deschide panoul Administrator (autorizare)",()->{
             try{
@@ -77,6 +77,7 @@ public final class MainActivity extends Activity {
             refresh();
         });
         recorderFeedback=text(root,"DIAGNOSTIC REC · nu a pornit",14,0xffffce61);
+        missingStages=text(root,"VERIFICĂ ETAPELE: X / MIZĂ / FINAL",13,0xffffa56b);
         trace=text(root,"",12,0xffe5deca);
         text(root,"PAS 3 · Configurează limitele",16,0xffffce61);
         text(root,"MIZĂ PE PARIU (LEI)",14,0xffffce61);
@@ -117,8 +118,8 @@ public final class MainActivity extends Activity {
             }
             new android.app.AlertDialog.Builder(this)
                 .setTitle("Confirmare test cu pariu REAL")
-                .setMessage("Meci: Deportivo Pereira - Jaguares de Córdoba\\n"+
-                            "Selecție: X\\nMiză: "+m+" lei\\n"+
+                .setMessage("Meci: Deportivo Pereira - Jaguares de Córdoba\n"+
+                            "Selecție: X\nMiză: "+m+" lei\n"+
                             "Acest test poate apăsa ultimul buton Pariază și poate debita bani reali. Nu este simulare. Continui?")
                 .setNegativeButton("Anulează",null)
                 .setPositiveButton("EXECUTĂ TRASEUL COMPLET",(dialog,which)->{
@@ -164,9 +165,9 @@ public final class MainActivity extends Activity {
             runOnUiThread(()->{
                 refresh();
                 if(problem!=null){
-                    String details="❌ VERIFICARE EȘUATĂ\\n"+problem;
-                    if(problem.contains("401"))details+="\\nReînregistrează telefonul și verifică din nou.";
-                    if(problem.contains("403"))details+="\\nVerifică licența în panoul Administrator.";
+                    String details="❌ VERIFICARE EȘUATĂ\n"+problem;
+                    if(problem.contains("401"))details+="\nReînregistrează telefonul și verifică din nou.";
+                    if(problem.contains("403"))details+="\nVerifică licența în panoul Administrator.";
                     if(licenseFeedback!=null){
                         licenseFeedback.setText(details);
                         licenseFeedback.setTextColor(0xffff8383);
@@ -190,11 +191,11 @@ public final class MainActivity extends Activity {
         boolean active=lic.optBoolean("active",false);
         String status=lic.optString("status","UNKNOWN");
         String text;
-        if(active)text="✅ LICENȚĂ ACTIVE\\nGolden Trace este autorizat pe server.";
-        else if("PENDING".equals(status))text="⏳ LICENȚĂ PENDING\\nÎn panoul Administrator găsește acest telefon → Licențiază → Revino aici.";
-        else text="⚠️ LICENȚĂ "+status+"\\nIntră în panoul Administrator pentru autorizare.";
+        if(active)text="✅ LICENȚĂ ACTIVE\nGolden Trace este autorizat pe server.";
+        else if("PENDING".equals(status))text="⏳ LICENȚĂ PENDING\nÎn panoul Administrator găsește acest telefon → Licențiază → Revino aici.";
+        else text="⚠️ LICENȚĂ "+status+"\nIntră în panoul Administrator pentru autorizare.";
         String expires=lic.optString("expires_utc","");
-        if(active&&!expires.isEmpty()&&!expires.equals("null"))text+="\\nExpiră: "+expires;
+        if(active&&!expires.isEmpty()&&!expires.equals("null"))text+="\nExpiră: "+expires;
         licenseFeedback.setText(text);
         licenseFeedback.setTextColor(active?0xff9bebad:0xffffce61);
     }
@@ -216,6 +217,12 @@ public final class MainActivity extends Activity {
         StringBuilder sb=new StringBuilder("Traseu · "+steps.size()+" pași · "+(RouteStore.isComplete(steps)?"COMPLET":"INCOMPLET")+"\n");
         for(int i=0;i<steps.size();i++)sb.append(i+1).append(". ").append(steps.get(i).summary()).append('\n');
         if(trace!=null)trace.setText(sb);
+        if(missingStages!=null){
+            String reasons=RouteStore.missingReasons(steps);
+            missingStages.setText("VALIDARE TRASEU: "+(RouteStore.isComplete(steps)?"COMPLET":"INCOMPLET")+
+                "\n"+reasons);
+            missingStages.setTextColor(RouteStore.isComplete(steps)?0xff9bebad:0xffffa56b);
+        }
         android.content.SharedPreferences p=RouteStore.prefs(this);
         boolean recording=p.getBoolean("rec_active",false);
         int events=p.getInt("rec_chrome_events",0),clicks=p.getInt("rec_clicks",0),unnamed=p.getInt("rec_unlabelled",0),windows=p.getInt("rec_chrome_windows",0);
@@ -224,15 +231,15 @@ public final class MainActivity extends Activity {
         String diagnostic=(recording?"🔴 REC ACTIV":"REC OPRIT")+
             " · Chrome: "+events+" click/text · "+windows+" schimbări fereastră · clicuri: "+clicks+
             " · fără etichetă: "+unnamed+
-            "\\nTouch capturat: "+touch+" · derulări: "+swipe+
+            "\nTouch capturat: "+touch+" · derulări: "+swipe+
             " · retransmiteri anulate: "+forwardFailed+
-            "\\nUltima aplicație detectată: "+last+
-            "\\n"+GoldenAccessibility.statusText(this);
+            "\nUltima aplicație detectată: "+last+
+            "\n"+GoldenAccessibility.statusText(this);
         if(recorderFeedback!=null){
             recorderFeedback.setText(diagnostic);
             recorderFeedback.setTextColor(events>0?0xff9bebad:0xffffce61);
         }
-        info.setText("ACCESS: "+GoldenAccessibility.statusText(this)+"\\nMONITOR: "+p.getString("monitor_status","Oprit"));
+        info.setText("ACCESS: "+GoldenAccessibility.statusText(this)+"\nMONITOR: "+p.getString("monitor_status","Oprit"));
     }
     @Override protected void onResume(){super.onResume();if(info!=null)refresh();}
 }
