@@ -259,12 +259,17 @@ public final class MainActivity extends Activity {
         boolean recording=p.getBoolean("rec_active",false);
         int events=p.getInt("rec_chrome_events",0),clicks=p.getInt("rec_clicks",0),unnamed=p.getInt("rec_unlabelled",0),windows=p.getInt("rec_chrome_windows",0);
         int touch=p.getInt("rec_overlay_taps",0),swipe=p.getInt("rec_overlay_swipes",0),forwardFailed=p.getInt("rec_forward_failed",0);
+        int ime=p.getInt("rec_ime_events",0);
+        String imePkg=p.getString("rec_ime_package","-");
+        String stakeIssue=p.getString("rec_stake_diagnostic","Câmpul mizei nu a fost detectat");
         String last=p.getString("rec_last_package","-");
         String diagnostic=(recording?"🔴 REC ACTIV":"REC OPRIT")+
             " · Chrome: "+events+" click/text · "+windows+" schimbări fereastră · clicuri: "+clicks+
             " · fără etichetă: "+unnamed+
             "\nTouch capturat: "+touch+" · derulări: "+swipe+
             " · retransmiteri anulate: "+forwardFailed+
+            "\nTastatura: "+ime+" evenimente · "+imePkg+
+            "\nMiză diagnostic: "+stakeIssue+
             "\nUltima aplicație detectată: "+last+
             "\n"+GoldenAccessibility.statusText(this);
         if(recorderFeedback!=null){
