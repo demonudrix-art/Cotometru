@@ -324,23 +324,33 @@ public final class GoldenAccessibility extends AccessibilityService {
     private AccessibilityNodeInfo nodeAtTouch(float x,float y){
         AccessibilityNodeInfo root=getRootInActiveWindow();
         if(root==null||!RouteStore.CHROME.contentEquals(root.getPackageName()))return null;
-        List<AccessibilityNodeInfo> q=new ArrayList<>();q.add(root);
+        List<AccessibilityNodeInfo> nodes=new ArrayList<>();nodes.add(root);
         AccessibilityNodeInfo best=null;
-        long bestArea=Long.MAX_VALUE;
-        for(int i=0;i<q.size()&&i<1300;i++){
-            AccessibilityNodeInfo n=q.get(i);
-            Rect rect=new Rect();n.getBoundsInScreen(rect);
-            if(rect.contains((int)x,(int)y) && rect.width()>0&&rect.height()>0){
-                String name=RouteStore.clean(n.getText())+" "+
-                    RouteStore.clean(n.getContentDescription())+" "+
-                    (n.getViewIdResourceName()==null?"":n.getViewIdResourceName());
-                if(!name.trim().isEmpty() || n.isEditable()){
-                    long area=(long)rect.width()*rect.height();
-                    if(area<bestArea){best=n;bestArea=area;}
+        long bestScore=Long.MAX_VALUE;
+        for(int i=0;i<nodes.size()&&i<1500;i++){
+            AccessibilityNodeInfo n=nodes.get(i);
+            Rect r=new Rect();n.getBoundsInScreen(r);
+            if(r.contains((int)x,(int)y)&&r.width()>0&&r.height()>0){
+                String label=RouteStore.clean(n.getText());
+                String description=RouteStore.clean(n.getContentDescription());
+                String id=n.getViewIdResourceName()==null?"":n.getViewIdResourceName();
+                boolean editable=n.isEditable() ||
+                    (n.getClassName()!=null&&n.getClassName().toString().contains("EditText"));
+                boolean marketX=label.matches("(?i)^X(\\\\s+[0-9]+[.,][0-9]+)?$") ||
+                    description.matches("(?i)^X(\\\\s+[0-9]+[.,][0-9]+)?$");
+                boolean named=!label.isEmpty()||!description.isEmpty()||!id.isEmpty();
+                if(named||editable){
+                    long area=(long)r.width()*r.height();
+                    // Prefer the actual named X price node or editable input;
+                    // do not choose a small but irrelevant nearby text label.
+                    long rank=marketX?0:editable?1:(n.isClickable()?2:3);
+                    long score=rank*1_000_000_000_000L+area;
+                    if(score<bestScore){best=n;bestScore=score;}
                 }
             }
             for(int j=0;j<n.getChildCount();j++){
-                AccessibilityNodeInfo c=n.getChild(j);if(c!=null)q.add(c);
+                AccessibilityNodeInfo child=n.getChild(j);
+                if(child!=null)nodes.add(child);
             }
         }
         return best;
