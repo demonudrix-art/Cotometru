@@ -297,7 +297,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         step.action="SWIPE";step.label="derulare Chrome";
         step.x=sx/dm.widthPixels;step.y=sy/dm.heightPixels;
         step.endX=ex/dm.widthPixels;step.endY=ey/dm.heightPixels;
-        step.durationMs=duration;recordTouchStep(step,false);
+        step.durationMs=duration;step.diagnostic="Derulare de la ("+(int)sx+","+(int)sy+") la ("+(int)ex+","+(int)ey+")";recordTouchStep(step,false);
         RouteStore.prefs(this).edit().putInt("rec_overlay_swipes",
             RouteStore.prefs(this).getInt("rec_overlay_swipes",0)+1).apply();
     }
@@ -307,6 +307,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         lastInputTouchX=screenX;lastInputTouchY=screenY;
         lastInputTouchMs=SystemClock.elapsedRealtime();
         RouteStore.Step step=RouteStore.capture(node,dm,"CLICK");
+        step.diagnostic=inspectTouch(screenX,screenY);
         step.x=screenX/Math.max(1f,dm.widthPixels);
         step.y=screenY/Math.max(1f,dm.heightPixels);
         step.endX=step.x;step.endY=step.y;
@@ -355,6 +356,51 @@ public final class GoldenAccessibility extends AccessibilityService {
                 status("REC · câmp miză detectat după focus");
             }
         }
+    }
+    // On-device only: record the touch coordinates and nearby ACCESSIBILITY node
+    // attributes. This is a diagnostic, NOT an instruction to replay unknown taps.
+    private String inspectTouch(float x,float y){
+        AccessibilityNodeInfo root=chromeRoot();
+        int px=(int)x,py=(int)y;
+        if(root==null)return "Atingere ("+px+","+py+"): Chrome nu expune rădăcina Accessibility";
+        List<AccessibilityNodeInfo> queue=new ArrayList<>();queue.add(root);
+        List<String> descriptions=new ArrayList<>();
+        List<Long> sizes=new ArrayList<>();
+        int hits=0;
+        for(int i=0;i<queue.size()&&i<1600;i++){
+            AccessibilityNodeInfo n=queue.get(i);
+            if(n==null)continue;
+            Rect r=new Rect();n.getBoundsInScreen(r);
+            if(r.width()>0&&r.height()>0&&r.contains(px,py)){
+                hits++;
+                String label=n.isPassword()||n.isEditable()?"[text ascuns]":RouteStore.clean(n.getText());
+                String desc=n.isPassword()?"":RouteStore.clean(n.getContentDescription());
+                String id=n.getViewIdResourceName()==null?"":n.getViewIdResourceName();
+                String klass=RouteStore.clean(n.getClassName());
+                String item=(n.isClickable()?"C":"-")+(n.isEditable()?"E":"-")+
+                    " ["+r.left+","+r.top+"-"+r.right+","+r.bottom+"] "+
+                    (klass.length()>24?klass.substring(klass.length()-24):klass)+
+                    " T:"+shortDebug(label,38)+" D:"+shortDebug(desc,26)+" ID:"+shortDebug(id,26);
+                long area=(long)r.width()*r.height();
+                int k=0;
+                while(k<sizes.size()&&sizes.get(k)<=area)k++;
+                sizes.add(k,area);descriptions.add(k,item);
+                if(sizes.size()>6){sizes.remove(6);descriptions.remove(6);}
+            }
+            for(int j=0;j<n.getChildCount()&&j<150;j++){
+                AccessibilityNodeInfo c=n.getChild(j);if(c!=null)queue.add(c);
+            }
+        }
+        StringBuilder out=new StringBuilder("Atingere ("+px+","+py+
+            ") · noduri sub deget: "+hits+" · noduri scanate: "+queue.size());
+        for(int i=0;i<descriptions.size();i++)
+            out.append("\\n").append(i+1).append(") ").append(descriptions.get(i));
+        return out.toString();
+    }
+    private static String shortDebug(String v,int max){
+        if(v==null)return "-";
+        v=v.replace('\\n',' ').replace('\\r',' ').trim();
+        return v.length()>max?v.substring(0,max)+"…":v;
     }
     private AccessibilityNodeInfo nodeAtTouch(float x,float y){
         AccessibilityNodeInfo root=getRootInActiveWindow();
