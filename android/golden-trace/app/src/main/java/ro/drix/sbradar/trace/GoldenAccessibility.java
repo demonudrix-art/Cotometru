@@ -370,8 +370,8 @@ public final class GoldenAccessibility extends AccessibilityService {
                 String id=n.getViewIdResourceName()==null?"":n.getViewIdResourceName();
                 boolean editable=n.isEditable() ||
                     (n.getClassName()!=null&&n.getClassName().toString().contains("EditText"));
-                boolean marketX=label.matches("(?i)^X(\\\\s+[0-9]+[.,][0-9]+)?$") ||
-                    description.matches("(?i)^X(\\\\s+[0-9]+[.,][0-9]+)?$");
+                boolean marketX=label.matches("(?i)^X(\\s+[0-9]+[.,][0-9]+)?$") ||
+                    description.matches("(?i)^X(\\s+[0-9]+[.,][0-9]+)?$");
                 // Mere text nodes are not actionable; a random nearby label
                 // must never become a click selector for money actions.
                 boolean named=!label.isEmpty()||!description.isEmpty()||!id.isEmpty();
