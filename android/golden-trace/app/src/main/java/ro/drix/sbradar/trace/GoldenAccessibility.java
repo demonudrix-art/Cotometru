@@ -30,7 +30,7 @@ public final class GoldenAccessibility extends AccessibilityService {
     static volatile GoldenAccessibility instance;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<RouteStore.Step> recording = new ArrayList<>();
-    private boolean rec=false, playing=false, finalClickDone=false, simulation=false;
+    private boolean rec=false, playing=false, finalClickDone=false, simulation=false, manualRun=false;
     private List<RouteStore.Step> route;
     private GoldenMonitor.Signal active;
     private int index=0, tries=0;
@@ -411,6 +411,42 @@ public final class GoldenAccessibility extends AccessibilityService {
         if(s==null)return false;
         s.handler.post(()->s.startReplay(sig,dryRun));return true;
     }
+    // Explicit user-initiated route verification for the named event.
+    // Unlike automatic alerts, this is started by an in-app action.
+    static boolean manualReplay(String url){
+        GoldenAccessibility s=instance;
+        if(s==null)return false;
+        s.handler.post(()->s.startManualReplay(url));return true;
+    }
+    private void startManualReplay(String url){
+        final String expected="https://superbet.ro/cote/fotbal/deportivo-pereira-vs-jaguares-de-cordoba-15217680?mdt=o";
+        if(!expected.equals(url)){status("Test refuzat: URL-ul nu este meciul configurat");return;}
+        if(rec||playing){status("Test refuzat: înregistrarea sau un traseu este activ");return;}
+        List<RouteStore.Step> steps=RouteStore.read(this);
+        if(!RouteStore.isComplete(steps)){status("Test refuzat: traseul salvat nu conține X, miza și butonul final");return;}
+        if(!awake()){status("Test refuzat: telefon blocat sau ecran stins");return;}
+        int amount=RouteStore.prefs(this).getInt("stake",0);
+        int max=RouteStore.prefs(this).getInt("max_stake",50);
+        if(!RouteStore.prefs(this).getBoolean("real",false)||amount<=0||amount>max){
+            status("Test refuzat: activează ARMAT și setează o miză în plafon");return;
+        }
+        long day=System.currentTimeMillis()/86400000L;
+        if(RouteStore.prefs(this).getInt("count_"+day,0)>=
+                RouteStore.prefs(this).getInt("daily_limit",5)){
+            status("Test refuzat: limita zilnică de încercări a fost atinsă");return;
+        }
+        GoldenMonitor.Signal sig=new GoldenMonitor.Signal();
+        sig.eventId=15217680L;
+        sig.timestamp=System.currentTimeMillis();
+        sig.fixture="Deportivo Pereira · Jaguares de Cordoba";
+        sig.home="Deportivo Pereira";sig.away="Jaguares de Cordoba";
+        sig.url=expected;sig.x=0;
+        active=sig;manualRun=true;simulation=false;playing=true;finalClickDone=false;
+        route=steps;index=0;tries=0;xSelected=false;stakeSet=false;observedX=0;
+        replayStartedAt=android.os.SystemClock.elapsedRealtime();
+        status("TEST MANUAL · traseul complet · meci "+sig.eventId);
+        openChrome(sig.url);handler.postDelayed(runNext,1800);
+    }
     private boolean awake(){
         KeyguardManager k=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
         PowerManager p=(PowerManager)getSystemService(POWER_SERVICE);
@@ -428,7 +464,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         if(sig==null||!sig.valid()||!sig.url.startsWith("https://superbet.ro/cote/fotbal/")){
             status("Replay refuzat: semnal sau URL neverificat");return;
         }
-        this.active=sig;this.simulation=dryRun;this.playing=true;this.finalClickDone=false;
+        this.active=sig;this.simulation=dryRun;this.manualRun=false;this.playing=true;this.finalClickDone=false;
         index=0;tries=0;xSelected=false;stakeSet=false;observedX=0;replayStartedAt=android.os.SystemClock.elapsedRealtime();
         status("Golden Ticket "+sig.eventId+" · deschid Chrome"+(dryRun?" · SIMULARE":""));
         openChrome(sig.url);handler.postDelayed(runNext,1800);
@@ -450,7 +486,8 @@ public final class GoldenAccessibility extends AccessibilityService {
         }
         if(index==route.size()-1 && !RouteStore.isFinal(step)){abort("Ultimul pas nu este butonul de plasare");return;}
         if(index==route.size()-1 && !matchFixture(root,active)){abort("Nu pot confirma echipele pe pagina meciului");return;}
-        if(index==route.size()-1 && (!xSelected || !stakeSet || observedX < active.x-.03 || observedX > active.x+.30 || !isStakeVisible(root))){
+        if(index==route.size()-1 && (!xSelected || !stakeSet || observedX<=1.0 ||
+                (!manualRun && (observedX < active.x-.03 || observedX > active.x+.30)) || !isStakeVisible(root))){
             abort("Ultima verificare a eșuat: X/miză/cotă neconfirmate · STOP");return;
         }
         AccessibilityNodeInfo found=findUnique(root,step);
@@ -466,6 +503,15 @@ public final class GoldenAccessibility extends AccessibilityService {
             if(index==route.size()-1){
                 if(simulation){playing=false;status("SIMULARE OK · înainte de ultimul click · fără miză reală");return;}
                 if(finalClickDone){abort("Click final deja executat, fără retry");return;}
+                if(manualRun){
+                    long day=System.currentTimeMillis()/86400000L;
+                    String countKey="count_"+day;
+                    int count=RouteStore.prefs(this).getInt(countKey,0);
+                    if(count>=RouteStore.prefs(this).getInt("daily_limit",5)){
+                        abort("Limita zilnică atinsă înainte de ultima acțiune");return;
+                    }
+                    RouteStore.prefs(this).edit().putInt(countKey,count+1).apply();
+                }
                 finalClickDone=true; // Once, before dispatch. Never retry the money action.
             }
             AccessibilityNodeInfo clickable=found;
