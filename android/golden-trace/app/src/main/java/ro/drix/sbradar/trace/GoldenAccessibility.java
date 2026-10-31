@@ -401,7 +401,6 @@ public final class GoldenAccessibility extends AccessibilityService {
                         ocrBusy=false;
                         appendTouchOcr(step,"OCR indisponibil: "+error.getClass().getSimpleName());
                         if(bitmap!=null)bitmap.recycle();
-                        if(buffer!=null)buffer.close();
                         return;
                     }finally{
                         if(buffer!=null)buffer.close();
