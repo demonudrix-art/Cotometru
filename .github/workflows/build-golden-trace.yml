@@ -6,6 +6,9 @@ on:
     paths:
       - 'android/golden-trace/**'
       - '.github/workflows/build-golden-trace.yml'
+concurrency:
+  group: golden-trace-replay-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -41,9 +44,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p android/golden-trace/releases
-          cp android/golden-trace/app/build/outputs/apk/debug/app-debug.apk android/golden-trace/releases/GoldenTrace_v1.0.3-replay-fix.apk
+          cp android/golden-trace/app/build/outputs/apk/debug/app-debug.apk android/golden-trace/releases/GoldenTrace_v1.0.3-replay-focus.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add android/golden-trace/releases/GoldenTrace_v1.0.3-replay-fix.apk
+          git add android/golden-trace/releases/GoldenTrace_v1.0.3-replay-focus.apk
           git commit -m "Publish v1.0.3 replay APK [skip ci]"
           git push origin HEAD:golden-trace-103-check
