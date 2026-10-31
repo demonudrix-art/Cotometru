@@ -83,6 +83,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         try{RouteStore.save(this,recording);}
         catch(Exception e){status("Nu pot inițializa fișierul traseului: "+e.getMessage());rec=false;return;}
         RouteStore.prefs(this).edit()
+            .putString("recorded_url",startingUrl)
             .putBoolean("rec_active",true)
             .putInt("rec_chrome_events",0).putInt("rec_clicks",0)
             .putInt("rec_text_edits",0).putInt("rec_unlabelled",0)
@@ -532,8 +533,24 @@ public final class GoldenAccessibility extends AccessibilityService {
         s.handler.post(()->s.startManualReplay(url));return true;
     }
     private void startManualReplay(String url){
-        final String expected="https://superbet.ro/cote/fotbal/deportivo-pereira-vs-jaguares-de-cordoba-15217680?mdt=o";
-        if(!expected.equals(url)){status("Test refuzat: URL-ul nu este meciul configurat");return;}
+        String recorded=RouteStore.prefs(this).getString("recorded_url","");
+        if(recorded.isEmpty()||!recorded.equals(url)){
+            status("Test refuzat: traseul nu corespunde URL-ului înregistrat");return;
+        }
+        android.net.Uri uri;
+        java.util.regex.Matcher match;
+        try{
+            uri=android.net.Uri.parse(url);
+            if(!"https".equals(uri.getScheme()) || !"superbet.ro".equals(uri.getHost())
+                || !uri.getPath().startsWith("/cote/fotbal/")){
+                status("Test refuzat: link Superbet invalid");return;
+            }
+            String slug=uri.getLastPathSegment();
+            match=java.util.regex.Pattern.compile("^(.+)-vs-(.+)-([0-9]{5,12})$").matcher(slug);
+            if(!match.matches()){
+                status("Test refuzat: nu pot confirma cele două echipe din URL");return;
+            }
+        }catch(Exception e){status("Test refuzat: URL imposibil de interpretat");return;}
         if(rec||playing){status("Test refuzat: înregistrarea sau un traseu este activ");return;}
         List<RouteStore.Step> steps=RouteStore.read(this);
         if(!RouteStore.isComplete(steps)){status("Test refuzat: traseul salvat nu conține X, miza și butonul final");return;}
@@ -549,11 +566,13 @@ public final class GoldenAccessibility extends AccessibilityService {
             status("Test refuzat: limita zilnică de încercări a fost atinsă");return;
         }
         GoldenMonitor.Signal sig=new GoldenMonitor.Signal();
-        sig.eventId=15217680L;
+        try{sig.eventId=Long.parseLong(match.group(3));}
+        catch(NumberFormatException e){status("Test refuzat: ID meci invalid");return;}
         sig.timestamp=System.currentTimeMillis();
-        sig.fixture="Deportivo Pereira · Jaguares de Cordoba";
-        sig.home="Deportivo Pereira";sig.away="Jaguares de Cordoba";
-        sig.url=expected;sig.x=0;
+        sig.home=match.group(1).replace('-',' ');
+        sig.away=match.group(2).replace('-',' ');
+        sig.fixture=sig.home+" · "+sig.away;
+        sig.url=url;sig.x=0;
         active=sig;manualRun=true;simulation=false;playing=true;finalClickDone=false;
         route=steps;index=0;tries=0;xSelected=false;stakeSet=false;observedX=0;
         replayStartedAt=android.os.SystemClock.elapsedRealtime();
