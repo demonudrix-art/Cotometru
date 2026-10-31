@@ -1,13 +1,13 @@
-name: Build Golden Trace APK
+name: Build Golden Trace v1.0.3 Replay APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [golden-trace-103-check]
     paths:
       - 'android/golden-trace/**'
       - '.github/workflows/build-golden-trace.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,3 +34,16 @@ jobs:
           name: SB_Radar_Golden_Trace_debug_APK
           path: android/golden-trace/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Publish replay APK on this branch
+        if: github.ref == 'refs/heads/golden-trace-103-check'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p android/golden-trace/releases
+          cp android/golden-trace/app/build/outputs/apk/debug/app-debug.apk android/golden-trace/releases/GoldenTrace_v1.0.3-replay.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/golden-trace/releases/GoldenTrace_v1.0.3-replay.apk
+          git commit -m "Publish v1.0.3 replay APK [skip ci]"
+          git push origin HEAD:golden-trace-103-check
