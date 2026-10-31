@@ -7,6 +7,15 @@ import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
+import android.graphics.Bitmap;
+import android.hardware.HardwareBuffer;
+import android.os.Build;
+import android.view.Display;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.text.Text;
+import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -47,6 +56,7 @@ public final class GoldenAccessibility extends AccessibilityService {
     private float lastInputTouchX=-1,lastInputTouchY=-1;
     private long lastInputTouchMs=0;
     private long lastInputRecordMs=0;
+    private boolean ocrBusy=false;
     private String lastInputValue="";
 
     @Override protected void onServiceConnected(){
@@ -273,7 +283,10 @@ public final class GoldenAccessibility extends AccessibilityService {
         boolean accepted=dispatchGesture(b.build(),new GestureResultCallback(){
             @Override public void onCompleted(GestureDescription gesture){
                 touchForwarding=false;
-                if(!swipe)handler.postDelayed(()->{identifyFocusedStake(sx,sy);probeFocusedStake();},230);
+                if(!swipe){
+                    handler.postDelayed(()->{identifyFocusedStake(sx,sy);probeFocusedStake();},230);
+                    handler.postDelayed(()->inspectTouchVisual(sx,sy),290);
+                }
                 handler.postDelayed(GoldenAccessibility.this::syncTouchOverlay,340);
             }
             @Override public void onCancelled(GestureDescription gesture){
@@ -356,6 +369,99 @@ public final class GoldenAccessibility extends AccessibilityService {
                 status("REC · câmp miză detectat după focus");
             }
         }
+    }
+    // OCR fallback for web controls that Chrome exposes only as nameless Views.
+    // Image pixels remain entirely on this device. Only nearby text snippets
+    // are stored alongside the touch inspection data.
+    private void inspectTouchVisual(float x,float y){
+        if(ocrBusy || Build.VERSION.SDK_INT<30 || !chromeForeground())return;
+        android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+        RouteStore.Step target=null;
+        for(int i=recording.size()-1;i>=0&&i>=recording.size()-4;i--){
+            RouteStore.Step item=recording.get(i);
+            if(Math.abs(item.x-x/Math.max(1f,dm.widthPixels))<.025f &&
+               Math.abs(item.y-y/Math.max(1f,dm.heightPixels))<.025f){
+                target=item;break;
+            }
+        }
+        if(target==null)return;
+        final RouteStore.Step step=target;
+        ocrBusy=true;
+        try{
+            takeScreenshot(Display.DEFAULT_DISPLAY,getMainExecutor(),new TakeScreenshotCallback(){
+                @Override public void onSuccess(ScreenshotResult ss){
+                    HardwareBuffer buffer=ss.getHardwareBuffer();
+                    Bitmap hardware=null,bitmap=null;
+                    try{
+                        hardware=Bitmap.wrapHardwareBuffer(buffer,ss.getColorSpace());
+                        if(hardware==null)throw new IllegalStateException("Imagine indisponibilă");
+                        bitmap=hardware.copy(Bitmap.Config.ARGB_8888,false);
+                        if(bitmap==null)throw new IllegalStateException("Copiere indisponibilă");
+                    }catch(Exception error){
+                        ocrBusy=false;
+                        appendTouchOcr(step,"OCR indisponibil: "+error.getClass().getSimpleName());
+                        if(bitmap!=null)bitmap.recycle();
+                        if(buffer!=null)buffer.close();
+                        return;
+                    }finally{
+                        if(buffer!=null)buffer.close();
+                    }
+                    final Bitmap photo=bitmap;
+                    final int w=photo.getWidth(),h=photo.getHeight();
+                    final float tx=x*w/Math.max(1f,dm.widthPixels);
+                    final float ty=y*h/Math.max(1f,dm.heightPixels);
+                    final TextRecognizer recognizer=TextRecognition.getClient(
+                        TextRecognizerOptions.DEFAULT_OPTIONS);
+                    recognizer.process(InputImage.fromBitmap(photo,0))
+                        .addOnSuccessListener(text->{
+                            List<String> snippets=new ArrayList<>();
+                            List<Float> distances=new ArrayList<>();
+                            for(Text.TextBlock block:text.getTextBlocks()){
+                                for(Text.Line line:block.getLines()){
+                                    Rect box=line.getBoundingBox();
+                                    if(box==null)continue;
+                                    String label=RouteStore.clean(line.getText());
+                                    if(label.isEmpty())continue;
+                                    float dx=Math.max(0,Math.max(box.left-tx,tx-box.right));
+                                    float dy=Math.max(0,Math.max(box.top-ty,ty-box.bottom));
+                                    float distance=(float)Math.hypot(dx,dy);
+                                    if(distance>Math.max(w*.18f,210f))continue;
+                                    int at=0;while(at<distances.size()&&distances.get(at)<=distance)at++;
+                                    distances.add(at,distance);
+                                    snippets.add(at,"("+box.left+","+box.top+") "+
+                                        shortDebug(label,56));
+                                    if(snippets.size()>6){snippets.remove(6);distances.remove(6);}
+                                }
+                            }
+                            if(snippets.isEmpty())
+                                appendTouchOcr(step,"OCR: text neidentificat lângă atingere");
+                            else{
+                                StringBuilder sb=new StringBuilder("OCR vizual lângă atingere:");
+                                for(String part:snippets)sb.append((char)10).append("• ").append(part);
+                                appendTouchOcr(step,sb.toString());
+                            }
+                        })
+                        .addOnFailureListener(err->appendTouchOcr(step,
+                            "OCR eșuat: "+err.getClass().getSimpleName()))
+                        .addOnCompleteListener(task->{
+                            photo.recycle();recognizer.close();ocrBusy=false;
+                        });
+                }
+                @Override public void onFailure(int errorCode){
+                    ocrBusy=false;
+                    appendTouchOcr(step,"Screenshot inaccesibil (Android cod "+errorCode+")");
+                }
+            });
+        }catch(Exception e){
+            ocrBusy=false;
+            appendTouchOcr(step,"OCR screenshot: "+e.getClass().getSimpleName());
+        }
+    }
+    private void appendTouchOcr(RouteStore.Step step,String result){
+        if(!recording.contains(step))return;
+        step.diagnostic += ((char)10)+result;
+        saveProgress();
+        status("REC · diagnostic vizual actualizat · pas "+recording.size());
     }
     // On-device only: record the touch coordinates and nearby ACCESSIBILITY node
     // attributes. This is a diagnostic, NOT an instruction to replay unknown taps.
