@@ -6,8 +6,8 @@ android {
         applicationId 'ro.drix.sbradar.trace'
         minSdk 28
         targetSdk 34
-        versionCode 11
-        versionName '1.0.3-visual-x-fix'
+        versionCode 12
+        versionName '1.0.3-touch-target-fix'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
