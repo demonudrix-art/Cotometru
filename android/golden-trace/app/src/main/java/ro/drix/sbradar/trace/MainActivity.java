@@ -244,8 +244,15 @@ public final class MainActivity extends Activity {
         }
         if(missingStages!=null){
             String reasons=RouteStore.missingReasons(steps);
+            String draw=RouteStore.hasX(steps)?"X ACCESIBIL · confirmat":
+                RouteStore.hasVisualX(steps)?"X VIZUAL OCR · identificat, dar nu redabil automat":
+                "X · neidentificat";
+            String bet=RouteStore.hasEditableStake(steps)?"MIZĂ · câmp editabil capturat":
+                "MIZĂ · câmpul nu a fost capturat";
+            String finish=(!steps.isEmpty() && RouteStore.isFinal(steps.get(steps.size()-1)))?
+                "BUTON FINAL · identificat":"BUTON FINAL · neidentificat";
             missingStages.setText("VALIDARE TRASEU: "+(RouteStore.isComplete(steps)?"COMPLET":"INCOMPLET")+
-                "\n"+reasons);
+                "\n"+draw+"\n"+bet+"\n"+finish+"\n"+reasons);
             missingStages.setTextColor(RouteStore.isComplete(steps)?0xff9bebad:0xffffa56b);
         }
         android.content.SharedPreferences p=RouteStore.prefs(this);
