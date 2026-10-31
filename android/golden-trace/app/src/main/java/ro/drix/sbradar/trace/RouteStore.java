@@ -18,12 +18,15 @@ final class RouteStore {
     static final class Step {
         String action = "CLICK";
         String viewId = "", label = "", desc = "", klass = "", diagnostic = "";
+        boolean visualX=false;
+        double visualOdds=0;
         float x, y, endX, endY;
         long durationMs=0;
         String input = "";
         JSONObject json() throws Exception {
             JSONObject j = new JSONObject(); j.put("action", action); j.put("viewId", viewId);
             j.put("label", label); j.put("desc", desc); j.put("class", klass); j.put("diagnostic", diagnostic);
+            j.put("visualX",visualX);j.put("visualOdds",visualOdds);
             j.put("x", (double)x); j.put("y", (double)y);
             j.put("endX", (double)endX); j.put("endY", (double)endY);
             j.put("durationMs",durationMs); j.put("input", input); return j;
@@ -32,12 +35,15 @@ final class RouteStore {
             Step s = new Step(); s.action = j.optString("action", "CLICK");
             s.viewId = j.optString("viewId"); s.label = j.optString("label");
             s.desc = j.optString("desc"); s.klass = j.optString("class"); s.diagnostic=j.optString("diagnostic","");
+            s.visualX=j.optBoolean("visualX",false);
+            s.visualOdds=j.optDouble("visualOdds",0);
             s.x = (float)j.optDouble("x", 0); s.y = (float)j.optDouble("y", 0);
             s.endX=(float)j.optDouble("endX",s.x);s.endY=(float)j.optDouble("endY",s.y);
             s.durationMs=j.optLong("durationMs",0);
             s.input = j.optString("input"); return s;
         }
-        String summary() { return action + " · " + (!label.isEmpty() ? label : !desc.isEmpty() ? desc : !viewId.isEmpty()?viewId:"atingere la "+Math.round(x*100)+"%, "+Math.round(y*100)+"%"); }
+        String summary() { return action + " · " + (!label.isEmpty() ? label : !desc.isEmpty() ? desc : !viewId.isEmpty()?viewId:"atingere la "+Math.round(x*100)+"%, "+Math.round(y*100)+"%") +
+                (visualX?" [X VIZUAL OCR · "+String.format(java.util.Locale.US,"%.2f",visualOdds)+"]":""); }
     }
     static void save(Context c, List<Step> steps) throws Exception {
         JSONArray a = new JSONArray(); for (Step s:steps) a.put(s.json());
@@ -61,17 +67,27 @@ final class RouteStore {
                         || s.label.matches("(?is)^X\\s+[0-9]+[.,][0-9]+$"))) return true;
         return false;
     }
+    static boolean hasVisualX(List<Step> steps){
+        for(Step s:steps)
+            if("CLICK".equals(s.action)&&s.visualX&&s.visualOdds>1.0&&s.visualOdds<1000.0)
+                return true;
+        return false;
+    }
+    static boolean hasEditableStake(List<Step> steps){
+        for(Step s:steps)
+            if("SET_STAKE".equals(s.action)&&(!s.viewId.isEmpty() ||
+                !s.klass.isEmpty() || !s.desc.isEmpty()))return true;
+        return false;
+    }
     static String missingReasons(List<Step> steps){
         List<String> missing=new ArrayList<>();
         if(steps.isEmpty())return "Niciun pas înregistrat";
-        if(!hasX(steps))missing.add("selectarea X nu a fost identificată");
-        boolean stake=false,unknown=false;
-        for(Step st:steps){
-            if("SET_STAKE".equals(st.action) && (!st.viewId.isEmpty() ||
-                !st.klass.isEmpty() || !st.desc.isEmpty()))stake=true;
-            if("TAP_COORD".equals(st.action))unknown=true;
-        }
-        if(!stake)missing.add("câmpul mizei nu a fost recunoscut ca editabil");
+        if(!hasX(steps))missing.add(hasVisualX(steps)?
+            "X identificat vizual prin OCR; selectorul Accessibility nu este încă validat pentru redare":
+            "selectarea X nu a fost identificată");
+        boolean unknown=false;
+        for(Step st:steps)if("TAP_COORD".equals(st.action))unknown=true;
+        if(!hasEditableStake(steps))missing.add("câmpul mizei nu a fost recunoscut ca editabil");
         if(!isFinal(steps.get(steps.size()-1)))
             missing.add("ultimul pas nu este butonul final Pariază");
         if(unknown)missing.add("există atingeri fără identificator (nu se pot reproduce sigur)");
