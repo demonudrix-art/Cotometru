@@ -141,13 +141,23 @@ public final class GoldenAccessibility extends AccessibilityService {
             if(lastInputTouchMs>0)handler.postDelayed(this::probeFocusedStake,250);
         }
         if(!RouteStore.CHROME.equals(pkg)){
-            // Do not read keyboard content. Use its change events as a trigger
-            // to inspect only Chrome's focused, non-password numeric input.
-            if(lastInputTouchMs>0 &&
-               (pkg.contains("inputmethod")||pkg.contains("keyboard")) &&
+            // SwiftKey's real package is com.touchtype.swiftkey, which the
+            // old keyboard/inputmethod string test completely missed.
+            // We never inspect the keyboard text; only re-check Chrome's own
+            // focused editable field while the IME is visible.
+            boolean ime=pkg.contains("touchtype")||pkg.contains("swiftkey")||
+                pkg.contains("inputmethod")||pkg.contains("keyboard")||
+                pkg.contains("honeyboard")||pkg.contains("latin");
+            if(lastInputTouchMs>0 && ime &&
                (type==AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
-                type==AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED))
-                handler.postDelayed(this::probeFocusedStake,220);
+                type==AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+                type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)){
+                android.content.SharedPreferences prefs=RouteStore.prefs(this);
+                prefs.edit().putInt("rec_ime_events",prefs.getInt("rec_ime_events",0)+1)
+                    .putString("rec_ime_package",pkg).apply();
+                handler.postDelayed(this::probeFocusedStake,180);
+                handler.postDelayed(this::probeFocusedStake,520);
+            }
             return;
         }
         if(type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
@@ -672,14 +682,22 @@ public final class GoldenAccessibility extends AccessibilityService {
         AccessibilityNodeInfo root=chromeRoot();
         if(root==null)return;
         AccessibilityNodeInfo focus=root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-        if(focus==null||!focus.isEditable()||focus.isPassword())return;
+        if(focus==null||!focus.isEditable()||focus.isPassword()){
+            RouteStore.prefs(this).edit().putString("rec_stake_diagnostic",
+                "Tastatura detectată, dar Chrome nu expune un câmp numeric editabil").apply();
+            return;
+        }
         String value=RouteStore.clean(focus.getText()).replaceAll("\\s+","");
         if(!value.matches("[0-9]{1,4}([.,][0-9]{1,2})?"))return;
         Rect bounds=new Rect();focus.getBoundsInScreen(bounds);
         float radius=getResources().getDisplayMetrics().density*34;
         if(bounds.isEmpty() || !new Rect(bounds.left-(int)radius,bounds.top-(int)radius,
               bounds.right+(int)radius,bounds.bottom+(int)radius)
-              .contains((int)lastInputTouchX,(int)lastInputTouchY))return;
+              .contains((int)lastInputTouchX,(int)lastInputTouchY)){
+            RouteStore.prefs(this).edit().putString("rec_stake_diagnostic",
+                "Câmp editabil găsit, dar nu corespunde ultimei atingeri înregistrate").apply();
+            return;
+        }
         if(value.equals(lastInputValue) && SystemClock.elapsedRealtime()-lastInputRecordMs<1000)return;
         lastInputValue=value;lastInputRecordMs=SystemClock.elapsedRealtime();
         RouteStore.Step step=RouteStore.capture(focus,getResources().getDisplayMetrics(),"SET_STAKE");
@@ -698,6 +716,8 @@ public final class GoldenAccessibility extends AccessibilityService {
             recording.add(step);
         }else return;
         saveProgress();
+        RouteStore.prefs(this).edit().putString("rec_stake_diagnostic",
+            "Câmp numeric editabil din Chrome identificat și salvat").apply();
         status("REC câmp miză verificat: "+value);
     }
     private void recordTouchStep(RouteStore.Step step,boolean unlabeled){
