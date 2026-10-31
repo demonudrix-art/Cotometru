@@ -19,7 +19,8 @@ import org.json.JSONObject;
 import java.util.List;
 
 public final class MainActivity extends Activity {
-    private TextView info,trace,licenseFeedback,recorderFeedback,missingStages;
+    private TextView info,trace,licenseFeedback,recorderFeedback,missingStages,touchDiagnostics;
+    private boolean expandedTouchDiagnostics=false;
     private EditText url,stake,limit,daily;
     private CheckBox actual;
     @Override public void onCreate(Bundle saved){super.onCreate(saved);
@@ -79,6 +80,12 @@ public final class MainActivity extends Activity {
         recorderFeedback=text(root,"DIAGNOSTIC REC · nu a pornit",14,0xffffce61);
         missingStages=text(root,"VERIFICĂ ETAPELE: X / MIZĂ / FINAL",13,0xffffa56b);
         trace=text(root,"",12,0xffe5deca);
+        button(root,"🔎 Arată / ascunde detalii atingeri (X, miză)",()->{
+            expandedTouchDiagnostics=!expandedTouchDiagnostics;
+            refresh();
+        });
+        touchDiagnostics=text(root,"",11,0xffb8d6fd);
+        touchDiagnostics.setVisibility(View.GONE);
         text(root,"PAS 3 · Configurează limitele",16,0xffffce61);
         text(root,"MIZĂ PE PARIU (LEI)",14,0xffffce61);
         text(root,"0 = test, fără execuție reală. Introdu suma numai după ce recorderul funcționează.",12,0xffb8b8be);
@@ -220,6 +227,21 @@ public final class MainActivity extends Activity {
         StringBuilder sb=new StringBuilder("Traseu · "+steps.size()+" pași · "+(RouteStore.isComplete(steps)?"COMPLET":"INCOMPLET")+"\n");
         for(int i=0;i<steps.size();i++)sb.append(i+1).append(". ").append(steps.get(i).summary()).append('\n');
         if(trace!=null)trace.setText(sb);
+        if(touchDiagnostics!=null){
+            touchDiagnostics.setVisibility(expandedTouchDiagnostics?View.VISIBLE:View.GONE);
+            if(expandedTouchDiagnostics){
+                StringBuilder details=new StringBuilder("DIAGNOSTIC LOCAL · C=clickabil E=editabil\\n");
+                for(int i=0;i<steps.size();i++){
+                    RouteStore.Step st=steps.get(i);
+                    details.append("PAS ").append(i+1).append(" · ").append(st.summary())
+                        .append(" (").append(Math.round(st.x*100)).append("%, ")
+                        .append(Math.round(st.y*100)).append("%)\\n")
+                        .append(st.diagnostic.isEmpty()?"Diagnostic lipsă: reînregistrează traseul":st.diagnostic)
+                        .append("\\n\\n");
+                }
+                touchDiagnostics.setText(details);
+            }
+        }
         if(missingStages!=null){
             String reasons=RouteStore.missingReasons(steps);
             missingStages.setText("VALIDARE TRASEU: "+(RouteStore.isComplete(steps)?"COMPLET":"INCOMPLET")+
