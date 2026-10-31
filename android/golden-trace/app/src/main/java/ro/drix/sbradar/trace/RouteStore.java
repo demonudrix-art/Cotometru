@@ -61,11 +61,27 @@ final class RouteStore {
                         || s.label.matches("(?is)^X\\s+[0-9]+[.,][0-9]+$"))) return true;
         return false;
     }
+    static String missingReasons(List<Step> steps){
+        List<String> missing=new ArrayList<>();
+        if(steps.isEmpty())return "Niciun pas înregistrat";
+        if(!hasX(steps))missing.add("selectarea X nu a fost identificată");
+        boolean stake=false,unknown=false;
+        for(Step st:steps){
+            if("SET_STAKE".equals(st.action) && (!st.viewId.isEmpty() ||
+                !st.klass.isEmpty() || !st.desc.isEmpty()))stake=true;
+            if("TAP_COORD".equals(st.action))unknown=true;
+        }
+        if(!stake)missing.add("câmpul mizei nu a fost recunoscut ca editabil");
+        if(!isFinal(steps.get(steps.size()-1)))
+            missing.add("ultimul pas nu este butonul final Pariază");
+        if(unknown)missing.add("există atingeri fără identificator (nu se pot reproduce sigur)");
+        if(steps.size()>25)missing.add("prea mulți pași");
+        return missing.isEmpty()?"Toate etapele identificabile au fost capturate":
+            String.join("; ",missing);
+    }
     static boolean isComplete(List<Step> steps) {
-        if(steps.size()<2 || steps.size()>25 || !hasX(steps))return false;
-        boolean stake=false;
-        for(Step s:steps)if("SET_STAKE".equals(s.action))stake=true;
-        return stake && isFinal(steps.get(steps.size()-1));
+        return steps.size()>=2 && steps.size()<=25 &&
+               "Toate etapele identificabile au fost capturate".equals(missingReasons(steps));
     }
     static Step capture(AccessibilityNodeInfo node, android.util.DisplayMetrics dm, String action) {
         Step s = new Step(); s.action=action;
