@@ -394,12 +394,12 @@ public final class GoldenAccessibility extends AccessibilityService {
         StringBuilder out=new StringBuilder("Atingere ("+px+","+py+
             ") · noduri sub deget: "+hits+" · noduri scanate: "+queue.size());
         for(int i=0;i<descriptions.size();i++)
-            out.append("\\n").append(i+1).append(") ").append(descriptions.get(i));
+            out.append((char)10).append(i+1).append(") ").append(descriptions.get(i));
         return out.toString();
     }
     private static String shortDebug(String v,int max){
         if(v==null)return "-";
-        v=v.replace('\\n',' ').replace('\\r',' ').trim();
+        v=v.replace((char)10,' ').replace((char)13,' ').trim();
         return v.length()>max?v.substring(0,max)+"…":v;
     }
     private AccessibilityNodeInfo nodeAtTouch(float x,float y){
