@@ -472,6 +472,24 @@ public final class GoldenAccessibility extends AccessibilityService {
                                     if(snippets.size()>6){snippets.remove(6);distances.remove(6);}
                                 }
                             }
+                            // Log an X elsewhere in the screenshot as a diagnostic only;
+                            // its location must NOT validate a click on a different ToggleButton.
+                            StringBuilder otherDraws=new StringBuilder();
+                            for(Text.TextBlock tb:text.getTextBlocks())for(Text.Line line:tb.getLines()){
+                                Rect bounds=line.getBoundingBox();
+                                if(bounds==null)continue;
+                                String label=RouteStore.clean(line.getText()).trim();
+                                boolean mentionsDraw="X".equalsIgnoreCase(label) ||
+                                    label.matches("(?i)^X[ ]+[0-9]+[.,][0-9]{2,3}$") ||
+                                    label.matches("(?i)^[0-9]+[.,][0-9]{2,3}[ ]+X$");
+                                if(mentionsDraw && Math.abs(bounds.centerY()-ty)<Math.max(100f,h*.08f))
+                                    otherDraws.append(" X la (").append(bounds.centerX())
+                                        .append(",").append(bounds.centerY()).append(")");
+                            }
+                            if(otherDraws.length()>0){
+                                step.diagnostic+=((char)10)+
+                                    "OCR poziții X pe aceeași linie:"+otherDraws;
+                            }
                             // Only recognize the draw visually when a SINGLE X and a
                             // SINGLE price are inside the SAME tappable ToggleButton.
                             // This is diagnostic evidence, not an approved selector for money actions.
@@ -490,13 +508,31 @@ public final class GoldenAccessibility extends AccessibilityService {
                                         if(bounds==null||!visualRect.contains(bounds.centerX(),bounds.centerY()))
                                             continue;
                                         String label=RouteStore.clean(line.getText());
-                                        if("X".equalsIgnoreCase(label.trim())){
+                                        // ML Kit may return "3.40 X" as ONE line.
+                                        // Reject unrelated nearby markets outside the tapped ToggleButton.
+                                        String normalized=label.trim().replace(',','.');
+                                        if("X".equalsIgnoreCase(normalized)){
                                             xRegions.add(bounds);
-                                        }else if(label.matches("[1-9][0-9]?[.,][0-9]{2,3}")){
+                                        }else if(normalized.matches("[1-9][0-9]?[.][0-9]{2,3}")){
                                             try{
-                                                odds.add(Double.parseDouble(label.replace(',','.')));
+                                                odds.add(Double.parseDouble(normalized));
                                                 oddsRegions.add(bounds);
                                             }catch(NumberFormatException ignored){}
+                                        }else{
+                                            String[] parts=normalized.split("\\s+");
+                                            if(parts.length==2 &&
+                                              ("X".equalsIgnoreCase(parts[0]) ||
+                                               "X".equalsIgnoreCase(parts[1]))){
+                                                String price="X".equalsIgnoreCase(parts[0])?
+                                                    parts[1]:parts[0];
+                                                if(price.matches("[1-9][0-9]?[.][0-9]{2,3}")){
+                                                    try{
+                                                        odds.add(Double.parseDouble(price));
+                                                        oddsRegions.add(bounds);
+                                                        xRegions.add(bounds);
+                                                    }catch(NumberFormatException ignored){}
+                                                }
+                                            }
                                         }
                                     }
                                 }
