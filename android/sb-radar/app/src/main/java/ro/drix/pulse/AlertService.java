@@ -58,11 +58,11 @@ public class AlertService extends Service {
       boolean win="WIN".equals(stage)||row.optBoolean("native_win_compat",false);
       if(event<=0||(!win&&!"BET_NOW".equals(stage)))continue;
       String category=row.optString("signal_label","");
-      if(!win&&!(category.equals("GOLDEN TICKET")||category.equals("BETA B")||category.equals("ML")))continue;
+      // Public users receive generic alerts; admin-only category names are not exposed.
       String key="notified_"+event+"_"+(win?"win":"betnow");
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
-      String title=win?"SB Radar • Bilet câștigat":category.equals("GOLDEN TICKET")?"🏆 SB Radar • Golden Ticket":category.equals("BETA B")?"🟠 SB Radar • Beta B":"🧠 SB Radar • ML";
+      String title=win?"SB Radar • Bilet câștigat":category.equals("GOLDEN TICKET")?"🏆 SB Radar • Golden Ticket":category.equals("BETA B")?"🟠 SB Radar • Beta B":category.equals("ML")?"🧠 SB Radar • ML":"SB Radar • BET NOW";
       int min=row.optInt("minute",0);String score=row.optString("home_score","-")+"–"+row.optString("away_score","-");
       String body=fixture+(win?" • Rezultat confirmat":"\nMin. "+min+" • "+score+" • Egal (X) "+String.format(java.util.Locale.US,"%.2f",row.optDouble("px",0)));
       String path=win?"/app?tab=slip&bet_id="+row.optLong("bet_id",0):"/app?tab=live&event_id="+event;
