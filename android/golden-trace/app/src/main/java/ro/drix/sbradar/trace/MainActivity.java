@@ -230,14 +230,14 @@ public final class MainActivity extends Activity {
         if(touchDiagnostics!=null){
             touchDiagnostics.setVisibility(expandedTouchDiagnostics?View.VISIBLE:View.GONE);
             if(expandedTouchDiagnostics){
-                StringBuilder details=new StringBuilder("DIAGNOSTIC LOCAL · C=clickabil E=editabil\\n");
+                StringBuilder details=new StringBuilder("DIAGNOSTIC LOCAL · C=clickabil E=editabil\n");
                 for(int i=0;i<steps.size();i++){
                     RouteStore.Step st=steps.get(i);
                     details.append("PAS ").append(i+1).append(" · ").append(st.summary())
                         .append(" (").append(Math.round(st.x*100)).append("%, ")
-                        .append(Math.round(st.y*100)).append("%)\\n")
+                        .append(Math.round(st.y*100)).append("%)\n")
                         .append(st.diagnostic.isEmpty()?"Diagnostic lipsă: reînregistrează traseul":st.diagnostic)
-                        .append("\\n\\n");
+                        .append("\n\n");
                 }
                 touchDiagnostics.setText(details);
             }
