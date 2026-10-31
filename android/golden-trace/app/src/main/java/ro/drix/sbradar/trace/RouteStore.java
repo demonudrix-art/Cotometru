@@ -20,6 +20,7 @@ final class RouteStore {
         String viewId = "", label = "", desc = "", klass = "", diagnostic = "";
         boolean visualX=false;
         double visualOdds=0;
+        int targetLeft=-1,targetTop=-1,targetRight=-1,targetBottom=-1;
         float x, y, endX, endY;
         long durationMs=0;
         String input = "";
@@ -27,6 +28,8 @@ final class RouteStore {
             JSONObject j = new JSONObject(); j.put("action", action); j.put("viewId", viewId);
             j.put("label", label); j.put("desc", desc); j.put("class", klass); j.put("diagnostic", diagnostic);
             j.put("visualX",visualX);j.put("visualOdds",visualOdds);
+            j.put("targetLeft",targetLeft);j.put("targetTop",targetTop);
+            j.put("targetRight",targetRight);j.put("targetBottom",targetBottom);
             j.put("x", (double)x); j.put("y", (double)y);
             j.put("endX", (double)endX); j.put("endY", (double)endY);
             j.put("durationMs",durationMs); j.put("input", input); return j;
@@ -37,6 +40,8 @@ final class RouteStore {
             s.desc = j.optString("desc"); s.klass = j.optString("class"); s.diagnostic=j.optString("diagnostic","");
             s.visualX=j.optBoolean("visualX",false);
             s.visualOdds=j.optDouble("visualOdds",0);
+            s.targetLeft=j.optInt("targetLeft",-1);s.targetTop=j.optInt("targetTop",-1);
+            s.targetRight=j.optInt("targetRight",-1);s.targetBottom=j.optInt("targetBottom",-1);
             s.x = (float)j.optDouble("x", 0); s.y = (float)j.optDouble("y", 0);
             s.endX=(float)j.optDouble("endX",s.x);s.endY=(float)j.optDouble("endY",s.y);
             s.durationMs=j.optLong("durationMs",0);
