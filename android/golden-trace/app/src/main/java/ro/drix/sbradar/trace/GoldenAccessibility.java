@@ -370,6 +370,29 @@ public final class GoldenAccessibility extends AccessibilityService {
             }
         }
     }
+    private Rect marketToggleRect(float x,float y){
+        AccessibilityNodeInfo root=chromeRoot();
+        if(root==null)return null;
+        List<AccessibilityNodeInfo> nodes=new ArrayList<>();
+        nodes.add(root);
+        Rect best=null;
+        long bestArea=Long.MAX_VALUE;
+        for(int i=0;i<nodes.size()&&i<1600;i++){
+            AccessibilityNodeInfo n=nodes.get(i);
+            if(n==null)continue;
+            Rect rect=new Rect();n.getBoundsInScreen(rect);
+            String klass=RouteStore.clean(n.getClassName());
+            if(n.isClickable() && klass.contains("ToggleButton") &&
+                rect.width()>30 && rect.height()>20 && rect.contains((int)x,(int)y)){
+                long area=(long)rect.width()*rect.height();
+                if(area<bestArea){bestArea=area;best=new Rect(rect);}
+            }
+            for(int j=0;j<n.getChildCount();j++){
+                AccessibilityNodeInfo child=n.getChild(j);if(child!=null)nodes.add(child);
+            }
+        }
+        return best;
+    }
     // OCR fallback for web controls that Chrome exposes only as nameless Views.
     // Image pixels remain entirely on this device. Only nearby text snippets
     // are stored alongside the touch inspection data.
@@ -407,6 +430,9 @@ public final class GoldenAccessibility extends AccessibilityService {
                     }
                     final Bitmap photo=bitmap;
                     final int w=photo.getWidth(),h=photo.getHeight();
+                    final Rect tapToggle=marketToggleRect(x,y);
+                    final float scaleX=w/Math.max(1f,dm.widthPixels);
+                    final float scaleY=h/Math.max(1f,dm.heightPixels);
                     final float tx=x*w/Math.max(1f,dm.widthPixels);
                     final float ty=y*h/Math.max(1f,dm.heightPixels);
                     final TextRecognizer recognizer=TextRecognition.getClient(
@@ -430,6 +456,47 @@ public final class GoldenAccessibility extends AccessibilityService {
                                     snippets.add(at,"("+box.left+","+box.top+") "+
                                         shortDebug(label,56));
                                     if(snippets.size()>6){snippets.remove(6);distances.remove(6);}
+                                }
+                            }
+                            // Only recognize the draw visually when a SINGLE X and a
+                            // SINGLE price are inside the SAME tappable ToggleButton.
+                            // This is diagnostic evidence, not an approved selector for money actions.
+                            if(tapToggle!=null){
+                                Rect visualRect=new Rect(
+                                    Math.round(tapToggle.left*scaleX),
+                                    Math.round(tapToggle.top*scaleY),
+                                    Math.round(tapToggle.right*scaleX),
+                                    Math.round(tapToggle.bottom*scaleY));
+                                List<Rect> xRegions=new ArrayList<>();
+                                List<Double> odds=new ArrayList<>();
+                                List<Rect> oddsRegions=new ArrayList<>();
+                                for(Text.TextBlock block:text.getTextBlocks()){
+                                    for(Text.Line line:block.getLines()){
+                                        Rect bounds=line.getBoundingBox();
+                                        if(bounds==null||!visualRect.contains(bounds.centerX(),bounds.centerY()))
+                                            continue;
+                                        String label=RouteStore.clean(line.getText());
+                                        if("X".equalsIgnoreCase(label.trim())){
+                                            xRegions.add(bounds);
+                                        }else if(label.matches("[1-9][0-9]?[.,][0-9]{2,3}")){
+                                            try{
+                                                odds.add(Double.parseDouble(label.replace(',','.')));
+                                                oddsRegions.add(bounds);
+                                            }catch(NumberFormatException ignored){}
+                                        }
+                                    }
+                                }
+                                if(xRegions.size()==1 && odds.size()==1 &&
+                                    odds.get(0)>1.0 && odds.get(0)<1000.0 &&
+                                    Math.abs(xRegions.get(0).centerY()-oddsRegions.get(0).centerY())<
+                                        Math.max(visualRect.height()*.6f,28f)){
+                                    // Preserve the actual Accessibility label, which may be unrelated.
+                                    // Never relabel an unknown node as an executable X action.
+                                    step.visualX=true;
+                                    step.visualOdds=odds.get(0);
+                                    step.diagnostic+=((char)10)+
+                                        "X CONFIRMAT VIZUAL · OCR "+String.format(Locale.US,"%.2f",step.visualOdds)+
+                                        " · același ToggleButton la atingere; fără selector de replay";
                                 }
                             }
                             if(snippets.isEmpty())
