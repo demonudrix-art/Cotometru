@@ -6,8 +6,12 @@ android {
         applicationId 'ro.drix.sbradar.trace'
         minSdk 28
         targetSdk 34
-        versionCode 8
-        versionName '1.0.3-touch-inspect'
+        versionCode 9
+        versionName '1.0.3-ocr-diag'
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+dependencies {
+    implementation 'com.google.mlkit:text-recognition:16.0.1'
 }
