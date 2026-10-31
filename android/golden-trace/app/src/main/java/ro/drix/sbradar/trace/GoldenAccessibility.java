@@ -43,6 +43,8 @@ public final class GoldenAccessibility extends AccessibilityService {
     private boolean overlayVisible=false,touchForwarding=false;
     private long overlayDownAt=0,ignoreNativeClickUntil=0;
     private float touchStartX=0,touchStartY=0;
+    private float lastInputTouchX=-1,lastInputTouchY=-1;
+    private long lastInputTouchMs=0;
 
     @Override protected void onServiceConnected(){
         super.onServiceConnected(); instance=this;
@@ -238,7 +240,8 @@ public final class GoldenAccessibility extends AccessibilityService {
         boolean accepted=dispatchGesture(b.build(),new GestureResultCallback(){
             @Override public void onCompleted(GestureDescription gesture){
                 touchForwarding=false;
-                handler.postDelayed(GoldenAccessibility.this::syncTouchOverlay,300);
+                if(!swipe)handler.postDelayed(()->identifyFocusedStake(sx,sy),190);
+                handler.postDelayed(GoldenAccessibility.this::syncTouchOverlay,340);
             }
             @Override public void onCancelled(GestureDescription gesture){
                 RouteStore.prefs(GoldenAccessibility.this).edit().putInt(
@@ -266,35 +269,57 @@ public final class GoldenAccessibility extends AccessibilityService {
             RouteStore.prefs(this).getInt("rec_overlay_swipes",0)+1).apply();
     }
     private void captureTouch(float screenX,float screenY){
-        RouteStore.Step step=new RouteStore.Step();
-        step.action="CLICK";
-        AccessibilityNodeInfo node=nodeAtTouch(screenX,screenY);
-        if(node!=null){
-            step=RouteStore.capture(node,getResources().getDisplayMetrics(),"CLICK");
-            if(step.label.isEmpty())step.label=descendantText(node);
-            if(step.label.isEmpty()&&node.getParent()!=null){
-                AccessibilityNodeInfo p=node.getParent();
-                String parentText=RouteStore.clean(p.getText());
-                if(!parentText.isEmpty()&&parentText.length()<70)step.label=parentText;
-            }
-            if(node.isEditable()){
-                // Stake values will be recorded from TYPE_VIEW_TEXT_CHANGED instead.
-                RouteStore.prefs(this).edit().putInt("rec_overlay_taps",
-                    RouteStore.prefs(this).getInt("rec_overlay_taps",0)+1).apply();
-                status("REC · câmp editabil · introdu miza");
-                return;
-            }
-        }
         android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
-        step.x=screenX/dm.widthPixels;step.y=screenY/dm.heightPixels;
+        AccessibilityNodeInfo node=nodeAtTouch(screenX,screenY);
+        RouteStore.Step step=RouteStore.capture(node,dm,"CLICK");
+        step.x=screenX/Math.max(1f,dm.widthPixels);
+        step.y=screenY/Math.max(1f,dm.heightPixels);
         step.endX=step.x;step.endY=step.y;
-        boolean identified=!step.viewId.isEmpty()||!step.label.isEmpty()||!step.desc.isEmpty();
-        if(!identified){
-            step.action="TAP_COORD";step.label="atingere fără identificator · doar diagnostic";
+        boolean editable=node!=null && (node.isEditable() ||
+            (node.getClassName()!=null && node.getClassName().toString().contains("EditText")));
+        if(editable){
+            // An input-field touch is already a useful step even if Chrome never
+            // sends the subsequent TYPE_VIEW_TEXT_CHANGED event.
+            step.action="SET_STAKE";
+            step.label=RouteStore.clean(node.getText());
+            if(step.label.isEmpty())step.label="Câmp miză (focus detectat)";
+            recordTouchStep(step,false);
+            lastInputTouchX=screenX;lastInputTouchY=screenY;
+            lastInputTouchMs=android.os.SystemClock.elapsedRealtime();
+        }else{
+            if(node!=null && step.label.isEmpty())step.label=descendantText(node);
+            // A nearby heading on a broad ancestor must not become a selector:
+            // prefer an exact node covering the actual pressed position.
+            if(node==null || (step.viewId.isEmpty() &&
+                step.label.isEmpty() && step.desc.isEmpty())){
+                step.action="TAP_COORD";step.label="Atingere neidentificată (diagnostic)";
+            }
+            recordTouchStep(step,"TAP_COORD".equals(step.action));
         }
-        recordTouchStep(step,!identified);
         RouteStore.prefs(this).edit().putInt("rec_overlay_taps",
             RouteStore.prefs(this).getInt("rec_overlay_taps",0)+1).apply();
+    }
+    private void identifyFocusedStake(float x,float y){
+        if(!rec)return;
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        if(root==null||!RouteStore.CHROME.contentEquals(root.getPackageName()))return;
+        AccessibilityNodeInfo focus=root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if(focus==null || !focus.isEditable())return;
+        Rect rect=new Rect();focus.getBoundsInScreen(rect);
+        final int pad=(int)(getResources().getDisplayMetrics().density*30);
+        if(!rect.isEmpty() && !new Rect(rect.left-pad,rect.top-pad,
+                rect.right+pad,rect.bottom+pad).contains((int)x,(int)y))return;
+        RouteStore.Step step=RouteStore.capture(focus,getResources().getDisplayMetrics(),"SET_STAKE");
+        if(!recording.isEmpty()){
+            RouteStore.Step last=recording.get(recording.size()-1);
+            if("SET_STAKE".equals(last.action))return;
+            if(Math.abs(last.x-x/Math.max(1f,getResources().getDisplayMetrics().widthPixels))<.06f &&
+               Math.abs(last.y-y/Math.max(1f,getResources().getDisplayMetrics().heightPixels))<.06f){
+                // Replace only the touch that focused this exact editable control.
+                recording.set(recording.size()-1,step);saveProgress();
+                status("REC · câmp miză detectat după focus");
+            }
+        }
     }
     private AccessibilityNodeInfo nodeAtTouch(float x,float y){
         AccessibilityNodeInfo root=getRootInActiveWindow();
@@ -379,22 +404,29 @@ public final class GoldenAccessibility extends AccessibilityService {
         status("● REC "+recording.size()+" pași · "+step.summary());
     }
     private void recordNumericEdit(AccessibilityEvent ev){
-        AccessibilityNodeInfo src=ev.getSource();if(src==null || src.isPassword())return;
+        AccessibilityNodeInfo src=ev.getSource();
+        if(src==null||src.isPassword()||!src.isEditable())return;
         RouteStore.Step step=RouteStore.capture(src,getResources().getDisplayMetrics(),"SET_STAKE");
-        String value=step.label.replace(' ', '\u0000').replace("\u0000", "");
+        String value=step.label.replaceAll("\\s+","");
+        if(!value.matches("[0-9]{1,4}([.,][0-9]{1,2})?")){
+            value=eventLabel(ev).replaceAll("\\s+","");
+        }
         if(!value.matches("[0-9]{1,4}([.,][0-9]{1,2})?"))return;
         step.input=value;
-        // Consecutive character edits to the same input are one route step.
-        if(!recording.isEmpty()){
-            RouteStore.Step prev=recording.get(recording.size()-1);
-            if(prev.action.equals("SET_STAKE") && (prev.viewId.equals(step.viewId)||
-                  Math.abs(prev.x-step.x)<.02f && Math.abs(prev.y-step.y)<.02f)) {
-                recording.set(recording.size()-1,step);saveProgress();status("REC miză: "+value);return;
+        for(int i=recording.size()-1;i>=0 && i>=recording.size()-5;i--){
+            RouteStore.Step prev=recording.get(i);
+            boolean similarPosition=Math.abs(prev.x-step.x)<.035f &&
+                                    Math.abs(prev.y-step.y)<.035f;
+            if("SET_STAKE".equals(prev.action) &&
+                (similarPosition || (!step.viewId.isEmpty() && step.viewId.equals(prev.viewId)))){
+                recording.set(i,step);saveProgress();
+                status("REC miză înregistrată: "+value);return;
             }
         }
         if(recording.size()<25){
             recording.add(step);saveProgress();
-            RouteStore.prefs(this).edit().putInt("rec_text_edits",RouteStore.prefs(this).getInt("rec_text_edits",0)+1).apply();
+            RouteStore.prefs(this).edit().putInt("rec_text_edits",
+                RouteStore.prefs(this).getInt("rec_text_edits",0)+1).apply();
             status("REC câmp miză: "+value);
         }
     }
