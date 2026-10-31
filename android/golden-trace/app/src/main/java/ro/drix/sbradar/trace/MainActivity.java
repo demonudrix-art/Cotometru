@@ -51,7 +51,8 @@ public final class MainActivity extends Activity {
         text(root,"PAS 2 · Înregistrează traseul o singură dată",16,0xffffce61);
         text(root,"MOD CAPTURĂ TOUCH: în Chrome apare banda roșie REC. Atingerile sunt preluate și retransmise către pagină. Derularea este înregistrată. Dacă o atingere nu are etichetă, pasul rămâne diagnostic și nu va fi reprodus automat.",12,0xffb8b8be);
         text(root,"Deschidem un meci Superbet în Chrome. Atinge piața 1X2 → X → miza → butonul final. Ultimul click făcut manual POATE PLASA UN PARIU REAL. Pentru înregistrare folosește o situație de test permisă de operator.",12,0xffdfcfc6);
-        url=field(root,"https://superbet.ro/cote/fotbal/…","");
+        url=field(root,"https://superbet.ro/cote/fotbal/…",
+             "https://superbet.ro/cote/fotbal/deportivo-pereira-vs-jaguares-de-cordoba-15217680?mdt=o");
         button(root,"● PORNEȘTE ÎNREGISTRAREA + CHROME",()->{
             GoldenAccessibility a=GoldenAccessibility.instance;
             if(a==null){
@@ -97,7 +98,38 @@ public final class MainActivity extends Activity {
                     .putInt("daily_limit",d).putBoolean("real",actual.isChecked() && s>0).apply();
             show("Setări salvate · click real: "+(actual.isChecked()&&s>0?"ARMAT":"OPRIT"));
         });
-        text(root,"PAS 4 · Monitorizare Golden Ticket",16,0xffffce61);
+        text(root,"PAS 4 · Test de reluare a traseului v1.0.3",16,0xffffce61);
+        text(root,"Testul apasă toate controalele recunoscute, inclusiv butonul final. Poate plasa un pariu REAL. Necesită un traseu complet, ARMAT și miză în plafon. Nu încearcă din nou clickul final.",12,0xffffc5ab);
+        button(root,"⚡ TEST TRASEU COMPLET · INCLUDE PARIU REAL",()->{
+            List<RouteStore.Step> steps=RouteStore.read(this);
+            if(!RouteStore.isComplete(steps)){
+                show("TEST NEDISPONIBIL: traseul este INCOMPLET. Trebuie înregistrate X, câmpul mizei și ultimul buton.");
+                return;
+            }
+            int m=RouteStore.prefs(this).getInt("stake",0);
+            int max=RouteStore.prefs(this).getInt("max_stake",50);
+            if(m<=0||m>max||!RouteStore.prefs(this).getBoolean("real",false)){
+                show("Activează ARMAT și salvează o miză pozitivă care nu depășește plafonul.");
+                return;
+            }
+            if(GoldenAccessibility.instance==null){
+                show("Activează Accessibility înainte de reluarea traseului.");return;
+            }
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("Confirmare test cu pariu REAL")
+                .setMessage("Meci: Deportivo Pereira - Jaguares de Córdoba\\n"+
+                            "Selecție: X\\nMiză: "+m+" lei\\n"+
+                            "Acest test poate apăsa ultimul buton Pariază și poate debita bani reali. Nu este simulare. Continui?")
+                .setNegativeButton("Anulează",null)
+                .setPositiveButton("EXECUTĂ TRASEUL COMPLET",(dialog,which)->{
+                    boolean started=GoldenAccessibility.manualReplay(
+                        "https://superbet.ro/cote/fotbal/deportivo-pereira-vs-jaguares-de-cordoba-15217680?mdt=o");
+                    if(!started)show("Accessibility nu este disponibil pentru test.");
+                    else show("Test solicitat. Verifică statusul ACCESS pentru progres; un click trimis nu dovedește acceptarea pariului.");
+                })
+                .show();
+        });
+        text(root,"PAS 5 · Monitorizare Golden Ticket",16,0xffffce61);
         button(root,"▶ PORNEȘTE MONITORUL GOLDEN",()->{
             Intent i=new Intent(this,GoldenMonitor.class);i.setAction(GoldenMonitor.START);
             try{startForegroundService(i);show("Monitor pornit; consultă notificarea permanentă");}
