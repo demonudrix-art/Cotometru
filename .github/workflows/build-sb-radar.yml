@@ -17,10 +17,15 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.9'}
+      - name: Restore SB Radar classic icon
+        run: |
+          mkdir -p android/sb-radar/app/src/main/res/drawable-nodpi
+          base64 --decode android/sb-radar/assets/sb_radar_launcher.webp.base64 > android/sb-radar/app/src/main/res/drawable-nodpi/sb_radar_icon.webp
+          echo 'c2b85e0e5227527ca4dd86eada8ce9c5ca91dc2a8eae70c18ec10f0c62cb8d51  android/sb-radar/app/src/main/res/drawable-nodpi/sb_radar_icon.webp' | sha256sum -c -
       - name: Build APK
         run: gradle --no-daemon -p android/sb-radar :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: SB-Radar-v2.3.0-APK
+          name: SB-Radar-v2.3.1-Classic-Icon-APK
           path: android/sb-radar/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
