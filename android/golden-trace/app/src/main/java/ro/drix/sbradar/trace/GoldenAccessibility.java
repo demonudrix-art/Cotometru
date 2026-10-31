@@ -14,6 +14,7 @@ import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.view.accessibility.AccessibilityWindowInfo;
+import android.os.SystemClock;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -45,6 +46,8 @@ public final class GoldenAccessibility extends AccessibilityService {
     private float touchStartX=0,touchStartY=0;
     private float lastInputTouchX=-1,lastInputTouchY=-1;
     private long lastInputTouchMs=0;
+    private long lastInputRecordMs=0;
+    private String lastInputValue="";
 
     @Override protected void onServiceConnected(){
         super.onServiceConnected(); instance=this;
@@ -124,11 +127,13 @@ public final class GoldenAccessibility extends AccessibilityService {
         if(type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
            type==AccessibilityEvent.TYPE_WINDOWS_CHANGED){
             handler.postDelayed(this::syncTouchOverlay,160);
+            if(lastInputTouchMs>0)handler.postDelayed(this::probeFocusedStake,250);
         }
         if(!RouteStore.CHROME.equals(pkg))return;
         if(type==AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
             type==AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED){
             if(!overlayVisible)handler.postDelayed(this::syncTouchOverlay,220);
+            if(lastInputTouchMs>0)handler.postDelayed(this::probeFocusedStake,150);
             int seen=RouteStore.prefs(this).getInt("rec_chrome_windows",0);
             if(seen<9999)RouteStore.prefs(this).edit().putInt("rec_chrome_windows",seen+1).apply();
         }
@@ -139,7 +144,10 @@ public final class GoldenAccessibility extends AccessibilityService {
             if(type==AccessibilityEvent.TYPE_VIEW_CLICKED){
                 if(android.os.SystemClock.elapsedRealtime()>=ignoreNativeClickUntil)recordClick(ev);
             }
-            else recordNumericEdit(ev);
+            else {
+                recordNumericEdit(ev);
+                handler.postDelayed(this::probeFocusedStake,100);
+            }
         }
     }
 
@@ -240,7 +248,7 @@ public final class GoldenAccessibility extends AccessibilityService {
         boolean accepted=dispatchGesture(b.build(),new GestureResultCallback(){
             @Override public void onCompleted(GestureDescription gesture){
                 touchForwarding=false;
-                if(!swipe)handler.postDelayed(()->identifyFocusedStake(sx,sy),190);
+                if(!swipe)handler.postDelayed(()->{identifyFocusedStake(sx,sy);probeFocusedStake();},230);
                 handler.postDelayed(GoldenAccessibility.this::syncTouchOverlay,340);
             }
             @Override public void onCancelled(GestureDescription gesture){
@@ -271,6 +279,8 @@ public final class GoldenAccessibility extends AccessibilityService {
     private void captureTouch(float screenX,float screenY){
         android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
         AccessibilityNodeInfo node=nodeAtTouch(screenX,screenY);
+        lastInputTouchX=screenX;lastInputTouchY=screenY;
+        lastInputTouchMs=SystemClock.elapsedRealtime();
         RouteStore.Step step=RouteStore.capture(node,dm,"CLICK");
         step.x=screenX/Math.max(1f,dm.widthPixels);
         step.y=screenY/Math.max(1f,dm.heightPixels);
@@ -338,8 +348,10 @@ public final class GoldenAccessibility extends AccessibilityService {
                     (n.getClassName()!=null&&n.getClassName().toString().contains("EditText"));
                 boolean marketX=label.matches("(?i)^X(\\\\s+[0-9]+[.,][0-9]+)?$") ||
                     description.matches("(?i)^X(\\\\s+[0-9]+[.,][0-9]+)?$");
+                // Mere text nodes are not actionable; a random nearby label
+                // must never become a click selector for money actions.
                 boolean named=!label.isEmpty()||!description.isEmpty()||!id.isEmpty();
-                if(named||editable){
+                if((named && (n.isClickable()||marketX||!id.isEmpty()))||editable){
                     long area=(long)r.width()*r.height();
                     // Prefer the actual named X price node or editable input;
                     // do not choose a small but irrelevant nearby text label.
@@ -354,6 +366,41 @@ public final class GoldenAccessibility extends AccessibilityService {
             }
         }
         return best;
+    }
+    // Chrome often omits TYPE_VIEW_TEXT_CHANGED for web forms. After a touch,
+    // inspect only the currently focused Chrome numeric EditText, never IME keys.
+    private void probeFocusedStake(){
+        if(!rec||lastInputTouchMs==0||SystemClock.elapsedRealtime()-lastInputTouchMs>35000)return;
+        AccessibilityNodeInfo root=getRootInActiveWindow();
+        if(root==null||!RouteStore.CHROME.contentEquals(root.getPackageName()))return;
+        AccessibilityNodeInfo focus=root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if(focus==null||!focus.isEditable()||focus.isPassword())return;
+        String value=RouteStore.clean(focus.getText()).replaceAll("\\s+","");
+        if(!value.matches("[0-9]{1,4}([.,][0-9]{1,2})?"))return;
+        Rect bounds=new Rect();focus.getBoundsInScreen(bounds);
+        float radius=getResources().getDisplayMetrics().density*34;
+        if(bounds.isEmpty() || !new Rect(bounds.left-(int)radius,bounds.top-(int)radius,
+              bounds.right+(int)radius,bounds.bottom+(int)radius)
+              .contains((int)lastInputTouchX,(int)lastInputTouchY))return;
+        if(value.equals(lastInputValue) && SystemClock.elapsedRealtime()-lastInputRecordMs<1000)return;
+        lastInputValue=value;lastInputRecordMs=SystemClock.elapsedRealtime();
+        RouteStore.Step step=RouteStore.capture(focus,getResources().getDisplayMetrics(),"SET_STAKE");
+        step.input=value;
+        int index=-1;
+        for(int i=recording.size()-1;i>=Math.max(0,recording.size()-5);i--){
+            RouteStore.Step old=recording.get(i);
+            if("SET_STAKE".equals(old.action) &&
+               (Math.abs(old.x-step.x)<.065f&&Math.abs(old.y-step.y)<.065f)){
+                index=i;break;
+            }
+        }
+        if(index>=0){
+            recording.set(index,step);
+        }else if(recording.size()<25){
+            recording.add(step);
+        }else return;
+        saveProgress();
+        status("REC câmp miză verificat: "+value);
     }
     private void recordTouchStep(RouteStore.Step step,boolean unlabeled){
         if(recording.size()>=25){
