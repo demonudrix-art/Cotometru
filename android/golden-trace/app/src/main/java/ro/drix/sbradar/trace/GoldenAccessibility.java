@@ -320,7 +320,19 @@ public final class GoldenAccessibility extends AccessibilityService {
         lastInputTouchX=screenX;lastInputTouchY=screenY;
         lastInputTouchMs=SystemClock.elapsedRealtime();
         RouteStore.Step step=RouteStore.capture(node,dm,"CLICK");
-        step.diagnostic=inspectTouch(screenX,screenY);
+        // Snapshot the ToggleButton BEFORE forwarding the touch to Chrome.
+        // After pressing X, the slip animation can move or replace the node.
+        Rect touchedToggle=marketToggleRect(screenX,screenY);
+        if(touchedToggle!=null){
+            step.targetLeft=touchedToggle.left;step.targetTop=touchedToggle.top;
+            step.targetRight=touchedToggle.right;step.targetBottom=touchedToggle.bottom;
+        }
+        step.diagnostic=inspectTouch(screenX,screenY)+((char)10)+
+            (touchedToggle!=null?
+                "TARGET LA ATINGERE: ToggleButton ["+
+                    touchedToggle.left+","+touchedToggle.top+"-"+
+                    touchedToggle.right+","+touchedToggle.bottom+"]":
+                "TARGET LA ATINGERE: niciun ToggleButton accesibil; OCR doar orientativ");
         step.x=screenX/Math.max(1f,dm.widthPixels);
         step.y=screenY/Math.max(1f,dm.heightPixels);
         step.endX=step.x;step.endY=step.y;
@@ -430,7 +442,9 @@ public final class GoldenAccessibility extends AccessibilityService {
                     }
                     final Bitmap photo=bitmap;
                     final int w=photo.getWidth(),h=photo.getHeight();
-                    final Rect tapToggle=marketToggleRect(x,y);
+                    final Rect tapToggle=(step.targetLeft>=0 && step.targetRight>step.targetLeft &&
+                        step.targetBottom>step.targetTop)?
+                        new Rect(step.targetLeft,step.targetTop,step.targetRight,step.targetBottom):null;
                     final float scaleX=w/Math.max(1f,dm.widthPixels);
                     final float scaleY=h/Math.max(1f,dm.heightPixels);
                     final float tx=x*w/Math.max(1f,dm.widthPixels);
@@ -486,6 +500,8 @@ public final class GoldenAccessibility extends AccessibilityService {
                                         }
                                     }
                                 }
+                                step.diagnostic+=((char)10)+"OCR ÎN TARGET: X="+xRegions.size()+
+                                    " cote="+odds.size()+"; dreptunghi păstrat de la atingere";
                                 if(xRegions.size()==1 && odds.size()==1 &&
                                     odds.get(0)>1.0 && odds.get(0)<1000.0 &&
                                     Math.abs(xRegions.get(0).centerY()-oddsRegions.get(0).centerY())<
@@ -498,6 +514,9 @@ public final class GoldenAccessibility extends AccessibilityService {
                                         "X CONFIRMAT VIZUAL · OCR "+String.format(Locale.US,"%.2f",step.visualOdds)+
                                         " · același ToggleButton la atingere; fără selector de replay";
                                 }
+                            }else{
+                                step.diagnostic+=((char)10)+
+                                    "OCR NEASOCIAT: ToggleButton nu a fost identificat la atingere";
                             }
                             if(snippets.isEmpty())
                                 appendTouchOcr(step,"OCR: text neidentificat lângă atingere");
