@@ -102,6 +102,10 @@ public final class MainActivity extends Activity {
         text(root,"PAS 4 · Test de reluare a traseului v1.0.3",16,0xffffce61);
         text(root,"Testul apasă toate controalele recunoscute, inclusiv butonul final. Poate plasa un pariu REAL. Necesită un traseu complet, ARMAT și miză în plafon. Nu încearcă din nou clickul final.",12,0xffffc5ab);
         button(root,"⚡ TEST TRASEU COMPLET · INCLUDE PARIU REAL",()->{
+            String savedUrl=RouteStore.prefs(this).getString("recorded_url","");
+            if(savedUrl.isEmpty()){
+                show("Înregistrează din nou traseul: nu există un meci asociat.");return;
+            }
             List<RouteStore.Step> steps=RouteStore.read(this);
             if(!RouteStore.isComplete(steps)){
                 show("TEST NEDISPONIBIL: traseul este INCOMPLET. Trebuie înregistrate X, câmpul mizei și ultimul buton.");
@@ -118,13 +122,12 @@ public final class MainActivity extends Activity {
             }
             new android.app.AlertDialog.Builder(this)
                 .setTitle("Confirmare test cu pariu REAL")
-                .setMessage("Meci: Deportivo Pereira - Jaguares de Córdoba\n"+
+                .setMessage("Meci din traseul salvat:\n"+savedUrl+"\n"+
                             "Selecție: X\nMiză: "+m+" lei\n"+
-                            "Acest test poate apăsa ultimul buton Pariază și poate debita bani reali. Nu este simulare. Continui?")
+                            "Testul poate apăsa ultimul buton Pariază și debita bani reali. Nu este simulare. Continui?")
                 .setNegativeButton("Anulează",null)
                 .setPositiveButton("EXECUTĂ TRASEUL COMPLET",(dialog,which)->{
-                    boolean started=GoldenAccessibility.manualReplay(
-                        "https://superbet.ro/cote/fotbal/deportivo-pereira-vs-jaguares-de-cordoba-15217680?mdt=o");
+                    boolean started=GoldenAccessibility.manualReplay(savedUrl);
                     if(!started)show("Accessibility nu este disponibil pentru test.");
                     else show("Test solicitat. Verifică statusul ACCESS pentru progres; un click trimis nu dovedește acceptarea pariului.");
                 })
