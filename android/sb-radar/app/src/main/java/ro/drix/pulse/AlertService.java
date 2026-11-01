@@ -189,7 +189,19 @@ public class AlertService extends Service {
     if(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
     mgr.notify(id,b.build());
     prefs.edit().putBoolean(key,true).apply();
-    AlertAttention.start(ctx); // FCM path works even when the monitor Service is not running.
+    // High-priority FCM may start a foreground service while the screen is off.
+    // It keeps the user-requested 45-second alarm alive beyond onMessageReceived().
+    // If Android refuses background starts, the direct alarm is the fallback.
+    boolean started=false;
+    if(highPriority) {
+      try {
+        Intent attention=new Intent(ctx,AlertService.class).setAction("RING_FCM");
+        if(Build.VERSION.SDK_INT>=26)ctx.startForegroundService(attention);
+        else ctx.startService(attention);
+        started=true;
+      }catch(Exception ignored){}
+    }
+    if(!started)AlertAttention.start(ctx);
   }
 
   static void testAlert(Context c,String kind){
