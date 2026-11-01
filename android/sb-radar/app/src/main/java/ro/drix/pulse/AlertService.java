@@ -91,6 +91,7 @@ public class AlertService extends Service {
       showSignal(gold?"GOLDEN TICKET":"ML",0,"Simulare notificare", "Acesta este un test local. Nu este un semnal real.",
         "/app?tab=live",true); 
     }
+    if("RING_FCM".equals(action)){ring();}
     if(running)return START_STICKY;
     running=true;
     thread=new Thread(()->{
@@ -162,6 +163,38 @@ public class AlertService extends Service {
       }catch(Exception ignored){}}
     }
   }
+
+  // Data-only FCM: display immediately, then try to start the foreground monitor for local ringing.
+  // Shared deduplication key prevents duplicate notifications from FCM and the 25-second polling fallback.
+  static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority){
+    if(event<=0||!("GOLDEN TICKET".equals(category)||"ML".equals(category)))return;
+    SharedPreferences prefs=ctx.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE);
+    String key="notified_"+event+"_betnow";
+    if(prefs.getBoolean(key,false))return;
+    if(Build.VERSION.SDK_INT>=33&&ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
+    int id=(int)(Math.abs(event)%100000)+3000;
+    String title="GOLDEN TICKET".equals(category)?"🏆 GOLDEN TICKET • SB Radar":"🧠 ML • SB Radar";
+    String channel="GOLDEN TICKET".equals(category)?CH_GOLD:CH_ML;
+    NotificationManager mgr=(NotificationManager)ctx.getSystemService(NOTIFICATION_SERVICE);
+    Intent fs=new Intent(ctx,AlertScreenActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+    fs.putExtra("title",title);fs.putExtra("body",body);fs.putExtra("path",path);fs.putExtra("notification_id",id);
+    PendingIntent full=PendingIntent.getActivity(ctx,id+400000,fs,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+    Intent dismiss=new Intent(ctx,AlertDismissReceiver.class).setAction("ro.drix.pulse.SILENCE").putExtra("notification_id",id);
+    PendingIntent silent=PendingIntent.getBroadcast(ctx,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+    Notification.Builder b=builder(ctx,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
+      .setContentTitle(title).setContentText(fixture).setStyle(new Notification.BigTextStyle().bigText(body))
+      .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_REMINDER)
+      .setVisibility(Notification.VISIBILITY_PUBLIC).setPriority(Notification.PRIORITY_MAX)
+      .addAction(android.R.drawable.ic_media_pause,"Oprește soneria",silent);
+    if(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
+    mgr.notify(id,b.build());
+    prefs.edit().putBoolean(key,true).apply();
+    if(highPriority){
+      Intent ring=new Intent(ctx,AlertService.class).setAction("RING_FCM");
+      try{ctx.startForegroundService(ring);}catch(Exception ignored){ /* Notification is already posted. */ }
+    }
+  }
+
   static void testAlert(Context c,String kind){
     Intent i=new Intent(c,AlertService.class);
     i.setAction("ML".equals(kind)?"TEST_ML":"TEST_GOLD");

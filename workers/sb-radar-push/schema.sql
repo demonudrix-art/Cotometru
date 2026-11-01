@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS sb_radar_fcm_registry (device_id TEXT PRIMARY KEY, fcm_token TEXT NOT NULL, updated_utc TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sb_radar_fcm_sent (device_id TEXT NOT NULL,event_id INTEGER NOT NULL,stage TEXT NOT NULL,source TEXT,status TEXT NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,updated_utc TEXT NOT NULL,PRIMARY KEY(device_id,event_id,stage));
