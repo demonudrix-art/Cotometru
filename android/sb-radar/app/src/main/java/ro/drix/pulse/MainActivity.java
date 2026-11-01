@@ -20,7 +20,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.1";
+  static final String APP_VERSION="2.3.2";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -74,7 +74,28 @@ public class MainActivity extends Activity {
     setContentView(root);
     if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},1);
+    startRadar(); // Native monitor is enabled whenever the user opens the app.
+    offerFullScreenPermission();
     enrollAndOpen();
+  }
+  private void offerFullScreenPermission(){
+    if(Build.VERSION.SDK_INT<34)return;
+    android.app.NotificationManager m=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+    if(m.canUseFullScreenIntent()||prefs.getBoolean("fsi_prompted_v232",false))return;
+    prefs.edit().putBoolean("fsi_prompted_v232",true).apply();
+    new android.app.AlertDialog.Builder(this).setTitle("Alerte pe ecranul blocat")
+      .setMessage("Pentru Golden Ticket și ML, permite afișarea alertelor pe tot ecranul în setările Android. Poți refuza; notificările obișnuite vor continua.")
+      .setPositiveButton("Deschide setările",(d,w)->openFullScreenSettings())
+      .setNegativeButton("Mai târziu",null).show();
+  }
+  private void openFullScreenSettings(){
+    if(Build.VERSION.SDK_INT<34)return;
+    try{Intent i=new Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+      Uri.parse("package:"+getPackageName()));startActivity(i);}catch(Exception ignored){}
+  }
+  @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] results){
+    super.onRequestPermissionsResult(requestCode,permissions,results);
+    if(requestCode==1&&results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED)startRadar();
   }
   private void enrollAndOpen(){
     new Thread(()->{
@@ -117,6 +138,9 @@ public class MainActivity extends Activity {
     @JavascriptInterface public void startMonitor(){runOnUiThread(()->startRadar());}
     @JavascriptInterface public void stopMonitor(){runOnUiThread(()->stopRadar());}
     @JavascriptInterface public void retry(){runOnUiThread(()->enrollAndOpen());}
-    @JavascriptInterface public void testNotification(){runOnUiThread(()->AlertService.testAlert(MainActivity.this));}
+    @JavascriptInterface public void testNotification(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GOLDEN TICKET"));}
+    @JavascriptInterface public void testGoldenAlert(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GOLDEN TICKET"));}
+    @JavascriptInterface public void testMlAlert(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"ML"));}
+    @JavascriptInterface public void setupFullScreenAlerts(){runOnUiThread(()->openFullScreenSettings());}
   }
 }
