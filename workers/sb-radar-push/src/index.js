@@ -113,7 +113,7 @@ async function tick(env){
 }
 
 async function runQueuedTest(env){
-  const job=await env.DB.prepare("SELECT id, device_id FROM sb_radar_fcm_test_jobs WHERE status='pending' ORDER BY id LIMIT 1").first();
+  const job=await env.DB.prepare("SELECT id, device_id, not_before_utc FROM sb_radar_fcm_test_jobs WHERE status='pending' AND (not_before_utc IS NULL OR julianday(not_before_utc) <= julianday('now','+80 seconds')) ORDER BY id LIMIT 1").first();
   if(!job)return;
   const claim=await env.DB.prepare("UPDATE sb_radar_fcm_test_jobs SET status='running',started_utc=datetime('now') WHERE id=? AND status='pending'").bind(job.id).run();
   if((claim.meta?.changes??0)!==1)return;
@@ -124,6 +124,13 @@ async function runQueuedTest(env){
     if(!env.FIREBASE_SERVICE_ACCOUNT_JSON)throw new Error("service_account_missing");
     const serviceAccount=parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
     const accessToken=await getAccessToken(serviceAccount);
+    if(job.not_before_utc){
+      const due=Date.parse(String(job.not_before_utc).replace(" ","T")+"Z");
+      if(!Number.isFinite(due))throw new Error("invalid_test_schedule");
+      const delay=due-Date.now();
+      if(delay>80000)throw new Error("test_schedule_too_far");
+      if(delay>0)await new Promise(resolve=>setTimeout(resolve,delay));
+    }
     const testSet=[{label:"GOLDEN TICKET",code:"GOLD",id:990000301},{label:"ML",code:"ML",id:990000302}];
     for(let index=0;index<testSet.length;index++){
       if(index)await new Promise(resolve=>setTimeout(resolve,15000));
