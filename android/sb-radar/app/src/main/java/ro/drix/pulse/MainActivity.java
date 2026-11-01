@@ -20,7 +20,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.3";
+  static final String APP_VERSION="2.3.4";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -105,6 +105,7 @@ public class MainActivity extends Activity {
         j.put("device_id",prefs.getString("device_id",""));j.put("token",token(this));
         j.put("model",Build.MANUFACTURER+" "+Build.MODEL);j.put("os_version",Build.VERSION.RELEASE);j.put("app_version",APP_VERSION);
         readHttp(BASE+"/api/mobile/claim",null,j.toString());
+        FirebaseBootstrap.onClaimReady(this);
         final String v;
         String value="—";try{value=new JSONObject(readHttp(BASE+"/api/mobile/version",token(this),null)).optString("server_version","—");}catch(Exception ignored){}
         v=value;runOnUiThread(()->{footer.setText("APK "+APP_VERSION+"  •  Server "+v);openIntent(getIntent());});
@@ -135,6 +136,7 @@ public class MainActivity extends Activity {
   public class NativeBridge{
     @JavascriptInterface public String getToken(){return token(MainActivity.this);}
     @JavascriptInterface public String getAppVersion(){return APP_VERSION;}
+    @JavascriptInterface public String getFcmStatus(){return FirebaseBootstrap.status(MainActivity.this);}
     @JavascriptInterface public String isMonitoring(){return prefs.getBoolean("monitor",false)?"true":"false";}
     @JavascriptInterface public void startMonitor(){runOnUiThread(()->startRadar());}
     @JavascriptInterface public void stopMonitor(){runOnUiThread(()->stopRadar());}
