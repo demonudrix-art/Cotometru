@@ -83,10 +83,10 @@ public class MainActivity extends Activity {
   private void offerFullScreenPermission(){
     if(Build.VERSION.SDK_INT<34)return;
     android.app.NotificationManager m=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-    if(m.canUseFullScreenIntent()||prefs.getBoolean("fsi_prompted_v232",false))return;
-    prefs.edit().putBoolean("fsi_prompted_v232",true).apply();
+    if(m.canUseFullScreenIntent()||prefs.getBoolean("fsi_prompted_v237",false))return;
+    prefs.edit().putBoolean("fsi_prompted_v237",true).apply();
     new android.app.AlertDialog.Builder(this).setTitle("Alerte pe ecranul blocat")
-      .setMessage("Pentru Golden Ticket și ML, permite afișarea alertelor pe tot ecranul în setările Android. Poți refuza; notificările obișnuite vor continua.")
+      .setMessage("Pentru Golden Ticket și Machine Learning v2.0, permite afișarea alertelor pe tot ecranul, inclusiv când telefonul este blocat. Fără această permisiune, Android poate afișa doar notificarea obișnuită.")
       .setPositiveButton("Deschide setările",(d,w)->openFullScreenSettings())
       .setNegativeButton("Mai târziu",null).show();
   }
