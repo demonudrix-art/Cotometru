@@ -76,19 +76,11 @@ export default {
  async fetch(req,env){
    const url=new URL(req.url);
    if(url.pathname==="/v1/config"&&req.method==="GET"){
-     if(!env.FIREBASE_CLIENT_CONFIG_JSON)return respond({enabled:false},503);
-     try{
-       const j=JSON.parse(env.FIREBASE_CLIENT_CONFIG_JSON);
-       const client=Array.isArray(j.client)?j.client[0]:null;
-       const cfg={
-         project_id:j.project_id||j.project_info?.project_id,
-         application_id:j.application_id||client?.client_info?.mobilesdk_app_id,
-         api_key:j.api_key||client?.api_key?.[0]?.current_key,
-         sender_id:String(j.sender_id||j.project_info?.project_number||"")
-       };
-       const valid=Object.values(cfg).every(v=>typeof v==="string"&&v.length>0);
-       return valid?respond({enabled:true,...cfg}):respond({enabled:false,reason:"invalid_client_config"},503);
-     }catch{return respond({enabled:false,reason:"unparseable_client_config"},503);}
+     // Firebase Android client configuration is public. Avoid relying on misformatted user-entered secret.
+     return respond({enabled:true,project_id:"sb-radar-1a9d3",
+       application_id:"1:600995633839:android:0badb87c60e78031fad25a",
+       api_key:"AIzaSyAIKtKh7Q60l0kRybTDARxbBWhOggqUJpw",
+       sender_id:"600995633839"});
    }
    if(url.pathname==="/v1/register"&&req.method==="POST"){
      let body;try{body=await req.json();}catch{return respond({error:"bad_json"},400);}
@@ -98,7 +90,7 @@ export default {
        .bind(body.device_id,body.fcm_token).run();
      return respond({ok:true});
    }
-   if(url.pathname==="/v1/health"&&req.method==="GET")return respond({ok:true,fcm_configured:!!(env.FIREBASE_SERVICE_ACCOUNT_JSON&&env.FIREBASE_CLIENT_CONFIG_JSON),dispatch:"scheduled"});
+   if(url.pathname==="/v1/health"&&req.method==="GET")return respond({ok:true,fcm_configured:!!env.FIREBASE_SERVICE_ACCOUNT_JSON,dispatch:"scheduled"});
    return respond({error:"not_found"},404);
  },
  async scheduled(event,env,ctx){ctx.waitUntil(tick(env).catch(e=>console.log("fcm_tick",String(e).slice(0,100))));}
