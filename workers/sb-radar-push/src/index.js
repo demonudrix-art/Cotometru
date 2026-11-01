@@ -13,6 +13,43 @@ async function authenticatedDevice(req,env,deviceId){
   const row=await env.DB.prepare("SELECT device_id FROM ghost_equal_mobile_devices WHERE device_id=? AND token_hash=? AND COALESCE(blocked,0)=0").bind(deviceId,hash).first();
   return !!row;
 }
+
+function parseServiceAccount(raw) {
+  if(typeof raw!=="string"||!raw.trim())throw new Error("missing_secret");
+  let v=raw.replace(/^\uFEFF/,"").trim();
+  const fence=String.fromCharCode(96).repeat(3);
+  if(v.startsWith(fence)&&v.endsWith(fence)){
+    v=v.slice(3,-3).trim().replace(/^json\s*\n/i,"").trim();
+  }
+  if(v.startsWith("'")&&v.endsWith("'"))v=v.slice(1,-1).trim();
+  for(let i=0;i<3;i++){
+    let obj;
+    try{obj=JSON.parse(v);}catch(e){
+      const m=/"private_key"\s*:\s*"/.exec(v);
+      if(m){
+        const p=m.index+m[0].length;let q=p;
+        while(q<v.length){if(v[q]==='"'&&v[q-1]!=="\\")break;q++;}
+        const part=v.slice(p,q),fixed=part.replace(/\r\n|\n|\r/g,"\\n");
+        if(part!==fixed){v=v.slice(0,p)+fixed+v.slice(q);try{obj=JSON.parse(v);}catch{}}
+      }
+    }
+    if(obj===undefined)throw new Error("invalid_json");
+    if(typeof obj==="string"){v=obj.trim();continue;}
+    if(!obj||typeof obj!=="object"||Array.isArray(obj))throw new Error("not_json_object");
+    return obj;
+  }
+  throw new Error("invalid_json");
+}
+function serviceAccountCheck(raw){
+  let a;
+  try{a=parseServiceAccount(raw);}catch(e){return {ok:false,reason:e.message==="missing_secret"?"missing_secret":"invalid_json"};}
+  if(a.type!=="service_account")return {ok:false,reason:"wrong_file_type"};
+  if(a.project_id!=="sb-radar-1a9d3")return {ok:false,reason:"wrong_project_id"};
+  if(typeof a.client_email!=="string"||!a.client_email.includes("@"))return {ok:false,reason:"missing_client_email"};
+  if(typeof a.private_key!=="string"||!a.private_key.includes("BEGIN PRIVATE KEY"))return {ok:false,reason:"missing_private_key"};
+  return {ok:true,reason:"valid_json",account:a};
+}
+
 async function getAccessToken(serviceAccount){
   const now=Math.floor(Date.now()/1000);
   const header=encoded(JSON.stringify({alg:"RS256",typ:"JWT"}));
@@ -47,7 +84,7 @@ async function sendFcm(env,serviceAccount,accessToken,device,data){
 }
 async function tick(env){
   if(!env.FIREBASE_SERVICE_ACCOUNT_JSON)return {ready:false,reason:"firebase_service_account_missing"};
-  const serviceAccount=JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const serviceAccount=parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
   const devices=await env.DB.prepare("SELECT device_id,fcm_token FROM sb_radar_fcm_registry WHERE updated_utc >= datetime('now','-21 days') LIMIT 50").all();
   if(!devices.results.length)return {ready:true,devices:0,sent:0};
   const alerts=await env.DB.prepare(
@@ -83,7 +120,7 @@ async function runQueuedTest(env){
     const device=await env.DB.prepare("SELECT fcm_token FROM sb_radar_fcm_registry WHERE device_id=?").bind(job.device_id).first();
     if(!device)throw new Error("registered_device_missing");
     if(!env.FIREBASE_SERVICE_ACCOUNT_JSON)throw new Error("service_account_missing");
-    const serviceAccount=JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    const serviceAccount=parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
     const accessToken=await getAccessToken(serviceAccount);
     const testSet=[{label:"GOLDEN TICKET",code:"GOLD",id:990000301},{label:"ML",code:"ML",id:990000302}];
     for(let index=0;index<testSet.length;index++){
@@ -132,21 +169,8 @@ export default {
      return respond({ok:true});
    }
    if(url.pathname==="/v1/health"&&req.method==="GET"){
-     let reason="missing_secret";
-     const raw=env.FIREBASE_SERVICE_ACCOUNT_JSON;
-     if(raw){
-       try{
-         const a=JSON.parse(raw);
-         if(typeof a==="string")reason="double_encoded_json";
-         else if(!a||typeof a!=="object"||Array.isArray(a))reason="not_json_object";
-         else if(a.type!=="service_account")reason="wrong_file_type";
-         else if(a.project_id!=="sb-radar-1a9d3")reason="wrong_project_id";
-         else if(typeof a.client_email!=="string"||!a.client_email.includes("@"))reason="missing_client_email";
-         else if(typeof a.private_key!=="string"||!a.private_key.includes("BEGIN PRIVATE KEY"))reason="missing_private_key";
-         else reason="valid_json";
-       }catch{reason="invalid_json";}
-     }
-     return respond({ok:true,service_account_valid:reason==="valid_json",reason,dispatch:"scheduled"});
+     const state=serviceAccountCheck(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+     return respond({ok:true,service_account_valid:state.ok,reason:state.reason,dispatch:"scheduled"});
    }
    return respond({error:"not_found"},404);
  },
