@@ -43,7 +43,7 @@ public class AlertService extends Service {
     NotificationManager mgr=(NotificationManager)context.getSystemService(NOTIFICATION_SERVICE);
     Uri ring=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
     AudioAttributes soundAttrs=new AudioAttributes.Builder()
-      .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+      .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
     NotificationChannel gold=new NotificationChannel(CH_GOLD,"Golden Ticket • Alertă discretă",NotificationManager.IMPORTANCE_HIGH);
     gold.setDescription("Golden Ticket: un sunet scurt, o vibrație discretă și ecran vizual când este permis");
