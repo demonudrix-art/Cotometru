@@ -15,8 +15,8 @@ import java.util.Locale;
 
 public class AlertService extends Service {
   static final String CH_MONITOR="sb_radar_monitor_v230";
-  static final String CH_GOLD="sb_radar_gold_audible_v235";
-  static final String CH_ML="sb_radar_ml_audible_v235";
+  static final String CH_GOLD="sb_radar_gold_calm_v236";
+  static final String CH_ML="sb_radar_ml_calm_v236";
   static final String CH_WINS="sb_radar_wins_v232";
   static final int FOREGROUND_ID=1310;
   static final String SILENCE="SILENCE";
@@ -38,27 +38,25 @@ public class AlertService extends Service {
     NotificationChannel wins=new NotificationChannel(CH_WINS,"Bilete câștigate",NotificationManager.IMPORTANCE_HIGH);
     wins.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);mgr.createNotificationChannel(wins);
   }
-  // Android notification channels are immutable once created. New v235 IDs are required
-  // to restore sound even if the previous channels were created as vibration-only.
+  // Android notification channels are immutable once created. New v236 IDs provide a short notification tone and a single brief vibration.
   private static void ensureUrgentChannels(Context context){
     NotificationManager mgr=(NotificationManager)context.getSystemService(NOTIFICATION_SERVICE);
-    Uri ring=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-    if(ring==null)ring=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+    Uri ring=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
     AudioAttributes soundAttrs=new AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-    NotificationChannel gold=new NotificationChannel(CH_GOLD,"Golden Ticket • Sonerie",NotificationManager.IMPORTANCE_HIGH);
-    gold.setDescription("Golden Ticket: alertă sonoră, vibrație și ecran blocat dacă este permis");
+    NotificationChannel gold=new NotificationChannel(CH_GOLD,"Golden Ticket • Alertă discretă",NotificationManager.IMPORTANCE_HIGH);
+    gold.setDescription("Golden Ticket: un sunet scurt, o vibrație discretă și ecran vizual când este permis");
     gold.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     gold.enableVibration(true);
-    gold.setVibrationPattern(new long[]{0,550,350,550});
+    gold.setVibrationPattern(new long[]{0,120});
     gold.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(gold);
-    NotificationChannel ml=new NotificationChannel(CH_ML,"ML • Sonerie",NotificationManager.IMPORTANCE_HIGH);
-    ml.setDescription("ML: alertă sonoră, vibrație și ecran blocat dacă este permis");
+    NotificationChannel ml=new NotificationChannel(CH_ML,"ML • Alertă discretă",NotificationManager.IMPORTANCE_HIGH);
+    ml.setDescription("ML: un sunet scurt, o vibrație discretă și ecran vizual când este permis");
     ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     ml.enableVibration(true);
-    ml.setVibrationPattern(new long[]{0,400,250,400});
+    ml.setVibrationPattern(new long[]{0,90});
     ml.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(ml);
   }
@@ -79,23 +77,8 @@ public class AlertService extends Service {
     if(player!=null){try{if(player.isPlaying())player.stop();}catch(Exception ignored){}try{player.release();}catch(Exception ignored){}player=null;}
     if(vibrator!=null){vibrator.cancel();vibrator=null;}
   }
-  private synchronized void ring(){
-    stopRinging();
-    try{
-      Uri sound=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-      if(sound==null)sound=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-      player=new MediaPlayer();
-      player.setDataSource(this,sound);
-      player.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
-      player.setLooping(true);player.prepare();player.start();
-    }catch(Exception e){if(player!=null){player.release();player=null;}}
-    try{
-      vibrator=(Vibrator)getSystemService(VIBRATOR_SERVICE);
-      if(vibrator!=null&&vibrator.hasVibrator())vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0,650,400,650,800},0));
-    }catch(Exception ignored){}
-    ringTimeout=this::stopRinging;
-    MAIN.postDelayed(ringTimeout,45000); // A safety timeout; never ring indefinitely.
-  }
+  // A single channel cue is enough; no ringtone player or repeating vibration.
+  private synchronized void ring(){stopRinging();}
   @Override public int onStartCommand(Intent intent,int flags,int startId){
     String action=intent==null?"START":intent.getAction();
     if(SILENCE.equals(action)){stopRinging();return START_STICKY;}
@@ -142,10 +125,10 @@ public class AlertService extends Service {
       .setContentIntent(open(this,id,path)).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
       .setCategory(Notification.CATEGORY_REMINDER).setColor(gold?0xffffc74f:0xfff54d61)
-      .addAction(android.R.drawable.ic_media_pause,"Oprește soneria",silent);
+      .setDeleteIntent(silent).setOnlyAlertOnce(true)
+      .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
     manager.notify(id,b.build());
-    ring();
   }
   private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
@@ -204,14 +187,12 @@ public class AlertService extends Service {
       .setContentTitle(title).setContentText(fixture).setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_REMINDER)
       .setVisibility(Notification.VISIBILITY_PUBLIC).setPriority(Notification.PRIORITY_MAX)
-      .addAction(android.R.drawable.ic_media_pause,"Oprește soneria",silent);
+      .setDeleteIntent(silent).setOnlyAlertOnce(true)
+      .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
     mgr.notify(id,b.build());
     prefs.edit().putBoolean(key,true).apply();
-    if(highPriority){
-      Intent ring=new Intent(ctx,AlertService.class).setAction("RING_FCM");
-      try{ctx.startForegroundService(ring);}catch(Exception e){ android.util.Log.w("SB_Radar_FCM","Background ringtone service not permitted",e); /* The urgent notification channel still plays its own sound. */ }
-    }
+    // FCM is shown immediately; no extra ringtone service on top of channel alert.
   }
 
   static void testAlert(Context c,String kind){
