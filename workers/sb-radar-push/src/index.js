@@ -131,7 +131,16 @@ export default {
        .bind(body.device_id,body.fcm_token).run();
      return respond({ok:true});
    }
-   if(url.pathname==="/v1/health"&&req.method==="GET")return respond({ok:true,fcm_configured:!!env.FIREBASE_SERVICE_ACCOUNT_JSON,dispatch:"scheduled"});
+   if(url.pathname==="/v1/health"&&req.method==="GET"){
+     let service_account_valid=false;
+     try{
+       const a=JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON||"");
+       service_account_valid=a.type==="service_account"&&a.project_id==="sb-radar-1a9d3"&&
+         typeof a.client_email==="string"&&typeof a.private_key==="string"&&
+         a.private_key.includes("BEGIN PRIVATE KEY");
+     }catch{}
+     return respond({ok:true,service_account_valid,dispatch:"scheduled"});
+   }
    return respond({error:"not_found"},404);
  },
  async scheduled(event,env,ctx){ctx.waitUntil((async()=>{await runQueuedTest(env);await tick(env);})().catch(e=>console.log("fcm_tick",String(e).slice(0,100))));}
