@@ -117,7 +117,7 @@ public class AlertService extends Service {
     dismiss.putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(this,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Notification.Builder b=builder(this,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title).setContentText(fixture).setStyle(new Notification.BigTextStyle().bigText(body))
+      .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(this,id,path)).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
       .setCategory(Notification.CATEGORY_REMINDER).setColor(gold?0xffffc74f:0xfff54d61)
@@ -145,7 +145,7 @@ public class AlertService extends Service {
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
       int min=row.optInt("minute",0);String score=row.optString("home_score","-")+"–"+row.optString("away_score","-");
-      String body=fixture+(win?" • Rezultat confirmat":"\nMin. "+min+" • "+score+" • Egal (X) "+String.format(Locale.US,"%.2f",row.optDouble("px",0)));
+      String body=fixture+(win?" • Rezultat confirmat":"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU EGAL (X) • COTĂ "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL");
       String path=win?"/app?tab=slip&bet_id="+row.optLong("bet_id",0):"/app?tab=live&event_id="+event;
       int id=(int)(Math.abs(event)%100000)+3000+(win?100000:0);
       if(win){
@@ -181,7 +181,7 @@ public class AlertService extends Service {
     Intent dismiss=new Intent(ctx,AlertDismissReceiver.class).setAction("ro.drix.pulse.SILENCE").putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(ctx,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Notification.Builder b=builder(ctx,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title).setContentText(fixture).setStyle(new Notification.BigTextStyle().bigText(body))
+      .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_REMINDER)
       .setVisibility(Notification.VISIBILITY_PUBLIC).setPriority(Notification.PRIORITY_MAX)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
