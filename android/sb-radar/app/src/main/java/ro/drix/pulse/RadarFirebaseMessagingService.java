@@ -1,0 +1,31 @@
+package ro.drix.pulse;
+
+import com.google.firebase.messaging.FirebaseMessagingService;
+import com.google.firebase.messaging.RemoteMessage;
+import java.util.Map;
+import java.util.Locale;
+
+public class RadarFirebaseMessagingService extends FirebaseMessagingService {
+  @Override public void onNewToken(String token){
+    super.onNewToken(token);
+    FirebaseBootstrap.registerToken(getApplicationContext(),token);
+  }
+  @Override public void onMessageReceived(RemoteMessage message){
+    super.onMessageReceived(message);
+    Map<String,String> d=message.getData();
+    if(!"BET_NOW".equals(d.get("stage")))return;
+    String category=d.getOrDefault("signal_label","").toUpperCase(Locale.ROOT).trim();
+    if(!"GOLDEN TICKET".equals(category)&&!"ML".equals(category))return;
+    try{
+      long event=Long.parseLong(d.getOrDefault("event_id","0"));
+      if(event<=0)return;
+      String fixture=d.getOrDefault("fixture","Meci");
+      int min=Integer.parseInt(d.getOrDefault("minute","0"));
+      String px=d.getOrDefault("px","-");
+      String score=d.getOrDefault("home_score","-")+"–"+d.getOrDefault("away_score","-");
+      String body=fixture+"\nMin. "+min+" • "+score+" • Egal (X) "+px;
+      boolean high=message.getPriority()==RemoteMessage.PRIORITY_HIGH;
+      AlertService.postFromFcm(this,category,event,fixture,body,"/app?tab=live&event_id="+event,high);
+    }catch(Exception ignored){}
+  }
+}

@@ -2,6 +2,8 @@ plugins { id 'com.android.application' }
 android {
  namespace 'ro.drix.pulse'
  compileSdk 35
- defaultConfig { applicationId 'ro.drix.pulse'; minSdk 26; targetSdk 34; versionCode 232; versionName '2.3.2' }
+ defaultConfig { applicationId 'ro.drix.pulse'; minSdk 26; targetSdk 34; versionCode 233; versionName '2.3.3' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
+
+dependencies { implementation 'com.google.firebase:firebase-messaging:26.0.1' }
