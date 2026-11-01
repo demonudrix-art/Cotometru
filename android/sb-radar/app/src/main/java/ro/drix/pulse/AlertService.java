@@ -15,8 +15,8 @@ import java.util.Locale;
 
 public class AlertService extends Service {
   static final String CH_MONITOR="sb_radar_monitor_v230";
-  static final String CH_GOLD="sb_radar_gold_calm_v236";
-  static final String CH_ML="sb_radar_ml_calm_v236";
+  static final String CH_GOLD="sb_radar_gold_loud_v237";
+  static final String CH_ML="sb_radar_ml_loud_v237";
   static final String CH_WINS="sb_radar_wins_v232";
   static final int FOREGROUND_ID=1310;
   static final String SILENCE="SILENCE";
@@ -38,25 +38,25 @@ public class AlertService extends Service {
     NotificationChannel wins=new NotificationChannel(CH_WINS,"Bilete câștigate",NotificationManager.IMPORTANCE_HIGH);
     wins.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);mgr.createNotificationChannel(wins);
   }
-  // Android notification channels are immutable once created. New v236 IDs provide a short notification tone and a single brief vibration.
+  // Channels are immutable: v237 restores urgent audio/vibration without changing users\u0027 previous channel settings.
   private static void ensureUrgentChannels(Context context){
     NotificationManager mgr=(NotificationManager)context.getSystemService(NOTIFICATION_SERVICE);
     Uri ring=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
     AudioAttributes soundAttrs=new AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-    NotificationChannel gold=new NotificationChannel(CH_GOLD,"Golden Ticket • Alertă discretă",NotificationManager.IMPORTANCE_HIGH);
-    gold.setDescription("Golden Ticket: un sunet scurt, o vibrație discretă și ecran vizual când este permis");
+    NotificationChannel gold=new NotificationChannel(CH_GOLD,"Golden Ticket • Alertă puternică",NotificationManager.IMPORTANCE_HIGH);
+    gold.setDescription("Golden Ticket: alarmă repetată până la 45 secunde, vibrație și ecran vizual când este permis");
     gold.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     gold.enableVibration(true);
-    gold.setVibrationPattern(new long[]{0,120});
+    gold.setVibrationPattern(new long[]{0,650,350,650,900});
     gold.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(gold);
-    NotificationChannel ml=new NotificationChannel(CH_ML,"ML • Alertă discretă",NotificationManager.IMPORTANCE_HIGH);
-    ml.setDescription("ML: un sunet scurt, o vibrație discretă și ecran vizual când este permis");
+    NotificationChannel ml=new NotificationChannel(CH_ML,"Machine Learning v2.0 • Alertă puternică",NotificationManager.IMPORTANCE_HIGH);
+    ml.setDescription("Machine Learning v2.0: alarmă repetată până la 45 secunde, vibrație și ecran vizual când este permis");
     ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     ml.enableVibration(true);
-    ml.setVibrationPattern(new long[]{0,90});
+    ml.setVibrationPattern(new long[]{0,650,350,650,900});
     ml.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(ml);
   }
@@ -69,16 +69,12 @@ public class AlertService extends Service {
   }
   static Notification.Builder builder(Context ctx,String channel){return new Notification.Builder(ctx,channel);}
   static void silence(Context context){
+    AlertAttention.stop();
     AlertService s=current;
     if(s!=null)s.stopRinging();
   }
-  private synchronized void stopRinging(){
-    if(ringTimeout!=null){MAIN.removeCallbacks(ringTimeout);ringTimeout=null;}
-    if(player!=null){try{if(player.isPlaying())player.stop();}catch(Exception ignored){}try{player.release();}catch(Exception ignored){}player=null;}
-    if(vibrator!=null){vibrator.cancel();vibrator=null;}
-  }
-  // A single channel cue is enough; no ringtone player or repeating vibration.
-  private synchronized void ring(){stopRinging();}
+  private synchronized void stopRinging(){AlertAttention.stop();}
+  private synchronized void ring(){AlertAttention.start(this);}
   @Override public int onStartCommand(Intent intent,int flags,int startId){
     String action=intent==null?"START":intent.getAction();
     if(SILENCE.equals(action)){stopRinging();return START_STICKY;}
@@ -110,7 +106,7 @@ public class AlertService extends Service {
     if(!notificationsAllowed())return;
     boolean gold=category.contains("GOLD");
     String channel=gold?CH_GOLD:CH_ML;
-    String title=gold?"🏆 GOLDEN TICKET • SB Radar":"🧠 ML • SB Radar";
+    String title=gold?"🏆 GOLDEN TICKET • SB Radar":"🧠 Machine Learning v2.0 • SB Radar";
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     int id=notificationId==0?(gold?23201:23202):notificationId;
     Intent fs=new Intent(this,AlertScreenActivity.class);
@@ -129,6 +125,7 @@ public class AlertService extends Service {
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
     manager.notify(id,b.build());
+    ring(); // Native audible attention; stops on dismissal or after 45 seconds.
   }
   private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
@@ -174,7 +171,7 @@ public class AlertService extends Service {
     if(prefs.getBoolean(key,false))return;
     if(Build.VERSION.SDK_INT>=33&&ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
     int id=(int)(Math.abs(event)%100000)+3000;
-    String title="GOLDEN TICKET".equals(category)?"🏆 GOLDEN TICKET • SB Radar":"🧠 ML • SB Radar";
+    String title="GOLDEN TICKET".equals(category)?"🏆 GOLDEN TICKET • SB Radar":"🧠 Machine Learning v2.0 • SB Radar";
     String channel="GOLDEN TICKET".equals(category)?CH_GOLD:CH_ML;
     ensureUrgentChannels(ctx); // Required when FCM wakes a process with no monitor service.
     NotificationManager mgr=(NotificationManager)ctx.getSystemService(NOTIFICATION_SERVICE);
@@ -192,7 +189,7 @@ public class AlertService extends Service {
     if(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
     mgr.notify(id,b.build());
     prefs.edit().putBoolean(key,true).apply();
-    // FCM is shown immediately; no extra ringtone service on top of channel alert.
+    AlertAttention.start(ctx); // FCM path works even when the monitor Service is not running.
   }
 
   static void testAlert(Context c,String kind){
