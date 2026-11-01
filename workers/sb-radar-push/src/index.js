@@ -79,8 +79,16 @@ export default {
      if(!env.FIREBASE_CLIENT_CONFIG_JSON)return respond({enabled:false},503);
      try{
        const j=JSON.parse(env.FIREBASE_CLIENT_CONFIG_JSON);
-       return respond({enabled:true,project_id:j.project_id,application_id:j.application_id,api_key:j.api_key,sender_id:j.sender_id});
-     }catch{return respond({enabled:false},503);}
+       const client=Array.isArray(j.client)?j.client[0]:null;
+       const cfg={
+         project_id:j.project_id||j.project_info?.project_id,
+         application_id:j.application_id||client?.client_info?.mobilesdk_app_id,
+         api_key:j.api_key||client?.api_key?.[0]?.current_key,
+         sender_id:String(j.sender_id||j.project_info?.project_number||"")
+       };
+       const valid=Object.values(cfg).every(v=>typeof v==="string"&&v.length>0);
+       return valid?respond({enabled:true,...cfg}):respond({enabled:false,reason:"invalid_client_config"},503);
+     }catch{return respond({enabled:false,reason:"unparseable_client_config"},503);}
    }
    if(url.pathname==="/v1/register"&&req.method==="POST"){
      let body;try{body=await req.json();}catch{return respond({error:"bad_json"},400);}
