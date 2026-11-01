@@ -15,6 +15,8 @@ async function authenticatedDevice(req,env,deviceId){
 }
 
 function parseServiceAccount(raw) {
+  // Cloudflare JSON bindings arrive as already parsed objects; secret_text arrives as a string.
+  if(raw&&typeof raw==="object"&&!Array.isArray(raw))return raw;
   if(typeof raw!=="string"||!raw.trim())throw new Error("missing_secret");
   let v=raw.replace(/^\uFEFF/,"").trim();
   const fence=String.fromCharCode(96).repeat(3);
