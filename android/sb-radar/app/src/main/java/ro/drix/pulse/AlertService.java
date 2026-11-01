@@ -1,30 +1,49 @@
 package ro.drix.pulse;
 
+import android.Manifest;
 import android.app.*;
 import android.content.*;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.media.AudioAttributes;
+import android.media.MediaPlayer;
+import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.*;
 import org.json.*;
-import java.net.*;
-import java.io.*;
+import java.util.Locale;
 
 public class AlertService extends Service {
   static final String CH_MONITOR="sb_radar_monitor_v230";
-  static final String CH_SIGNALS="sb_radar_signals_v230";
+  static final String CH_GOLD="sb_radar_gold_lock_v232";
+  static final String CH_ML="sb_radar_ml_lock_v232";
+  static final String CH_WINS="sb_radar_wins_v232";
   static final int FOREGROUND_ID=1310;
+  static final String SILENCE="SILENCE";
+  private static volatile AlertService current;
+  private static final Handler MAIN=new Handler(Looper.getMainLooper());
+  private static Runnable ringTimeout;
+  private MediaPlayer player;
+  private Vibrator vibrator;
   volatile boolean running=false;
   Thread thread;
-  @Override public void onCreate(){super.onCreate();ensureChannels();}
+
+  @Override public void onCreate(){ super.onCreate();current=this;ensureChannels(); }
   @Override public IBinder onBind(Intent i){return null;}
   private void ensureChannels(){
     NotificationManager mgr=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-    if(Build.VERSION.SDK_INT>=26){
-      NotificationChannel monitor=new NotificationChannel(CH_MONITOR,"SB Radar • Monitor activ",NotificationManager.IMPORTANCE_LOW);
-      monitor.setDescription("Monitorizarea meciurilor este activă");mgr.createNotificationChannel(monitor);
-      NotificationChannel signals=new NotificationChannel(CH_SIGNALS,"SB Radar • Alerte BET NOW",NotificationManager.IMPORTANCE_HIGH);
-      signals.enableVibration(true);mgr.createNotificationChannel(signals);
-    }
+    NotificationChannel monitor=new NotificationChannel(CH_MONITOR,"SB Radar • Monitor activ",NotificationManager.IMPORTANCE_LOW);
+    monitor.setDescription("Monitorizarea alertelor SB Radar");mgr.createNotificationChannel(monitor);
+    NotificationChannel gold=new NotificationChannel(CH_GOLD,"Golden Ticket • Alertă urgentă",NotificationManager.IMPORTANCE_HIGH);
+    gold.setDescription("Semnale Golden Ticket, cu alertă pe ecranul blocat dacă este permisă");
+    gold.enableVibration(true);gold.setVibrationPattern(new long[]{0,550,350,550});
+    gold.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);mgr.createNotificationChannel(gold);
+    NotificationChannel ml=new NotificationChannel(CH_ML,"ML • Alertă urgentă",NotificationManager.IMPORTANCE_HIGH);
+    ml.setDescription("Semnale ML, cu alertă pe ecranul blocat dacă este permisă");
+    ml.enableVibration(true);ml.setVibrationPattern(new long[]{0,400,250,400});
+    ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);mgr.createNotificationChannel(ml);
+    NotificationChannel wins=new NotificationChannel(CH_WINS,"Bilete câștigate",NotificationManager.IMPORTANCE_HIGH);
+    wins.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);mgr.createNotificationChannel(wins);
   }
   static PendingIntent open(Context ctx,int code,String path){
     Intent i=new Intent(ctx,MainActivity.class);
@@ -32,59 +51,121 @@ public class AlertService extends Service {
     i.setData(Uri.parse(MainActivity.BASE+path));
     return PendingIntent.getActivity(ctx,code,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
   }
-  static Notification.Builder builder(Context ctx,String channel){
-    if(Build.VERSION.SDK_INT>=26)return new Notification.Builder(ctx,channel);
-    return new Notification.Builder(ctx);
+  static Notification.Builder builder(Context ctx,String channel){return new Notification.Builder(ctx,channel);}
+  static void silence(Context context){
+    AlertService s=current;
+    if(s!=null)s.stopRinging();
+  }
+  private synchronized void stopRinging(){
+    if(ringTimeout!=null){MAIN.removeCallbacks(ringTimeout);ringTimeout=null;}
+    if(player!=null){try{if(player.isPlaying())player.stop();}catch(Exception ignored){}try{player.release();}catch(Exception ignored){}player=null;}
+    if(vibrator!=null){vibrator.cancel();vibrator=null;}
+  }
+  private synchronized void ring(){
+    stopRinging();
+    try{
+      Uri sound=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+      if(sound==null)sound=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+      player=new MediaPlayer();
+      player.setDataSource(this,sound);
+      player.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+      player.setLooping(true);player.prepare();player.start();
+    }catch(Exception e){if(player!=null){player.release();player=null;}}
+    try{
+      vibrator=(Vibrator)getSystemService(VIBRATOR_SERVICE);
+      if(vibrator!=null&&vibrator.hasVibrator())vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0,650,400,650,800},0));
+    }catch(Exception ignored){}
+    ringTimeout=this::stopRinging;
+    MAIN.postDelayed(ringTimeout,45000); // A safety timeout; never ring indefinitely.
   }
   @Override public int onStartCommand(Intent intent,int flags,int startId){
-    if(intent!=null&&"STOP".equals(intent.getAction())){stopSelf();return START_NOT_STICKY;}
+    String action=intent==null?"START":intent.getAction();
+    if(SILENCE.equals(action)){stopRinging();return START_STICKY;}
+    if("STOP".equals(action)){stopSelf();return START_NOT_STICKY;}
     Notification foreground=builder(this,CH_MONITOR).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle("SB Radar • Monitor activ").setContentText("Monitorizarea meciurilor este activă.")
+      .setContentTitle("SB Radar • Monitor activ").setContentText("Urmărește Golden Ticket și ML")
       .setContentIntent(open(this,FOREGROUND_ID,"/app?tab=live")).setOngoing(true).build();
     startForeground(FOREGROUND_ID,foreground);
+    if("TEST_GOLD".equals(action)||"TEST_ML".equals(action)){
+      boolean gold="TEST_GOLD".equals(action);
+      showSignal(gold?"GOLDEN TICKET":"ML",0,"Simulare notificare", "Acesta este un test local. Nu este un semnal real.",
+        "/app?tab=live",true); 
+    }
     if(running)return START_STICKY;
-    running=true;thread=new Thread(()->{while(running){try{checkAlerts();}catch(Exception e){android.util.Log.w("SB_Radar","Monitor temporarily unavailable");}
-      try{Thread.sleep(25000);}catch(InterruptedException ignored){break;}}},"SB-Radar-monitor");
+    running=true;
+    thread=new Thread(()->{
+      while(running){
+        try{checkAlerts();}catch(Exception e){android.util.Log.w("SB_Radar","Monitor temporarily unavailable");}
+        try{Thread.sleep(25000);}catch(InterruptedException ignored){break;}
+      }
+    },"SB-Radar-monitor");
     thread.start();return START_STICKY;
   }
+  private boolean notificationsAllowed(){
+    return Build.VERSION.SDK_INT<33||checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED;
+  }
+  private void showSignal(String category,int notificationId,String fixture,String body,String path,boolean test){
+    if(!notificationsAllowed())return;
+    boolean gold=category.contains("GOLD");
+    String channel=gold?CH_GOLD:CH_ML;
+    String title=gold?"🏆 GOLDEN TICKET • SB Radar":"🧠 ML • SB Radar";
+    NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+    int id=notificationId==0?(gold?23201:23202):notificationId;
+    Intent fs=new Intent(this,AlertScreenActivity.class);
+    fs.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+    fs.putExtra("title",title);fs.putExtra("body",body);fs.putExtra("path",path);fs.putExtra("notification_id",id);
+    PendingIntent full=PendingIntent.getActivity(this,id+400000,fs,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+    Intent dismiss=new Intent(this,AlertDismissReceiver.class).setAction("ro.drix.pulse.SILENCE");
+    dismiss.putExtra("notification_id",id);
+    PendingIntent silent=PendingIntent.getBroadcast(this,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+    Notification.Builder b=builder(this,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
+      .setContentTitle(title).setContentText(fixture).setStyle(new Notification.BigTextStyle().bigText(body))
+      .setContentIntent(open(this,id,path)).setAutoCancel(true)
+      .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
+      .setCategory(Notification.CATEGORY_REMINDER).setColor(gold?0xffffc74f:0xfff54d61)
+      .addAction(android.R.drawable.ic_media_pause,"Oprește soneria",silent);
+    if(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
+    manager.notify(id,b.build());
+    ring();
+  }
   private void checkAlerts()throws Exception {
+    if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
     String token=MainActivity.token(this);if(token.isEmpty())return;
     String json=MainActivity.readHttp(MainActivity.BASE+"/api/mobile/alerts",token,null);
     JSONArray arr=new JSONObject(json).optJSONArray("alerts");if(arr==null)return;
-    android.content.SharedPreferences prefs=getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE);
+    SharedPreferences prefs=getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE);
     for(int i=0;i<arr.length();i++){
       JSONObject row=arr.optJSONObject(i);if(row==null)continue;
       long event=row.optLong("event_id",0);String stage=row.optString("stage","");
       boolean win="WIN".equals(stage)||row.optBoolean("native_win_compat",false);
       if(event<=0||(!win&&!"BET_NOW".equals(stage)))continue;
-      String category=row.optString("signal_label","");
-      // Public users receive generic alerts; admin-only category names are not exposed.
+      String category=row.optString("signal_label",row.optString("signal_type","")).toUpperCase(Locale.ROOT).trim();
+      boolean gold=category.contains("GOLD"), ml=category.equals("ML")||category.startsWith("ML ");
+      if(!win&&!gold&&!ml)continue; // Beta B and generic/base signals never ring.
       String key="notified_"+event+"_"+(win?"win":"betnow");
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
-      String title=win?"SB Radar • Bilet câștigat":category.equals("GOLDEN TICKET")?"🏆 SB Radar • Golden Ticket":category.equals("BETA B")?"🟠 SB Radar • Beta B":category.equals("ML")?"🧠 SB Radar • ML":"SB Radar • BET NOW";
       int min=row.optInt("minute",0);String score=row.optString("home_score","-")+"–"+row.optString("away_score","-");
-      String body=fixture+(win?" • Rezultat confirmat":"\nMin. "+min+" • "+score+" • Egal (X) "+String.format(java.util.Locale.US,"%.2f",row.optDouble("px",0)));
+      String body=fixture+(win?" • Rezultat confirmat":"\nMin. "+min+" • "+score+" • Egal (X) "+String.format(Locale.US,"%.2f",row.optDouble("px",0)));
       String path=win?"/app?tab=slip&bet_id="+row.optLong("bet_id",0):"/app?tab=live&event_id="+event;
-      int notificationId=(int)(Math.abs(event)%100000)+3000+(win?100000:0);
-      Notification n=builder(this,CH_SIGNALS).setSmallIcon(android.R.drawable.ic_dialog_info).setAutoCancel(true)
-        .setContentTitle(title).setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
-        .setContentIntent(open(this,notificationId,path)).build();
-      ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(notificationId,n);
+      int id=(int)(Math.abs(event)%100000)+3000+(win?100000:0);
+      if(win){
+        Notification n=builder(this,CH_WINS).setSmallIcon(android.R.drawable.ic_dialog_info).setAutoCancel(true)
+          .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
+          .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
+        ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
+      }else showSignal(gold?"GOLDEN TICKET":"ML",id,fixture,body,path,false);
       prefs.edit().putBoolean(key,true).apply();
-      if(!win){try{JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
-        MainActivity.readHttp(MainActivity.BASE+"/api/mobile/ack",token,ack.toString());}catch(Exception ignored){}}
+      if(!win){try{
+        JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
+        MainActivity.readHttp(MainActivity.BASE+"/api/mobile/ack",token,ack.toString());
+      }catch(Exception ignored){}}
     }
   }
-  static void testAlert(Context c){
-    NotificationManager mgr=(NotificationManager)c.getSystemService(Context.NOTIFICATION_SERVICE);
-    if(Build.VERSION.SDK_INT>=26){
-      NotificationChannel ch=new NotificationChannel(CH_SIGNALS,"SB Radar • Alerte BET NOW",NotificationManager.IMPORTANCE_HIGH);
-      mgr.createNotificationChannel(ch);
-    }
-    mgr.notify(2310,builder(c,CH_SIGNALS).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle("SB Radar • Notificare test").setContentText("Atinge pentru a deschide aplicația")
-      .setContentIntent(open(c,2310,"/app?tab=live")).setAutoCancel(true).build());
+  static void testAlert(Context c,String kind){
+    Intent i=new Intent(c,AlertService.class);
+    i.setAction("ML".equals(kind)?"TEST_ML":"TEST_GOLD");
+    try{c.startForegroundService(i);}catch(Exception ignored){}
   }
-  @Override public void onDestroy(){running=false;if(thread!=null)thread.interrupt();super.onDestroy();}
+  @Override public void onDestroy(){running=false;if(thread!=null)thread.interrupt();stopRinging();current=null;super.onDestroy();}
 }

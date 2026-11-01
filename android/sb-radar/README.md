@@ -1,4 +1,10 @@
-# SB Radar 2.3.1
-Native Android WebView companion for the Cloudflare Worker. Version footer, offline screen, native monitor with dedicated notification channels, deep-links to the in-app fixture, account/trial UI hosted by the backend. Debug APK uses Android's build debug key and may require removal of an earlier APK signed with a different certificate; preserve app data and registration before replacing. Stripe production is not yet enabled.
+# SB Radar Android 2.3.2 — ecran blocat
 
-The launcher uses the classic black-and-red SB Radar artwork restored from the 2.2.0 APK; radar view, rules, and notifications are not changed in this release.
+* Golden Ticket și ML au canale independente, de importanță HIGH, cu Full-Screen Intent când Android autorizează permisiunea, ecran nativ, sunet repetitiv și vibrație cu oprire explicită / oprire automată la 45 secunde.
+* Monitorul Foreground Service verifică serverul existent la 25 de secunde. Se repornește când deschizi aplicația, dar Android poate întrerupe serviciul în modul de economisire a bateriei. Nu se promite monitorizare permanentă.
+* Nu se reactivează Beta B. Notificările câștigate rămân separate.
+* Aplicația solicită autorizarea notificărilor și oferă acces la setarea specială pentru alerte peste ecranul blocat. Dacă aceasta este refuzată, rămâne notificarea obișnuită cu prioritate ridicată.
+* Test local Golden Ticket și ML disponibil prin interfața JS: DrixNative.testGoldenAlert() / DrixNative.testMlAlert(). Apelul DrixNative.testNotification() testează Golden Ticket.
+* **FCM nu este încă conectat.** Nu există un proiect Firebase / credențiale de expediere în integrarea Worker. Pollingul rămâne calea de livrare până la instalarea FCM pe client și server.
+* APK-ul debug din GitHub Actions este semnat cu cheia debug temporară. Acea semnătură nu elimină avertismentele Android/Play Protect și nu garantează actualizarea peste o versiune instalată cu alt certificat. Nu dezinstala fără a salva datele/contul; Android poate refuza update-ul în cazul cheilor diferite.
+* Pentru semnare release stabilă, cheia privată trebuie păstrată **în siguranță**, de exemplu în GitHub Actions Secrets, niciodată în repository. Un certificat de semnare nu conferă automat încrederea Play Protect.
