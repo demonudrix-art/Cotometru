@@ -131,7 +131,8 @@ async function runQueuedTest(env){
       if(delay>80000)throw new Error("test_schedule_too_far");
       if(delay>0)await new Promise(resolve=>setTimeout(resolve,delay));
     }
-    const testSet=[{label:"GOLDEN TICKET",code:"GOLD",id:990000301},{label:"ML",code:"ML",id:990000302}];
+    const testBase=990000000+Number(job.id)*10;
+    const testSet=[{label:"GOLDEN TICKET",code:"GOLD",id:testBase+1},{label:"ML",code:"ML",id:testBase+2}];
     for(let index=0;index<testSet.length;index++){
       if(index)await new Promise(resolve=>setTimeout(resolve,15000));
       const test=testSet[index], data={
