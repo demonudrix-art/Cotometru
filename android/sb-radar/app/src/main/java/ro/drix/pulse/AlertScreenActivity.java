@@ -44,7 +44,7 @@ public class AlertScreenActivity extends Activity {
       target.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
       target.setData(Uri.parse(MainActivity.BASE+path));startActivity(target);finish();
     });
-    Button dismiss=new Button(this);dismiss.setText("OPREȘTE SONERIA");root.addView(dismiss,new LinearLayout.LayoutParams(-1,-2));
+    Button dismiss=new Button(this);dismiss.setText("ÎNCHIDE ALERTA");root.addView(dismiss,new LinearLayout.LayoutParams(-1,-2));
     dismiss.setOnClickListener(v->{stopAndDismiss();finish();});
     TextView note=new TextView(this);note.setGravity(Gravity.CENTER);note.setText("SB Radar • alertă locală • nu este apel telefonic");
     note.setTextColor(0xffbac2cb);note.setTextSize(12);note.setPadding(0,26,0,0);root.addView(note);
