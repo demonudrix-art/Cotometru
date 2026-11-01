@@ -20,7 +20,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.5";
+  static final String APP_VERSION="2.3.6";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -74,6 +74,7 @@ public class MainActivity extends Activity {
     setContentView(root);
     if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},1);
+    AlertService.silence(this); // Opening the app acknowledges any active ringtone.
     startRadar(); // Native monitor is enabled whenever the user opens the app.
     offerFullScreenPermission();
     FirebaseBootstrap.init(this); // Optional FCM; never interferes with the existing login or slip.
