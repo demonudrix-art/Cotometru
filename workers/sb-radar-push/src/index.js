@@ -1,6 +1,8 @@
 // SB Radar FCM companion; separate from login, slip and settlement handlers.
 const DB_NAME="DB";
 const SOURCE_MAP={"SB_RADAR_GOLDEN_V2":"GOLDEN TICKET","SB_RADAR_ML_LOGREG_V1":"ML"};
+// Server-side night quiet for Golden and ML; local Romanian time including DST.
+function sbNightQuiet(at=new Date()){const d=at instanceof Date?at:new Date(at);if(!Number.isFinite(d.getTime()))return true;const h=Number(new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Bucharest",hour:"2-digit",hourCycle:"h23"}).format(d));return h>=22||h<5;}
 const cors={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const respond=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:cors});
 const b64url=(input)=>btoa(String.fromCharCode(...new Uint8Array(input))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");
@@ -85,6 +87,7 @@ async function sendFcm(env,serviceAccount,accessToken,device,data){
   return true;
 }
 async function tick(env){
+  if(sbNightQuiet())return {ready:true,quiet_hours:true,sent:0,events:0};
   if(!env.FIREBASE_SERVICE_ACCOUNT_JSON)return {ready:false,reason:"firebase_service_account_missing"};
   const serviceAccount=parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
   const devices=await env.DB.prepare("SELECT device_id,fcm_token FROM sb_radar_fcm_registry WHERE updated_utc >= datetime('now','-21 days') LIMIT 50").all();
@@ -92,10 +95,12 @@ async function tick(env){
   const alerts=await env.DB.prepare(
     "SELECT event_id,source,fixture,minute,home_score,away_score,px,triggered_utc FROM ghost_equal_alerts WHERE stage='BET_NOW' AND source IN ('SB_RADAR_GOLDEN_V2','SB_RADAR_ML_LOGREG_V1') AND julianday(triggered_utc) >= julianday('now','-3 minutes') ORDER BY triggered_utc DESC LIMIT 100"
   ).all();
-  if(!alerts.results.length)return {ready:true,devices:devices.results.length,events:0};
+  const eligibleAlerts=alerts.results.filter(a=>!sbNightQuiet(a.triggered_utc));
+  if(!eligibleAlerts.length)return {ready:true,devices:devices.results.length,events:0};
   const accessToken=await getAccessToken(serviceAccount);
   let sent=0,failed=0;
-  for(const a of alerts.results)for(const d of devices.results){
+  for(const a of eligibleAlerts)for(const d of devices.results){
+    if(sbNightQuiet())return {ready:true,quiet_hours:true,devices:devices.results.length,sent,failed};
     const previous=await env.DB.prepare("SELECT status FROM sb_radar_fcm_sent WHERE device_id=? AND event_id=? AND stage='BET_NOW'").bind(d.device_id,a.event_id).first();
     if(previous&&previous.status==="sent")continue;
     const data={event_id:a.event_id,stage:"BET_NOW",signal_label:SOURCE_MAP[a.source],fixture:a.fixture||"Meci",minute:a.minute||0,home_score:a.home_score??"-",away_score:a.away_score??"-",px:a.px??0,triggered_utc:a.triggered_utc};
@@ -109,10 +114,11 @@ async function tick(env){
       failed++;
     }
   }
-  return {ready:true,devices:devices.results.length,events:alerts.results.length,sent,failed};
+  return {ready:true,devices:devices.results.length,events:eligibleAlerts.length,sent,failed};
 }
 
 async function runQueuedTest(env){
+  if(sbNightQuiet())return;
   const job=await env.DB.prepare("SELECT id, device_id, not_before_utc FROM sb_radar_fcm_test_jobs WHERE status='pending' AND (not_before_utc IS NULL OR julianday(not_before_utc) <= julianday('now','+80 seconds')) ORDER BY id LIMIT 1").first();
   if(!job)return;
   const claim=await env.DB.prepare("UPDATE sb_radar_fcm_test_jobs SET status='running',started_utc=datetime('now') WHERE id=? AND status='pending'").bind(job.id).run();
@@ -142,6 +148,7 @@ async function runQueuedTest(env){
         triggered_utc:new Date().toISOString(),test:"true"
       };
       try{
+        if(sbNightQuiet())throw new Error("quiet_hours");
         await sendFcm(env,serviceAccount,accessToken,device,data);
         successful++;
         await env.DB.prepare("INSERT INTO sb_radar_fcm_test_results(job_id,sequence,signal_label,result,created_utc) VALUES (?,?,?,?,datetime('now'))")
