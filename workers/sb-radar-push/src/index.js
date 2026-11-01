@@ -72,6 +72,47 @@ async function tick(env){
   }
   return {ready:true,devices:devices.results.length,events:alerts.results.length,sent,failed};
 }
+
+async function runQueuedTest(env){
+  const job=await env.DB.prepare("SELECT id, device_id FROM sb_radar_fcm_test_jobs WHERE status='pending' ORDER BY id LIMIT 1").first();
+  if(!job)return;
+  const claim=await env.DB.prepare("UPDATE sb_radar_fcm_test_jobs SET status='running',started_utc=datetime('now') WHERE id=? AND status='pending'").bind(job.id).run();
+  if((claim.meta?.changes??0)!==1)return;
+  let successful=0;
+  try{
+    const device=await env.DB.prepare("SELECT fcm_token FROM sb_radar_fcm_registry WHERE device_id=?").bind(job.device_id).first();
+    if(!device)throw new Error("registered_device_missing");
+    if(!env.FIREBASE_SERVICE_ACCOUNT_JSON)throw new Error("service_account_missing");
+    const serviceAccount=JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    const accessToken=await getAccessToken(serviceAccount);
+    const testSet=[{label:"GOLDEN TICKET",code:"GOLD",id:990000301},{label:"ML",code:"ML",id:990000302}];
+    for(let index=0;index<testSet.length;index++){
+      if(index)await new Promise(resolve=>setTimeout(resolve,15000));
+      const test=testSet[index], data={
+        event_id:test.id,stage:"BET_NOW",signal_label:test.label,
+        fixture:"TEST FCM "+test.code+" • NU PARIA",minute:"57",
+        home_score:"0",away_score:"0",px:"2.00",
+        triggered_utc:new Date().toISOString(),test:"true"
+      };
+      try{
+        await sendFcm(env,serviceAccount,accessToken,device,data);
+        successful++;
+        await env.DB.prepare("INSERT INTO sb_radar_fcm_test_results(job_id,sequence,signal_label,result,created_utc) VALUES (?,?,?,?,datetime('now'))")
+          .bind(job.id,index+1,test.label,"accepted").run();
+      }catch(e){
+        await env.DB.prepare("INSERT INTO sb_radar_fcm_test_results(job_id,sequence,signal_label,result,created_utc) VALUES (?,?,?,?,datetime('now'))")
+          .bind(job.id,index+1,test.label,String(e).slice(0,220)).run();
+      }
+    }
+  }catch(e){
+    await env.DB.prepare("INSERT INTO sb_radar_fcm_test_results(job_id,sequence,signal_label,result,created_utc) VALUES (?,?,?,?,datetime('now'))")
+      .bind(job.id,0,"SETUP",String(e).slice(0,220)).run();
+  }finally{
+    await env.DB.prepare("UPDATE sb_radar_fcm_test_jobs SET status=?,finished_utc=datetime('now') WHERE id=?")
+      .bind(successful===2?"completed":"failed",job.id).run();
+  }
+}
+
 export default {
  async fetch(req,env){
    const url=new URL(req.url);
@@ -93,5 +134,5 @@ export default {
    if(url.pathname==="/v1/health"&&req.method==="GET")return respond({ok:true,fcm_configured:!!env.FIREBASE_SERVICE_ACCOUNT_JSON,dispatch:"scheduled"});
    return respond({error:"not_found"},404);
  },
- async scheduled(event,env,ctx){ctx.waitUntil(tick(env).catch(e=>console.log("fcm_tick",String(e).slice(0,100))));}
+ async scheduled(event,env,ctx){ctx.waitUntil((async()=>{await runQueuedTest(env);await tick(env);})().catch(e=>console.log("fcm_tick",String(e).slice(0,100))));}
 };
