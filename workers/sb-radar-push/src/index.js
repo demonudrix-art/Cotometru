@@ -132,14 +132,21 @@ export default {
      return respond({ok:true});
    }
    if(url.pathname==="/v1/health"&&req.method==="GET"){
-     let service_account_valid=false;
-     try{
-       const a=JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON||"");
-       service_account_valid=a.type==="service_account"&&a.project_id==="sb-radar-1a9d3"&&
-         typeof a.client_email==="string"&&typeof a.private_key==="string"&&
-         a.private_key.includes("BEGIN PRIVATE KEY");
-     }catch{}
-     return respond({ok:true,service_account_valid,dispatch:"scheduled"});
+     let reason="missing_secret";
+     const raw=env.FIREBASE_SERVICE_ACCOUNT_JSON;
+     if(raw){
+       try{
+         const a=JSON.parse(raw);
+         if(typeof a==="string")reason="double_encoded_json";
+         else if(!a||typeof a!=="object"||Array.isArray(a))reason="not_json_object";
+         else if(a.type!=="service_account")reason="wrong_file_type";
+         else if(a.project_id!=="sb-radar-1a9d3")reason="wrong_project_id";
+         else if(typeof a.client_email!=="string"||!a.client_email.includes("@"))reason="missing_client_email";
+         else if(typeof a.private_key!=="string"||!a.private_key.includes("BEGIN PRIVATE KEY"))reason="missing_private_key";
+         else reason="valid_json";
+       }catch{reason="invalid_json";}
+     }
+     return respond({ok:true,service_account_valid:reason==="valid_json",reason,dispatch:"scheduled"});
    }
    return respond({error:"not_found"},404);
  },
