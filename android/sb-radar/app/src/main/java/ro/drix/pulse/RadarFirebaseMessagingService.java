@@ -13,6 +13,11 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
   @Override public void onMessageReceived(RemoteMessage message){
     super.onMessageReceived(message);
     Map<String,String> d=message.getData();
+    getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE).edit()
+      .putLong("fcm_last_received_ms",System.currentTimeMillis())
+      .putString("fcm_last_signal",d.getOrDefault("signal_label",""))
+      .putString("fcm_last_priority",message.getPriority()==RemoteMessage.PRIORITY_HIGH?"HIGH":"NORMAL")
+      .apply();
     if(!"BET_NOW".equals(d.get("stage")))return;
     String category=d.getOrDefault("signal_label","").toUpperCase(Locale.ROOT).trim();
     if(!"GOLDEN TICKET".equals(category)&&!"ML".equals(category))return;
