@@ -93,7 +93,7 @@ async function tick(env){
   const devices=await env.DB.prepare("SELECT device_id,fcm_token FROM sb_radar_fcm_registry WHERE updated_utc >= datetime('now','-21 days') LIMIT 50").all();
   if(!devices.results.length)return {ready:true,devices:0,sent:0};
   const alerts=await env.DB.prepare(
-    "SELECT event_id,source,fixture,minute,home_score,away_score,px,triggered_utc FROM ghost_equal_alerts WHERE stage='BET_NOW' AND source IN ('SB_RADAR_GOLDEN_V2','SB_RADAR_ML_LOGREG_V1') AND julianday(triggered_utc) >= julianday('now','-3 minutes') ORDER BY triggered_utc DESC LIMIT 100"
+    "SELECT event_id,source,fixture,minute,home_score,away_score,px,triggered_utc,model_version FROM ghost_equal_alerts WHERE stage='BET_NOW' AND source IN ('SB_RADAR_GOLDEN_V2','SB_RADAR_ML_LOGREG_V1') AND julianday(triggered_utc) >= julianday('now','-3 minutes') ORDER BY triggered_utc DESC LIMIT 100"
   ).all();
   const eligibleAlerts=alerts.results.filter(a=>!sbNightQuiet(a.triggered_utc));
   if(!eligibleAlerts.length)return {ready:true,devices:devices.results.length,events:0};
@@ -103,7 +103,7 @@ async function tick(env){
     if(sbNightQuiet())return {ready:true,quiet_hours:true,devices:devices.results.length,sent,failed};
     const previous=await env.DB.prepare("SELECT status FROM sb_radar_fcm_sent WHERE device_id=? AND event_id=? AND stage='BET_NOW'").bind(d.device_id,a.event_id).first();
     if(previous&&previous.status==="sent")continue;
-    const data={event_id:a.event_id,stage:"BET_NOW",signal_label:SOURCE_MAP[a.source],fixture:a.fixture||"Meci",minute:a.minute||0,home_score:a.home_score??"-",away_score:a.away_score??"-",px:a.px??0,triggered_utc:a.triggered_utc};
+    const data={event_id:a.event_id,stage:"BET_NOW",signal_label:SOURCE_MAP[a.source],fixture:a.fixture||"Meci",minute:a.minute||0,home_score:a.home_score??"-",away_score:a.away_score??"-",px:a.px??0,triggered_utc:a.triggered_utc,model_version:a.model_version||""};
     try{
       await sendFcm(env,serviceAccount,accessToken,d,data);
       await env.DB.prepare("INSERT INTO sb_radar_fcm_sent(device_id,event_id,stage,source,status,attempts,updated_utc) VALUES (?,?,?,?,?,1,datetime('now')) ON CONFLICT(device_id,event_id,stage) DO UPDATE SET status='sent',attempts=attempts+1,updated_utc=datetime('now')")
