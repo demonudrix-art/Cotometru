@@ -20,6 +20,7 @@ final class AlertAttention {
 
   static synchronized void start(Context context) {
     stop();
+    if(AlertService.nightQuiet())return; // No audio from auxiliary alert attention during 22:00–05:00 Bucharest.
     Context app=context.getApplicationContext();
     try {
       Uri tone=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);

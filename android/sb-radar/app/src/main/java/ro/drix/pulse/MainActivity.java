@@ -24,7 +24,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.14";
+  static final String APP_VERSION="2.3.15";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -130,7 +130,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     if(m.canUseFullScreenIntent()||prefs.getBoolean("fsi_prompted_v237",false))return;
     prefs.edit().putBoolean("fsi_prompted_v237",true).apply();
     new android.app.AlertDialog.Builder(this).setTitle("Alerte pe ecranul blocat")
-      .setMessage("Pentru Golden Ticket și Gold Rush, permite afișarea alertelor pe tot ecranul, inclusiv când telefonul este blocat. Fără această permisiune, Android poate afișa doar notificarea obișnuită.")
+      .setMessage("Pentru Golden Ticket, Gold Rush și GG Power, permite afișarea alertelor pe tot ecranul, inclusiv când telefonul este blocat. Fără această permisiune, Android poate afișa doar notificarea obișnuită.")
       .setPositiveButton("Deschide setările",(d,w)->openFullScreenSettings())
       .setNegativeButton("Mai târziu",null).show();
   }
