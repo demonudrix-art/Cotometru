@@ -29,7 +29,8 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       int min=Integer.parseInt(d.getOrDefault("minute","0"));
       String px=d.getOrDefault("px","-");
       String score=d.getOrDefault("home_score","-")+"–"+d.getOrDefault("away_score","-");
-      String body="⚽ "+fixture+"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU: EGAL (X) • COTĂ "+px+("GOLD RUSH".equals(category)?"\n💰 GOLD RUSH • MIZĂ SUGERATĂ 20 LEI":"")+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL";
+      String tier57=d.getOrDefault("gold_category_label","");
+      String body="⚽ "+fixture+"\nCATEGORIA GOLDEN X57: "+(tier57.isEmpty()?"captură indisponibilă":tier57)+"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU: EGAL (X) • COTĂ "+px+("GOLD RUSH".equals(category)?"\n💰 GOLD RUSH • MIZĂ SUGERATĂ 20 LEI":"")+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL";
       boolean high=message.getPriority()==RemoteMessage.PRIORITY_HIGH;
       AlertService.postFromFcm(this,category,event,fixture,body,"/app?tab=live&event_id="+event,high,d.getOrDefault("model_version",""));
     }catch(Exception ignored){}
