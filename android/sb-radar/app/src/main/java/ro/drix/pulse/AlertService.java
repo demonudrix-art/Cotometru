@@ -75,7 +75,7 @@ public class AlertService extends Service {
     if(s!=null)s.stopRinging();
   }
   // Mark before stopping to prevent a delayed FCM foreground-service start from re-ringing.
-  static void dismiss(Context context,int notificationId){
+  static synchronized void dismiss(Context context,int notificationId){
     if(notificationId>0){
       context.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE).edit()
         .putBoolean("dismissed_alert_"+notificationId,true).commit();
@@ -96,15 +96,17 @@ public class AlertService extends Service {
     }catch(Exception ignored){}
     return false;
   }
+  private static synchronized void ringIfActive(Context context,int id){
+    if(canRing(context,id))AlertAttention.start(context);
+  }
   private static String signalTitle(boolean gold,String modelVersion){
     if(gold)return "🏆 GOLDEN TICKET • SB Radar";
     String v=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
-    if(v.contains("SHADOW_HOURLY"))return "🧠 ML • ANTRENAT ORAR • SB Radar";
+    if(v.isEmpty()||v.contains("SHADOW_HOURLY"))return "🧠 ML • ANTRENAT ORAR • SB Radar";
     if(v.contains("TREND_V2")||v.contains("GENVAR"))return "🧠 ML V2 • SB Radar";
-    return "🧠 ML • SB Radar";
+    return "🧠 ML • MODEL NECUNOSCUT • SB Radar";
   }
   private synchronized void stopRinging(){AlertAttention.stop();}
-  private synchronized void ring(){AlertAttention.start(this);}
   @Override public int onStartCommand(Intent intent,int flags,int startId){
     String action=intent==null?"START":intent.getAction();
     if(SILENCE.equals(action)){stopRinging();return START_STICKY;}
@@ -118,7 +120,7 @@ public class AlertService extends Service {
       showSignal(gold?"GOLDEN TICKET":"ML",0,"Simulare notificare", "Acesta este un test local. Nu este un semnal real.",
         "/app?tab=live",gold?"":"SB_RADAR_ML_SHADOW_HOURLY_V1",true); 
     }
-    if("RING_FCM".equals(action)&&intent!=null&&canRing(this,intent.getIntExtra("notification_id",0))){ring();}
+    if("RING_FCM".equals(action)&&intent!=null)ringIfActive(this,intent.getIntExtra("notification_id",0));
     if(running)return START_STICKY;
     running=true;
     thread=new Thread(()->{
@@ -156,7 +158,7 @@ public class AlertService extends Service {
     if(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
     getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE).edit().remove("dismissed_alert_"+id).commit();
     manager.notify(id,b.build());
-    if(canRing(this,id))ring(); // Never ring an already-cleared notification.
+    ringIfActive(this,id); // Never ring an already-cleared notification.
   }
   private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
@@ -233,7 +235,7 @@ public class AlertService extends Service {
         started=true;
       }catch(Exception ignored){}
     }
-    if(!started&&canRing(ctx,id))AlertAttention.start(ctx);
+    if(!started)ringIfActive(ctx,id);
   }
 
   static void testAlert(Context c,String kind){
