@@ -20,8 +20,9 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       .apply();
     if(!"BET_NOW".equals(d.get("stage")))return;
     String category=d.getOrDefault("signal_label","").toUpperCase(Locale.ROOT).trim();
-    if("GOLD_RUSH".equals(d.getOrDefault("signal_type",""))||d.getOrDefault("model_version","").contains("GOLD_RUSH"))category="GOLD RUSH";
-    if(!"GOLDEN TICKET".equals(category)&&!"GOLD RUSH".equals(category))return;
+    if("GG_POWER".equals(d.getOrDefault("signal_type",""))||d.getOrDefault("model_version","").contains("GG_POWER"))category="GG POWER";
+    else if("GOLD_RUSH".equals(d.getOrDefault("signal_type",""))||d.getOrDefault("model_version","").contains("GOLD_RUSH"))category="GOLD RUSH";
+    if(!"GOLDEN TICKET".equals(category)&&!"GOLD RUSH".equals(category)&&!"GG POWER".equals(category))return;
     try{
       long event=Long.parseLong(d.getOrDefault("event_id","0"));
       if(event<=0)return;
@@ -30,7 +31,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       String px=d.getOrDefault("px","-");
       String score=d.getOrDefault("home_score","-")+"–"+d.getOrDefault("away_score","-");
       String tier57=d.getOrDefault("gold_category_label","");
-      String body="⚽ "+fixture+"\nCATEGORIA GOLDEN X57: "+(tier57.isEmpty()?"captură indisponibilă":tier57)+"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU: EGAL (X) • COTĂ "+px+("GOLD RUSH".equals(category)?"\n💰 GOLD RUSH • MIZĂ SUGERATĂ 20 LEI":"")+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL";
+      String body="⚽ "+fixture+"\nCATEGORIA GOLDEN X57: "+(tier57.isEmpty()?"captură indisponibilă":tier57)+"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU: EGAL (X) • COTĂ "+px+("GG POWER".equals(category)?"\n⚡ GG POWER • MIZĂ SUGERATĂ 50 LEI":"GOLD RUSH".equals(category)?"\n💰 GOLD RUSH • MIZĂ SUGERATĂ 20 LEI":"")+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL";
       boolean high=message.getPriority()==RemoteMessage.PRIORITY_HIGH;
       AlertService.postFromFcm(this,category,event,fixture,body,"/app?tab=live&event_id="+event,high,d.getOrDefault("model_version",""));
     }catch(Exception ignored){}
