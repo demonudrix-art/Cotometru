@@ -6,6 +6,10 @@ import android.app.PendingIntent;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.*;
 import android.webkit.*;
@@ -18,14 +22,21 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.UUID;
 
-public class MainActivity extends Activity {
+public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.10";
+  static final String APP_VERSION="2.3.11";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
   LinearLayout root;
   SharedPreferences prefs;
+  // Native gravity sensor: 3D radar moves from launch, without a screen tap.
+  // Does not touch FCM, betting signals, the alert monitor, or the 2D view.
+  SensorManager tiltSensorManager;
+  Sensor gravitySensor;
+  long lastTiltFrameMs;
+  float tiltBaseP=Float.NaN, tiltBaseW=Float.NaN;
+  float tiltSmoothP=48f, tiltSmoothW=-12f;
 
   static String token(Context ctx){return ctx.getSharedPreferences(PREF_NAME,Context.MODE_PRIVATE).getString("token","");}
   static String readHttp(String url,String token,String payload)throws Exception{
@@ -45,6 +56,11 @@ public class MainActivity extends Activity {
     super.onCreate(b);
     getWindow().setStatusBarColor(Color.rgb(12,19,26));getWindow().setNavigationBarColor(Color.rgb(12,19,26));
     prefs=getSharedPreferences(PREF_NAME,MODE_PRIVATE);
+    tiltSensorManager=(SensorManager)getSystemService(SENSOR_SERVICE);
+    if(tiltSensorManager!=null){
+      gravitySensor=tiltSensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+      if(gravitySensor==null)gravitySensor=tiltSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+    }
     if(prefs.getString("device_id","").isEmpty()){
       byte[] v=new byte[32];new SecureRandom().nextBytes(v);
       prefs.edit().putString("device_id",UUID.randomUUID().toString()).putString("token",Base64.getUrlEncoder().withoutPadding().encodeToString(v)).apply();
@@ -133,6 +149,39 @@ public class MainActivity extends Activity {
   }
   @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);acknowledgeAlert(i);if(web!=null)openIntent(i);}
   @Override public void onBackPressed(){if(web!=null&&web.canGoBack())web.goBack();else super.onBackPressed();}
+  @Override protected void onResume(){
+    super.onResume();
+    tiltBaseP=Float.NaN;tiltBaseW=Float.NaN;
+    tiltSmoothP=48f;tiltSmoothW=-12f;lastTiltFrameMs=0;
+    if(tiltSensorManager!=null&&gravitySensor!=null)
+      tiltSensorManager.registerListener(this,gravitySensor,SensorManager.SENSOR_DELAY_GAME);
+  }
+  @Override protected void onPause(){
+    if(tiltSensorManager!=null)tiltSensorManager.unregisterListener(this);
+    super.onPause();
+  }
+  @Override public void onAccuracyChanged(Sensor sensor,int accuracy){}
+  @Override public void onSensorChanged(SensorEvent e){
+    if(e.sensor!=gravitySensor||web==null||e.values.length<3||!web.isShown())return;
+    long now=SystemClock.elapsedRealtime();
+    if(now-lastTiltFrameMs<55)return; // <= 18fps: lightweight, foreground-only.
+    lastTiltFrameMs=now;
+    float x=e.values[0],y=e.values[1],z=e.values[2];
+    if(!Float.isFinite(x)||!Float.isFinite(y)||!Float.isFinite(z))return;
+    float p=(float)Math.toDegrees(Math.atan2(-y,Math.max(1.0,Math.abs(z))));
+    float w=(float)Math.toDegrees(Math.atan2(x,Math.max(1.0,Math.hypot(y,z))));
+    if(Float.isNaN(tiltBaseP)){tiltBaseP=p;tiltBaseW=w;}
+    float targetP=Math.max(30f,Math.min(56f,48f+(p-tiltBaseP)*0.40f));
+    float targetW=Math.max(-34f,Math.min(34f,-12f+(w-tiltBaseW)*0.72f));
+    tiltSmoothP+=(targetP-tiltSmoothP)*0.20f;
+    tiltSmoothW+=(targetW-tiltSmoothW)*0.20f;
+    // WebView orientation permission/event delivery varies by device.
+    // Native sensor data drives the existing CSS camera without a click.
+    String js="(function(){try{if(document.hidden||typeof radarMode==='undefined'||radarMode!=='3d'||typeof setRadar3DCamera!=='function'||(typeof radar3dMotionHoldUntil!=='undefined'&&Date.now()<radar3dMotionHoldUntil))return;"+
+      "var s=document.querySelector('.radar3d-stage');if(!s||s.classList.contains('dragging'))return;"+
+      "setRadar3DCamera("+Float.toString(tiltSmoothP)+","+Float.toString(tiltSmoothW)+");s.classList.add('radar-sensor-active');}catch(e){}})();";
+    web.evaluateJavascript(js,null);
+  }
   private void startRadar(){
     prefs.edit().putBoolean("monitor",true).apply();
     Intent i=new Intent(this,AlertService.class);i.setAction("START");
