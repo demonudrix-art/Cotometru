@@ -52,8 +52,8 @@ public class AlertService extends Service {
     gold.setVibrationPattern(new long[]{0,650,350,650,900});
     gold.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(gold);
-    NotificationChannel ml=new NotificationChannel(CH_ML,"ML • Alertă importantă",NotificationManager.IMPORTANCE_HIGH);
-    ml.setDescription("ML: semnal din modelul antrenat orar sau V2, cu vibrație scurtă și oprire la închidere");
+    NotificationChannel ml=new NotificationChannel(CH_ML,"Gold Rush • Alertă importantă",NotificationManager.IMPORTANCE_HIGH);
+    ml.setDescription("Gold Rush: 0–0 minutul 57, cota X 2,05–2,14, miză sugerată 20 lei");
     ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     ml.enableVibration(true);
     ml.setVibrationPattern(new long[]{0,420,250,420,250,420});
@@ -102,6 +102,7 @@ public class AlertService extends Service {
   private static String signalTitle(boolean gold,String modelVersion){
     if(gold)return "🏆 GOLDEN TICKET • SB Radar";
     String v=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
+    if(v.contains("GOLD_RUSH"))return "💰 GOLD RUSH • SB Radar";
     if(v.isEmpty()||v.contains("SHADOW_HOURLY"))return "🧠 ML • ANTRENAT ORAR • SB Radar";
     if(v.contains("TREND_V2")||v.contains("GENVAR"))return "🧠 ML V2 • SB Radar";
     return "🧠 ML • MODEL NECUNOSCUT • SB Radar";
@@ -112,13 +113,13 @@ public class AlertService extends Service {
     if(SILENCE.equals(action)){stopRinging();return START_STICKY;}
     if("STOP".equals(action)){stopSelf();return START_NOT_STICKY;}
     Notification foreground=builder(this,CH_MONITOR).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle("SB Radar • Monitor activ").setContentText("Urmărește Golden Ticket și ML")
+      .setContentTitle("SB Radar • Monitor activ").setContentText("Urmărește Golden Ticket și Gold Rush")
       .setContentIntent(open(this,FOREGROUND_ID,"/app?tab=live")).setOngoing(true).build();
     startForeground(FOREGROUND_ID,foreground);
-    if("TEST_GOLD".equals(action)||"TEST_ML".equals(action)){
+    if("TEST_GOLD".equals(action)||"TEST_RUSH".equals(action)){
       boolean gold="TEST_GOLD".equals(action);
-      showSignal(gold?"GOLDEN TICKET":"ML",0,"Simulare notificare", "Acesta este un test local. Nu este un semnal real.",
-        "/app?tab=live",gold?"":"SB_RADAR_ML_SHADOW_HOURLY_V1",true); 
+      showSignal(gold?"GOLDEN TICKET":"GOLD RUSH",0,"Simulare notificare", "Acesta este un test local. Nu este un semnal real.\n⏱ MINUTUL 57 • SCOR 0–0\n🎯 PARIU EGAL (X) • COTĂ 2.10\nMIZĂ SUGERATĂ 20 LEI",
+        "/app?tab=live",gold?"":"SB_GOLD_RUSH_00_M57_X205_214_V1",true); 
     }
     if("RING_FCM".equals(action)&&intent!=null)ringIfActive(this,intent.getIntExtra("notification_id",0));
     if(running)return START_STICKY;
@@ -136,7 +137,7 @@ public class AlertService extends Service {
   }
   private void showSignal(String category,int notificationId,String fixture,String body,String path,String modelVersion,boolean test){
     if(!notificationsAllowed())return;
-    boolean gold=category.contains("GOLD");
+    boolean gold="GOLDEN TICKET".equals(category);
     String channel=gold?CH_GOLD:CH_ML;
     String title=signalTitle(gold,modelVersion);
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
@@ -172,13 +173,14 @@ public class AlertService extends Service {
       boolean win="WIN".equals(stage)||row.optBoolean("native_win_compat",false);
       if(event<=0||(!win&&!"BET_NOW".equals(stage)))continue;
       String category=row.optString("signal_label",row.optString("signal_type","")).toUpperCase(Locale.ROOT).trim();
-      boolean gold=category.contains("GOLD"), ml=category.equals("ML")||category.startsWith("ML ");
-      if(!win&&!gold&&!ml)continue; // Beta B and generic/base signals never ring.
+      boolean gold="GOLDEN TICKET".equals(category);
+      boolean rush="GOLD RUSH".equals(category)||("ML".equals(category)&&row.optString("model_version","").contains("GOLD_RUSH"));
+      if(!win&&!gold&&!rush)continue; // Beta B, legacy ML and generic signals never ring.
       String key="notified_"+event+"_"+(win?"win":"betnow");
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
       int min=row.optInt("minute",0);String score=row.optString("home_score","-")+"–"+row.optString("away_score","-");
-      String body=fixture+(win?" • Rezultat confirmat":"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU EGAL (X) • COTĂ "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL");
+      String body=fixture+(win?" • Rezultat confirmat":"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU EGAL (X) • COTĂ "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+(rush?"\n💰 GOLD RUSH • MIZĂ SUGERATĂ 20 LEI":"")+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL");
       String path=win?"/app?tab=slip&bet_id="+row.optLong("bet_id",0):"/app?tab=live&event_id="+event;
       int id=(int)(Math.abs(event)%100000)+3000+(win?100000:0);
       if(win){
@@ -186,7 +188,7 @@ public class AlertService extends Service {
           .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
-      }else showSignal(gold?"GOLDEN TICKET":"ML",id,fixture,body,path,row.optString("model_version",""),false);
+      }else showSignal(gold?"GOLDEN TICKET":"GOLD RUSH",id,fixture,body,path,row.optString("model_version",""),false);
       prefs.edit().putBoolean(key,true).apply();
       if(!win){try{
         JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
@@ -198,7 +200,7 @@ public class AlertService extends Service {
   // Data-only FCM: display immediately, then try to start the foreground monitor for local ringing.
   // Shared deduplication key prevents duplicate notifications from FCM and the 25-second polling fallback.
   static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority,String modelVersion){
-    if(event<=0||!("GOLDEN TICKET".equals(category)||"ML".equals(category)))return;
+    if(event<=0||!("GOLDEN TICKET".equals(category)||"GOLD RUSH".equals(category)||"ML".equals(category)))return;
     SharedPreferences prefs=ctx.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE);
     String key="notified_"+event+"_betnow";
     if(prefs.getBoolean(key,false))return;
@@ -243,7 +245,7 @@ public class AlertService extends Service {
 
   static void testAlert(Context c,String kind){
     Intent i=new Intent(c,AlertService.class);
-    i.setAction("ML".equals(kind)?"TEST_ML":"TEST_GOLD");
+    i.setAction(("GOLD RUSH".equals(kind)||"ML".equals(kind))?"TEST_RUSH":"TEST_GOLD");
     try{c.startForegroundService(i);}catch(Exception ignored){}
   }
   @Override public void onDestroy(){running=false;if(thread!=null)thread.interrupt();stopRinging();current=null;super.onDestroy();}
