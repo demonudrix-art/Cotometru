@@ -66,6 +66,7 @@ public class AlertScreenActivity extends Activity {
     if(p!=null&&p.startsWith("/app?"))path=p;
     notificationId=intent.getIntExtra("notification_id",0);
     boolean gold=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLD");
+    boolean hourly=title!=null&&title.contains("ANTRENAT ORAR");
     accent=gold?0xffeac16d:0xff69dcd3;
     int surface=0xff131a25;
     int line=gold?0xff77623c:0xff336765;
@@ -102,11 +103,11 @@ public class AlertScreenActivity extends Activity {
     symbol.setLetterSpacing(.12f);
     card.addView(symbol,lp(-1,-2));
     addGap(card,14);
-    TextView heading=label(gold?"GOLDEN TICKET":"MACHINE LEARNING v2.0",24,Color.WHITE,true,true);
+    TextView heading=label(gold?"GOLDEN TICKET":hourly?"ML • ANTRENAT ORAR":"MACHINE LEARNING",24,Color.WHITE,true,true);
     heading.setLetterSpacing(.06f);
     card.addView(heading,lp(-1,-2));
     addGap(card,5);
-    TextView subtitle=label(gold?"TE SUNĂ BANII!":"SEMNAL ML • EGAL (X)",12,accent,true,true);
+    TextView subtitle=label(gold?"TE SUNĂ BANII!":hourly?"MODEL ACTUALIZAT ORAR • EGAL (X)":"SEMNAL ML • EGAL (X)",12,accent,true,true);
     subtitle.setLetterSpacing(.12f);
     card.addView(subtitle,lp(-1,-2));
     addGap(card,20);
@@ -178,8 +179,7 @@ public class AlertScreenActivity extends Activity {
     setContentView(scroll);
   }
   private void stopAndDismiss(){
-    AlertService.silence(this);
-    ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).cancel(notificationId);
+    AlertService.dismiss(this,notificationId);
   }
   @Override public void onBackPressed(){stopAndDismiss();super.onBackPressed();}
 }
