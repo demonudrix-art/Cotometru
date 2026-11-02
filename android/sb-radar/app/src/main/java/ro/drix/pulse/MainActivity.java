@@ -24,7 +24,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.11";
+  static final String APP_VERSION="2.3.12";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -35,8 +35,31 @@ public class MainActivity extends Activity implements SensorEventListener {
   SensorManager tiltSensorManager;
   Sensor gravitySensor;
   long lastTiltFrameMs;
-  float tiltBaseP=Float.NaN, tiltBaseW=Float.NaN;
+  int tiltCalSamples=0;
+  float tiltSumP, tiltSumW, tiltBaseP, tiltBaseW;
+  float tiltFilteredP=Float.NaN, tiltFilteredW=Float.NaN;
+  float tiltTargetP=48f, tiltTargetW=-12f;
   float tiltSmoothP=48f, tiltSmoothW=-12f;
+  float tiltPublishedP=Float.NaN, tiltPublishedW=Float.NaN;
+
+  // Exactly one camera writer on Android: native tilt. WebView sensor listeners are
+  // still present as a fallback for browser users, but may not overwrite native tilt.
+  static final String NATIVE_TILT_GUARD_SCRIPT=
+    "(function(){try{if(window.__sbNativeTiltGuard||typeof setRadar3DCamera!=='function')return;"+
+    "var camera=setRadar3DCamera;window.__sbNativeTiltGuard=true;"+
+    "window.__sbNativeTiltSet=function(p,y){if(typeof radarMode==='undefined'||radarMode!=='3d')return;"+
+    "var stage=document.querySelector('.radar3d-stage');if(!stage||stage.classList.contains('dragging'))return;"+
+    "if(typeof radar3dMotionHoldUntil!=='undefined'&&Date.now()<radar3dMotionHoldUntil)return;"+
+    "window.__sbNativeTiltWrite=true;try{camera(p,y);stage.classList.add('radar-sensor-active')}"+
+    "finally{window.__sbNativeTiltWrite=false}};"+
+    "window.setRadar3DCamera=function(p,y){"+
+    "if(!window.__sbNativeTiltWrite&&(!window.radar3dMotionHoldUntil||Date.now()>=window.radar3dMotionHoldUntil))return;"+
+    "return camera.apply(this,arguments)};"+
+    "}catch(e){}})();";
+  static float tiltClamp(float v,float min,float max){return Math.max(min,Math.min(max,v));}
+  static float tiltDeadZone(float v,float zone){
+    return Math.abs(v)<=zone?0f:Math.copySign(Math.abs(v)-zone,v);
+  }
 
   static String token(Context ctx){return ctx.getSharedPreferences(PREF_NAME,Context.MODE_PRIVATE).getString("token","");}
   static String readHttp(String url,String token,String payload)throws Exception{
@@ -79,6 +102,11 @@ public class MainActivity extends Activity implements SensorEventListener {
           try{startActivity(new Intent(Intent.ACTION_VIEW,u));}catch(Exception ignored){}return true;
         }
         return true;
+      }
+      @Override public void onPageFinished(WebView view,String url){
+        super.onPageFinished(view,url);
+        if(gravitySensor!=null&&url!=null&&url.startsWith(BASE+"/app"))
+          view.evaluateJavascript(NATIVE_TILT_GUARD_SCRIPT,null);
       }
       @Override public void onReceivedError(WebView view,WebResourceRequest req,WebResourceError e){if(req.isForMainFrame())showOffline();}
       @Override public void onReceivedHttpError(WebView view,WebResourceRequest req,WebResourceResponse resp){if(req.isForMainFrame()&&resp.getStatusCode()>=500)showOffline();}
@@ -151,8 +179,11 @@ public class MainActivity extends Activity implements SensorEventListener {
   @Override public void onBackPressed(){if(web!=null&&web.canGoBack())web.goBack();else super.onBackPressed();}
   @Override protected void onResume(){
     super.onResume();
-    tiltBaseP=Float.NaN;tiltBaseW=Float.NaN;
-    tiltSmoothP=48f;tiltSmoothW=-12f;lastTiltFrameMs=0;
+    tiltCalSamples=0;tiltSumP=0;tiltSumW=0;
+    tiltFilteredP=Float.NaN;tiltFilteredW=Float.NaN;
+    tiltTargetP=48f;tiltTargetW=-12f;
+    tiltSmoothP=48f;tiltSmoothW=-12f;
+    tiltPublishedP=Float.NaN;tiltPublishedW=Float.NaN;lastTiltFrameMs=0;
     if(tiltSensorManager!=null&&gravitySensor!=null)
       tiltSensorManager.registerListener(this,gravitySensor,SensorManager.SENSOR_DELAY_GAME);
   }
@@ -164,22 +195,41 @@ public class MainActivity extends Activity implements SensorEventListener {
   @Override public void onSensorChanged(SensorEvent e){
     if(e.sensor!=gravitySensor||web==null||e.values.length<3||!web.isShown())return;
     long now=SystemClock.elapsedRealtime();
-    if(now-lastTiltFrameMs<55)return; // <= 18fps: lightweight, foreground-only.
+    if(now-lastTiltFrameMs<65)return; // Cap work to ~15fps when visible.
     lastTiltFrameMs=now;
     float x=e.values[0],y=e.values[1],z=e.values[2];
     if(!Float.isFinite(x)||!Float.isFinite(y)||!Float.isFinite(z))return;
     float p=(float)Math.toDegrees(Math.atan2(-y,Math.max(1.0,Math.abs(z))));
     float w=(float)Math.toDegrees(Math.atan2(x,Math.max(1.0,Math.hypot(y,z))));
-    if(Float.isNaN(tiltBaseP)){tiltBaseP=p;tiltBaseW=w;}
-    float targetP=Math.max(30f,Math.min(56f,48f+(p-tiltBaseP)*0.40f));
-    float targetW=Math.max(-34f,Math.min(34f,-12f+(w-tiltBaseW)*0.72f));
-    tiltSmoothP+=(targetP-tiltSmoothP)*0.20f;
-    tiltSmoothW+=(targetW-tiltSmoothW)*0.20f;
-    // WebView orientation permission/event delivery varies by device.
-    // Native sensor data drives the existing CSS camera without a click.
-    String js="(function(){try{if(document.hidden||typeof radarMode==='undefined'||radarMode!=='3d'||typeof setRadar3DCamera!=='function'||(typeof radar3dMotionHoldUntil!=='undefined'&&Date.now()<radar3dMotionHoldUntil))return;"+
-      "var s=document.querySelector('.radar3d-stage');if(!s||s.classList.contains('dragging'))return;"+
-      "setRadar3DCamera("+Float.toString(tiltSmoothP)+","+Float.toString(tiltSmoothW)+");s.classList.add('radar-sensor-active');}catch(e){}})();";
+
+    // Allow gravity/accelerometer to settle before establishing the neutral pose.
+    if(tiltCalSamples<8){
+      tiltSumP+=p;tiltSumW+=w;tiltCalSamples++;
+      if(tiltCalSamples==8){
+        tiltBaseP=tiltSumP/8f;tiltBaseW=tiltSumW/8f;
+        tiltFilteredP=tiltBaseP;tiltFilteredW=tiltBaseW;
+      }
+      return;
+    }
+
+    // Two filters: suppress raw sensor noise, then smooth the camera.
+    tiltFilteredP+=(p-tiltFilteredP)*0.13f;
+    tiltFilteredW+=(w-tiltFilteredW)*0.13f;
+    float nextP=tiltClamp(48f+tiltDeadZone(tiltFilteredP-tiltBaseP,1.7f)*0.40f,30f,56f);
+    float nextW=tiltClamp(-12f+tiltDeadZone(tiltFilteredW-tiltBaseW,1.6f)*0.72f,-34f,34f);
+    // Hysteresis prevents camera jumps even if the phone is held perfectly still.
+    if(Math.abs(nextP-tiltTargetP)>0.60f)tiltTargetP=nextP;
+    if(Math.abs(nextW-tiltTargetW)>0.60f)tiltTargetW=nextW;
+    tiltSmoothP+=(tiltTargetP-tiltSmoothP)*0.17f;
+    tiltSmoothW+=(tiltTargetW-tiltSmoothW)*0.17f;
+    if(Math.abs(tiltSmoothP-tiltTargetP)<0.08f)tiltSmoothP=tiltTargetP;
+    if(Math.abs(tiltSmoothW-tiltTargetW)<0.08f)tiltSmoothW=tiltTargetW;
+    if(Float.isFinite(tiltPublishedP)&&Float.isFinite(tiltPublishedW)&&
+        Math.abs(tiltSmoothP-tiltPublishedP)<0.13f&&Math.abs(tiltSmoothW-tiltPublishedW)<0.13f)return;
+    tiltPublishedP=tiltSmoothP;tiltPublishedW=tiltSmoothW;
+    // Never write CSS from both native and browser sensor listeners.
+    String js="try{if(!document.hidden&&window.__sbNativeTiltSet)window.__sbNativeTiltSet("+
+      Float.toString(tiltSmoothP)+","+Float.toString(tiltSmoothW)+");}catch(e){}";
     web.evaluateJavascript(js,null);
   }
   private void startRadar(){
