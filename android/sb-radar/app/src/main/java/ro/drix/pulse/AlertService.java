@@ -15,8 +15,8 @@ import java.util.Locale;
 
 public class AlertService extends Service {
   static final String CH_MONITOR="sb_radar_monitor_v230";
-  static final String CH_GOLD="sb_radar_gold_loud_v237";
-  static final String CH_ML="sb_radar_ml_loud_v237";
+  static final String CH_GOLD="sb_radar_gold_alarm_v2310";
+  static final String CH_ML="sb_radar_ml_alarm_v2310";
   static final String CH_WINS="sb_radar_wins_v232";
   static final int FOREGROUND_ID=1310;
   static final String SILENCE="SILENCE";
@@ -152,13 +152,13 @@ public class AlertService extends Service {
       .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(this,id,path)).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
-      .setCategory(Notification.CATEGORY_REMINDER).setColor(gold?0xffffc74f:0xfff54d61)
+      .setCategory(Notification.CATEGORY_ALARM).setColor(gold?0xffffc74f:0xfff54d61)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
     getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE).edit().remove("dismissed_alert_"+id).commit();
     manager.notify(id,b.build());
-    ringIfActive(this,id); // Never ring an already-cleared notification.
+    AlertAttention.start(this); // Direct local alert; no race with active-notification enumeration.
   }
   private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
@@ -215,13 +215,16 @@ public class AlertService extends Service {
     PendingIntent silent=PendingIntent.getBroadcast(ctx,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Notification.Builder b=builder(ctx,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
       .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
-      .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_REMINDER)
+      .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_ALARM)
       .setVisibility(Notification.VISIBILITY_PUBLIC).setPriority(Notification.PRIORITY_MAX)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
     prefs.edit().remove("dismissed_alert_"+id).commit();
     mgr.notify(id,b.build());
+    // Start attention immediately after displaying the native notification;
+    // getActiveNotifications() may lag by a frame on Samsung when FCM wakes the app.
+    AlertAttention.start(ctx);
     prefs.edit().putBoolean(key,true).apply();
     // High-priority FCM may start a foreground service while the screen is off.
     // It keeps the user-requested 45-second alarm alive beyond onMessageReceived().
