@@ -20,7 +20,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.6";
+  static final String APP_VERSION="2.3.9";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -74,7 +74,7 @@ public class MainActivity extends Activity {
     setContentView(root);
     if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
       requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},1);
-    AlertService.silence(this); // Opening the app acknowledges any active ringtone.
+    acknowledgeAlert(getIntent()); // Opening via a notification stops sound/vibration, including a delayed FCM start.
     startRadar(); // Native monitor is enabled whenever the user opens the app.
     offerFullScreenPermission();
     FirebaseBootstrap.init(this); // Optional FCM; never interferes with the existing login or slip.
@@ -86,7 +86,7 @@ public class MainActivity extends Activity {
     if(m.canUseFullScreenIntent()||prefs.getBoolean("fsi_prompted_v237",false))return;
     prefs.edit().putBoolean("fsi_prompted_v237",true).apply();
     new android.app.AlertDialog.Builder(this).setTitle("Alerte pe ecranul blocat")
-      .setMessage("Pentru Golden Ticket și Machine Learning v2.0, permite afișarea alertelor pe tot ecranul, inclusiv când telefonul este blocat. Fără această permisiune, Android poate afișa doar notificarea obișnuită.")
+      .setMessage("Pentru Golden Ticket și ML antrenat orar, permite afișarea alertelor pe tot ecranul, inclusiv când telefonul este blocat. Fără această permisiune, Android poate afișa doar notificarea obișnuită.")
       .setPositiveButton("Deschide setările",(d,w)->openFullScreenSettings())
       .setNegativeButton("Mai târziu",null).show();
   }
@@ -126,7 +126,12 @@ public class MainActivity extends Activity {
     if(bet!=null&&bet.matches("[0-9]{1,16}"))path+="&bet_id="+bet;
     web.loadUrl(BASE+path);
   }
-  @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);if(web!=null)openIntent(i);}
+  private void acknowledgeAlert(Intent i){
+    int id=i==null?0:i.getIntExtra("sb_alert_id",0);
+    if(id>0)AlertService.dismiss(this,id);
+    else AlertService.silence(this);
+  }
+  @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);acknowledgeAlert(i);if(web!=null)openIntent(i);}
   @Override public void onBackPressed(){if(web!=null&&web.canGoBack())web.goBack();else super.onBackPressed();}
   private void startRadar(){
     prefs.edit().putBoolean("monitor",true).apply();
