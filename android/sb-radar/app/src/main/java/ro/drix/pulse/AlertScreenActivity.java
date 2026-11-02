@@ -77,6 +77,7 @@ public class AlertScreenActivity extends Activity {
     String score=extract(raw,"(?:SCOR|Scor)\\s*(\\d+\\s*[–-]\\s*\\d+)","—");
     String odds=extract(raw,"COT[ĂA]\\s*(\\d+(?:[\\.,]\\d+)?)",
       extract(raw,"(?:Egal \\(X\\)|X @)\\s*(\\d+(?:[\\.,]\\d+)?)","—"));
+    String category57=extract(raw,"CATEGORIA (?:GOLDEN )?X57:\\s*([^\\r\\n]+)","");
     boolean test=raw.contains("test local")||raw.contains("NU PARIA");
     GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
       new int[]{0xff090e17,gold?0xff191911:0xff0e2326,0xff080d15});
@@ -120,6 +121,12 @@ public class AlertScreenActivity extends Activity {
     match.setMaxLines(3);
     match.setLineSpacing(dp(2),1f);
     card.addView(match,lp(-1,-2));
+    if(!category57.isEmpty()){
+      int categoryColor=category57.contains("NU PARIA")?0xffd899a4:0xffb5cbdd;
+      TextView categoryCaption=label("CATEGORIA GOLDEN · "+category57,12,categoryColor,true,true);
+      categoryCaption.setMaxLines(3);
+      card.addView(categoryCaption,lp(-1,-2));
+    }
     addGap(card,14);
 
     LinearLayout row=new LinearLayout(this);
