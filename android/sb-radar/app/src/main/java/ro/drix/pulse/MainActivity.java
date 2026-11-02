@@ -53,7 +53,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     "window.__sbNativeTiltWrite=true;try{camera(p,y);stage.classList.add('radar-sensor-active')}"+
     "finally{window.__sbNativeTiltWrite=false}};"+
     "window.setRadar3DCamera=function(p,y){"+
-    "if(!window.__sbNativeTiltWrite&&(!window.radar3dMotionHoldUntil||Date.now()>=window.radar3dMotionHoldUntil))return;"+
+    "if(!window.__sbNativeTiltWrite&&!(typeof radar3dMotionHoldUntil!=='undefined'&&Date.now()<radar3dMotionHoldUntil))return;"+
     "return camera.apply(this,arguments)};"+
     "}catch(e){}})();";
   static float tiltClamp(float v,float min,float max){return Math.max(min,Math.min(max,v));}
