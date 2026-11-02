@@ -65,7 +65,8 @@ public class AlertScreenActivity extends Activity {
     String p=intent.getStringExtra("path");
     if(p!=null&&p.startsWith("/app?"))path=p;
     notificationId=intent.getIntExtra("notification_id",0);
-    boolean gold=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLD");
+    boolean gold=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLDEN TICKET");
+    boolean rush=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLD RUSH");
     boolean hourly=title!=null&&title.contains("ANTRENAT ORAR");
     accent=gold?0xffeac16d:0xff69dcd3;
     int surface=0xff131a25;
@@ -99,15 +100,15 @@ public class AlertScreenActivity extends Activity {
     card.setBackground(shape(surface,line,15));
     root.addView(card,lp(-1,-2));
 
-    TextView symbol=label(gold?"◇  01 / GOLD":"⌁  02 / AI",12,accent,true,true);
+    TextView symbol=label(gold?"◇  01 / GOLD":rush?"◈  02 / RUSH":"⌁  02 / AI",12,accent,true,true);
     symbol.setLetterSpacing(.12f);
     card.addView(symbol,lp(-1,-2));
     addGap(card,14);
-    TextView heading=label(gold?"GOLDEN TICKET":hourly?"ML • ANTRENAT ORAR":"MACHINE LEARNING",24,Color.WHITE,true,true);
+    TextView heading=label(gold?"GOLDEN TICKET":rush?"GOLD RUSH":hourly?"ML • ANTRENAT ORAR":"SEMNAL",24,Color.WHITE,true,true);
     heading.setLetterSpacing(.06f);
     card.addView(heading,lp(-1,-2));
     addGap(card,5);
-    TextView subtitle=label(gold?"TE SUNĂ BANII!":hourly?"MODEL ACTUALIZAT ORAR • EGAL (X)":"SEMNAL ML • EGAL (X)",12,accent,true,true);
+    TextView subtitle=label(gold?"TE SUNĂ BANII!":rush?"0–0 • MIN. 57 • X 2,05–2,14":hourly?"EGAL (X)":"SEMNAL • EGAL (X)",12,accent,true,true);
     subtitle.setLetterSpacing(.12f);
     card.addView(subtitle,lp(-1,-2));
     addGap(card,20);
@@ -136,7 +137,7 @@ public class AlertScreenActivity extends Activity {
       row.addView(chip,params);
     }
     addGap(card,17);
-    TextView note=label(test?"MOD TEST • NU PARIA":"Verifică prețul X înainte de plasare",11,0xff9caab7,false,false);
+    TextView note=label(test?"MOD TEST • NU PARIA":rush?"Miză sugerată: 20 lei • Verifică X înainte de plasare":"Verifică prețul X înainte de plasare",11,0xff9caab7,false,false);
     card.addView(note,lp(-1,-2));
 
     addGap(root,18);
