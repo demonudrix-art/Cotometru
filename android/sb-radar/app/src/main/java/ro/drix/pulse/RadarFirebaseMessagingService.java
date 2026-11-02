@@ -30,7 +30,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       String score=d.getOrDefault("home_score","-")+"–"+d.getOrDefault("away_score","-");
       String body="⚽ "+fixture+"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU: EGAL (X) • COTĂ "+px+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL";
       boolean high=message.getPriority()==RemoteMessage.PRIORITY_HIGH;
-      AlertService.postFromFcm(this,category,event,fixture,body,"/app?tab=live&event_id="+event,high);
+      AlertService.postFromFcm(this,category,event,fixture,body,"/app?tab=live&event_id="+event,high,d.getOrDefault("model_version",""));
     }catch(Exception ignored){}
   }
 }
