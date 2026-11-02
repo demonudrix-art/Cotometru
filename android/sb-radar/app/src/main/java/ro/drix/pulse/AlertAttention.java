@@ -44,7 +44,7 @@ final class AlertAttention {
       vibrator=(Vibrator)app.getSystemService(Context.VIBRATOR_SERVICE);
       if(vibrator!=null&&vibrator.hasVibrator()) {
         // Finite, noticeable triple pulse: no runaway vibration after a notification is dismissed.
-        vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0,420,250,420,250,420},-1));
+        vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0,700,220,700,220,700,320,700},-1));
       }
     }catch(Exception ignored){}
     timeout=AlertAttention::stop;
