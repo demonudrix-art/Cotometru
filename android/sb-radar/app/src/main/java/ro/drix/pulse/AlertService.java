@@ -52,11 +52,11 @@ public class AlertService extends Service {
     gold.setVibrationPattern(new long[]{0,650,350,650,900});
     gold.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(gold);
-    NotificationChannel ml=new NotificationChannel(CH_ML,"Machine Learning v2.0 • Alertă puternică",NotificationManager.IMPORTANCE_HIGH);
-    ml.setDescription("Machine Learning v2.0: alarmă repetată până la 45 secunde, vibrație și ecran vizual când este permis");
+    NotificationChannel ml=new NotificationChannel(CH_ML,"ML • Alertă importantă",NotificationManager.IMPORTANCE_HIGH);
+    ml.setDescription("ML: semnal din modelul antrenat orar sau V2, cu vibrație scurtă și oprire la închidere");
     ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     ml.enableVibration(true);
-    ml.setVibrationPattern(new long[]{0,650,350,650,900});
+    ml.setVibrationPattern(new long[]{0,420,250,420,250,420});
     ml.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(ml);
   }
@@ -65,6 +65,7 @@ public class AlertService extends Service {
     Intent i=new Intent(ctx,MainActivity.class);
     i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
     i.setData(Uri.parse(MainActivity.BASE+path));
+    i.putExtra("sb_alert_id",code);
     return PendingIntent.getActivity(ctx,code,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
   }
   static Notification.Builder builder(Context ctx,String channel){return new Notification.Builder(ctx,channel);}
@@ -72,6 +73,35 @@ public class AlertService extends Service {
     AlertAttention.stop();
     AlertService s=current;
     if(s!=null)s.stopRinging();
+  }
+  // Mark before stopping to prevent a delayed FCM foreground-service start from re-ringing.
+  static void dismiss(Context context,int notificationId){
+    if(notificationId>0){
+      context.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE).edit()
+        .putBoolean("dismissed_alert_"+notificationId,true).commit();
+    }
+    silence(context);
+    if(notificationId>0){
+      ((NotificationManager)context.getSystemService(NOTIFICATION_SERVICE)).cancel(notificationId);
+    }
+  }
+  private static boolean canRing(Context context,int id){
+    if(id<=0||context.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE)
+       .getBoolean("dismissed_alert_"+id,false))return false;
+    try{
+      NotificationManager manager=(NotificationManager)context.getSystemService(NOTIFICATION_SERVICE);
+      for(android.service.notification.StatusBarNotification n:manager.getActiveNotifications()){
+        if(n.getId()==id)return true;
+      }
+    }catch(Exception ignored){}
+    return false;
+  }
+  private static String signalTitle(boolean gold,String modelVersion){
+    if(gold)return "🏆 GOLDEN TICKET • SB Radar";
+    String v=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
+    if(v.contains("SHADOW_HOURLY"))return "🧠 ML • ANTRENAT ORAR • SB Radar";
+    if(v.contains("TREND_V2")||v.contains("GENVAR"))return "🧠 ML V2 • SB Radar";
+    return "🧠 ML • SB Radar";
   }
   private synchronized void stopRinging(){AlertAttention.stop();}
   private synchronized void ring(){AlertAttention.start(this);}
@@ -86,9 +116,9 @@ public class AlertService extends Service {
     if("TEST_GOLD".equals(action)||"TEST_ML".equals(action)){
       boolean gold="TEST_GOLD".equals(action);
       showSignal(gold?"GOLDEN TICKET":"ML",0,"Simulare notificare", "Acesta este un test local. Nu este un semnal real.",
-        "/app?tab=live",true); 
+        "/app?tab=live",gold?"":"SB_RADAR_ML_SHADOW_HOURLY_V1",true); 
     }
-    if("RING_FCM".equals(action)){ring();}
+    if("RING_FCM".equals(action)&&intent!=null&&canRing(this,intent.getIntExtra("notification_id",0))){ring();}
     if(running)return START_STICKY;
     running=true;
     thread=new Thread(()->{
@@ -102,11 +132,11 @@ public class AlertService extends Service {
   private boolean notificationsAllowed(){
     return Build.VERSION.SDK_INT<33||checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED;
   }
-  private void showSignal(String category,int notificationId,String fixture,String body,String path,boolean test){
+  private void showSignal(String category,int notificationId,String fixture,String body,String path,String modelVersion,boolean test){
     if(!notificationsAllowed())return;
     boolean gold=category.contains("GOLD");
     String channel=gold?CH_GOLD:CH_ML;
-    String title=gold?"🏆 GOLDEN TICKET • SB Radar":"🧠 Machine Learning v2.0 • SB Radar";
+    String title=signalTitle(gold,modelVersion);
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     int id=notificationId==0?(gold?23201:23202):notificationId;
     Intent fs=new Intent(this,AlertScreenActivity.class);
@@ -124,8 +154,9 @@ public class AlertService extends Service {
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
+    getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE).edit().remove("dismissed_alert_"+id).commit();
     manager.notify(id,b.build());
-    ring(); // Native audible attention; stops on dismissal or after 45 seconds.
+    if(canRing(this,id))ring(); // Never ring an already-cleared notification.
   }
   private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
@@ -153,7 +184,7 @@ public class AlertService extends Service {
           .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
-      }else showSignal(gold?"GOLDEN TICKET":"ML",id,fixture,body,path,false);
+      }else showSignal(gold?"GOLDEN TICKET":"ML",id,fixture,body,path,row.optString("model_version",""),false);
       prefs.edit().putBoolean(key,true).apply();
       if(!win){try{
         JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
@@ -164,14 +195,14 @@ public class AlertService extends Service {
 
   // Data-only FCM: display immediately, then try to start the foreground monitor for local ringing.
   // Shared deduplication key prevents duplicate notifications from FCM and the 25-second polling fallback.
-  static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority){
+  static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority,String modelVersion){
     if(event<=0||!("GOLDEN TICKET".equals(category)||"ML".equals(category)))return;
     SharedPreferences prefs=ctx.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE);
     String key="notified_"+event+"_betnow";
     if(prefs.getBoolean(key,false))return;
     if(Build.VERSION.SDK_INT>=33&&ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
     int id=(int)(Math.abs(event)%100000)+3000;
-    String title="GOLDEN TICKET".equals(category)?"🏆 GOLDEN TICKET • SB Radar":"🧠 Machine Learning v2.0 • SB Radar";
+    String title=signalTitle("GOLDEN TICKET".equals(category),modelVersion);
     String channel="GOLDEN TICKET".equals(category)?CH_GOLD:CH_ML;
     ensureUrgentChannels(ctx); // Required when FCM wakes a process with no monitor service.
     NotificationManager mgr=(NotificationManager)ctx.getSystemService(NOTIFICATION_SERVICE);
@@ -187,6 +218,7 @@ public class AlertService extends Service {
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent())b.setFullScreenIntent(full,true);
+    prefs.edit().remove("dismissed_alert_"+id).commit();
     mgr.notify(id,b.build());
     prefs.edit().putBoolean(key,true).apply();
     // High-priority FCM may start a foreground service while the screen is off.
@@ -195,13 +227,13 @@ public class AlertService extends Service {
     boolean started=false;
     if(highPriority) {
       try {
-        Intent attention=new Intent(ctx,AlertService.class).setAction("RING_FCM");
+        Intent attention=new Intent(ctx,AlertService.class).setAction("RING_FCM").putExtra("notification_id",id);
         if(Build.VERSION.SDK_INT>=26)ctx.startForegroundService(attention);
         else ctx.startService(attention);
         started=true;
       }catch(Exception ignored){}
     }
-    if(!started)AlertAttention.start(ctx);
+    if(!started&&canRing(ctx,id))AlertAttention.start(ctx);
   }
 
   static void testAlert(Context c,String kind){
