@@ -29,10 +29,17 @@ jobs:
           echo 'c2b85e0e5227527ca4dd86eada8ce9c5ca91dc2a8eae70c18ec10f0c62cb8d51  android/sb-radar/app/src/main/res/drawable-nodpi/sb_radar_icon.webp' | sha256sum -c -
       - name: Build APK
         run: gradle --no-daemon -p android/sb-radar :app:assembleDebug
+      - name: Publish temporary CI build input for local release signing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "sb-radar-v2.3.13-ci" "android/sb-radar/app/build/outputs/apk/debug/app-debug.apk#SB-Radar-v2.3.13-CI-NOT-FINAL.apk" \
+            --repo "$GITHUB_REPOSITORY" --title "SB Radar 2.3.13 CI input (not an installation release)" \
+            --notes "Temporary Android build for final local release-key signing. NOT for installation." --prerelease
       - uses: actions/upload-artifact@v4
         id: apk_upload
         with:
-          name: SB-Radar-v2.3.12-Stable-Gyro-No-Jitter-APK
+          name: SB-Radar-v2.3.13-Gold-Rush-Fullscreen-APK
           path: android/sb-radar/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
       - name: Save build artifact pointer
