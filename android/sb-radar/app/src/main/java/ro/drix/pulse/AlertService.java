@@ -129,7 +129,7 @@ public class AlertService extends Service {
     if(SILENCE.equals(action)){stopRinging();return START_STICKY;}
     if("STOP".equals(action)){stopSelf();return START_NOT_STICKY;}
     Notification foreground=builder(this,CH_MONITOR).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle("SB Radar • Monitor activ").setContentText("Urmărește Golden Ticket și Gold Rush")
+      .setContentTitle("SB Radar • Monitor activ").setContentText("Urmărește Strong + Silver și Golden Strong")
       .setContentIntent(open(this,FOREGROUND_ID,"/app?tab=live")).setOngoing(true).build();
     startForeground(FOREGROUND_ID,foreground);
     if("TEST_GOLD".equals(action)||"TEST_RUSH".equals(action)){
