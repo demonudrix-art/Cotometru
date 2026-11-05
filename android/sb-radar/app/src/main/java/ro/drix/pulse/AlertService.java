@@ -17,8 +17,8 @@ import java.util.TimeZone;
 
 public class AlertService extends Service {
   static final String CH_MONITOR="sb_radar_monitor_v230";
-  static final String CH_GOLD="sb_radar_gold_alarm_v2310";
-  static final String CH_ML="sb_radar_ml_alarm_v2310";
+  static final String CH_GOLD="sb_radar_strong_alarm_v2316";
+  static final String CH_ML="sb_radar_purple_alarm_v2316";
   static final String CH_NIGHT="sb_radar_vibration_night_v2315";
   static final String CH_WINS="sb_radar_wins_v232";
   static final int FOREGROUND_ID=1310;
@@ -26,7 +26,7 @@ public class AlertService extends Service {
   private static volatile AlertService current;
   private static final Handler MAIN=new Handler(Looper.getMainLooper());
   private static Runnable ringTimeout;
-  static boolean nightQuiet(){int h=Calendar.getInstance(TimeZone.getTimeZone("Europe/Bucharest")).get(Calendar.HOUR_OF_DAY);return h>=22||h<5;}
+  static boolean nightQuiet(){return false;} // User enabled urgent purple/red alerts and fullscreen 24/7.
   private MediaPlayer player;
   private Vibrator vibrator;
   volatile boolean running=false;
@@ -49,15 +49,15 @@ public class AlertService extends Service {
     AudioAttributes soundAttrs=new AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-    NotificationChannel gold=new NotificationChannel(CH_GOLD,"Golden Ticket • Alertă puternică",NotificationManager.IMPORTANCE_HIGH);
-    gold.setDescription("Golden Ticket: alarmă repetată până la 45 secunde, vibrație și ecran vizual când este permis");
+    NotificationChannel gold=new NotificationChannel(CH_GOLD,"🔴 Strong • Alarmă fullscreen 24/7",NotificationManager.IMPORTANCE_HIGH);
+    gold.setDescription("Golden Strong: notificare fullscreen, alarmă și vibrație 24/7");
     gold.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     gold.enableVibration(true);
     gold.setVibrationPattern(new long[]{0,650,350,650,900});
     gold.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(gold);
-    NotificationChannel ml=new NotificationChannel(CH_ML,"Gold Rush • Alertă importantă",NotificationManager.IMPORTANCE_HIGH);
-    ml.setDescription("Gold Rush: 0–0 minutul 57, cota X 2,05–2,14, miză sugerată 20 lei");
+    NotificationChannel ml=new NotificationChannel(CH_ML,"🟣 Strong + Silver • Alarmă fullscreen 24/7",NotificationManager.IMPORTANCE_HIGH);
+    ml.setDescription("Strong + Silver: notificare fullscreen, alarmă și vibrație 24/7");
     ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     ml.enableVibration(true);
     ml.setVibrationPattern(new long[]{0,420,250,420,250,420});
@@ -111,6 +111,10 @@ public class AlertService extends Service {
     if(!nightQuiet()&&canRing(context,id))AlertAttention.start(context);
   }
   private static String signalTitle(boolean gold,String modelVersion){
+    String normalized=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
+    if(normalized.contains("STRONG + SILVER")||normalized.contains("STRONG_SILVER")||normalized.contains("STRONG-SILVER"))
+      return "🟣 GOLDEN STRONG + SILVER • 75 LEI • SB Radar";
+    if(normalized.contains("STRONG"))return "🔴 GOLDEN STRONG • 50 LEI • SB Radar";
     if(modelVersion!=null&&modelVersion.toUpperCase(Locale.ROOT).contains("GG_POWER"))return "⚡ GG POWER • 50 LEI • SB Radar";
     if(gold)return "🏆 GOLDEN TICKET • SB Radar";
     String v=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
@@ -149,10 +153,12 @@ public class AlertService extends Service {
   }
   private void showSignal(String category,int notificationId,String fixture,String body,String path,String modelVersion,boolean test){
     if(!notificationsAllowed())return;
-    boolean gold="GOLDEN TICKET".equals(category);
+    boolean purple=category.contains("STRONG + SILVER")||category.contains("STRONG_SILVER")||
+      (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER")));
+    boolean gold="GOLDEN TICKET".equals(category)||"STRONG".equals(category);
     boolean quiet=nightQuiet();
-    String channel=quiet?CH_NIGHT:gold?CH_GOLD:CH_ML;
-    String title=signalTitle(gold,modelVersion);
+    String channel=purple?CH_ML:CH_GOLD;
+    String title=signalTitle(gold,(modelVersion==null?"":modelVersion)+" "+category);
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     int id=notificationId==0?(gold?23201:23202):notificationId;
     Intent fs=new Intent(this,AlertScreenActivity.class);
@@ -166,7 +172,7 @@ public class AlertService extends Service {
       .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(this,id,path)).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
-      .setCategory(Notification.CATEGORY_ALARM).setColor(gold?0xffffc74f:0xfff54d61)
+      .setCategory(Notification.CATEGORY_ALARM).setColor(purple?0xffa879ff:0xfff54d61)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(!quiet&&(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
@@ -186,10 +192,14 @@ public class AlertService extends Service {
       boolean win="WIN".equals(stage)||row.optBoolean("native_win_compat",false);
       if(event<=0||(!win&&!"BET_NOW".equals(stage)))continue;
       String category=row.optString("signal_label",row.optString("signal_type","")).toUpperCase(Locale.ROOT).trim();
+      JSONObject priority=row.optJSONObject("priority_category");
+      String code=priority==null?"":priority.optString("code","");
+      boolean purple="strong-silver".equals(code);
+      boolean red="strong".equals(code);
       boolean gold="GOLDEN TICKET".equals(category);
       boolean power="GG POWER".equals(category)||row.optString("model_version","").contains("GG_POWER")||row.optBoolean("gg_power",false);
       boolean rush="GOLD RUSH".equals(category)||("ML".equals(category)&&row.optString("model_version","").contains("GOLD_RUSH"));
-      if(!win&&!gold&&!rush&&!power)continue; // Beta B, legacy ML and generic signals never ring.
+      if(!win&&!gold&&!rush&&!power&&!purple&&!red)continue; // Silver-only and retired filters never ring.
       String key="notified_"+event+"_"+(win?"win":"betnow");
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
@@ -203,7 +213,8 @@ public class AlertService extends Service {
           .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
-      }else showSignal(power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",id,fixture,body,path,row.optString("model_version",""),false);
+      }else showSignal(purple?"STRONG + SILVER":red?"STRONG":power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",
+        id,fixture,body,path,row.optString("model_version","")+" "+code,false);
       prefs.edit().putBoolean(key,true).apply();
       if(!win){try{
         JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
@@ -215,15 +226,18 @@ public class AlertService extends Service {
   // Data-only FCM: display immediately, then try to start the foreground monitor for local ringing.
   // Shared deduplication key prevents duplicate notifications from FCM and the 25-second polling fallback.
   static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority,String modelVersion){
-    if(event<=0||!("GOLDEN TICKET".equals(category)||"GOLD RUSH".equals(category)||"GG POWER".equals(category)||"ML".equals(category)))return;
+    boolean strong=category!=null&&category.toUpperCase(Locale.ROOT).contains("STRONG");
+    if(event<=0||!("GOLDEN TICKET".equals(category)||"GOLD RUSH".equals(category)||"GG POWER".equals(category)||"ML".equals(category)||strong))return;
     SharedPreferences prefs=ctx.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE);
     String key="notified_"+event+"_betnow";
     if(prefs.getBoolean(key,false))return;
     if(Build.VERSION.SDK_INT>=33&&ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
     int id=(int)(Math.abs(event)%100000)+3000;
-    String title=signalTitle("GOLDEN TICKET".equals(category),modelVersion);
+    boolean purple=category.contains("STRONG + SILVER")||category.contains("STRONG_SILVER")||
+      (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER")));
+    String title=signalTitle("GOLDEN TICKET".equals(category)||strong, (modelVersion==null?"":modelVersion)+" "+category);
     boolean quiet=nightQuiet();
-    String channel=quiet?CH_NIGHT:"GOLDEN TICKET".equals(category)?CH_GOLD:CH_ML;
+    String channel=purple?CH_ML:CH_GOLD;
     ensureUrgentChannels(ctx); // Required when FCM wakes a process with no monitor service.
     NotificationManager mgr=(NotificationManager)ctx.getSystemService(NOTIFICATION_SERVICE);
     Intent fs=new Intent(ctx,AlertScreenActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -240,6 +254,9 @@ public class AlertService extends Service {
     if(!quiet&&(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
     prefs.edit().remove("dismissed_alert_"+id).commit();
     mgr.notify(id,b.build());
+    NotificationChannel activeChannel=mgr.getNotificationChannel(channel);
+    prefs.edit().putBoolean("fcm_last_fsi_requested",!quiet&&(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent()))
+      .putInt("fcm_last_channel_importance",activeChannel==null?0:activeChannel.getImportance()).apply();
     // Start attention immediately after displaying the native notification;
     // getActiveNotifications() may lag by a frame on Samsung when FCM wakes the app.
     if(!quiet)AlertAttention.start(ctx);

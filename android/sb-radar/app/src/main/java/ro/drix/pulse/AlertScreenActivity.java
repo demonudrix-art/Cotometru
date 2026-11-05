@@ -65,13 +65,15 @@ public class AlertScreenActivity extends Activity {
     String p=intent.getStringExtra("path");
     if(p!=null&&p.startsWith("/app?"))path=p;
     notificationId=intent.getIntExtra("notification_id",0);
+    boolean purple=title!=null&&title.toUpperCase(Locale.ROOT).contains("STRONG + SILVER");
+    boolean red=!purple&&title!=null&&title.toUpperCase(Locale.ROOT).contains("STRONG");
     boolean gold=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLDEN TICKET");
     boolean rush=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLD RUSH");
     boolean power=title!=null&&title.toUpperCase(Locale.ROOT).contains("GG POWER");
     boolean hourly=title!=null&&title.contains("ANTRENAT ORAR");
-    accent=power?0xffdfb0ff:gold?0xffeac16d:0xff69dcd3;
+    accent=purple?0xffbf95ff:red?0xfffe657c:power?0xffdfb0ff:gold?0xffeac16d:0xff69dcd3;
     int surface=0xff131a25;
-    int line=power?0xff8358a3:gold?0xff77623c:0xff336765;
+    int line=purple?0xff8358a3:red?0xff974454:power?0xff8358a3:gold?0xff77623c:0xff336765;
     String raw=body==null?"":body.trim();
     String fixture=raw.isEmpty()?"Meci în monitorizare":raw.split("\\n",2)[0].trim();
     String minute=extract(raw,"(?:MINUTUL|MIN\\.)\\s*(\\d{1,3})","—");
@@ -81,7 +83,7 @@ public class AlertScreenActivity extends Activity {
     String category57=extract(raw,"CATEGORIA (?:GOLDEN )?X57:\\s*([^\\r\\n]+)","");
     boolean test=raw.contains("test local")||raw.contains("NU PARIA");
     GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-      new int[]{0xff090e17,gold?0xff191911:0xff0e2326,0xff080d15});
+      new int[]{0xff090e17,purple?0xff221532:red?0xff2b131e:gold?0xff191911:0xff0e2326,0xff080d15});
     ScrollView scroll=new ScrollView(this);
     scroll.setFillViewport(true);
     scroll.setBackground(bg);
@@ -102,15 +104,15 @@ public class AlertScreenActivity extends Activity {
     card.setBackground(shape(surface,line,15));
     root.addView(card,lp(-1,-2));
 
-    TextView symbol=label(power?"⚡  03 / GG POWER":gold?"◇  01 / GOLD":rush?"◈  02 / RUSH":"⌁  02 / AI",12,accent,true,true);
+    TextView symbol=label(purple?"🟣  01 / STRONG + SILVER":red?"🔴  02 / STRONG":power?"⚡  03 / GG POWER":gold?"◇  01 / GOLD":rush?"◈  02 / RUSH":"⌁  02 / AI",12,accent,true,true);
     symbol.setLetterSpacing(.12f);
     card.addView(symbol,lp(-1,-2));
     addGap(card,14);
-    TextView heading=label(power?"GG POWER":gold?"GOLDEN TICKET":rush?"GOLD RUSH":hourly?"ML • ANTRENAT ORAR":"SEMNAL",24,Color.WHITE,true,true);
+    TextView heading=label(purple?"STRONG + SILVER":red?"GOLDEN STRONG":power?"GG POWER":gold?"GOLDEN TICKET":rush?"GOLD RUSH":hourly?"ML • ANTRENAT ORAR":"SEMNAL",24,Color.WHITE,true,true);
     heading.setLetterSpacing(.06f);
     card.addView(heading,lp(-1,-2));
     addGap(card,5);
-    TextView subtitle=label(power?"GOLD RUSH + GOLDEN SILVER · X 2,05–2,14":gold?"TE SUNĂ BANII!":rush?"0–0 • MIN. 57 • X 2,05–2,14":hourly?"EGAL (X)":"SEMNAL • EGAL (X)",12,accent,true,true);
+    TextView subtitle=label(purple?"MIZĂ 75 LEI • MIN. 57":red?"MIZĂ 50 LEI • MIN. 57":power?"ARHIVĂ GG POWER":gold?"TE SUNĂ BANII!":rush?"ARHIVĂ GOLD RUSH":hourly?"TEST FCM":"SEMNAL • EGAL (X)",12,accent,true,true);
     subtitle.setLetterSpacing(.12f);
     card.addView(subtitle,lp(-1,-2));
     addGap(card,20);
@@ -145,7 +147,7 @@ public class AlertScreenActivity extends Activity {
       row.addView(chip,params);
     }
     addGap(card,17);
-    TextView note=label(test?"MOD TEST • NU PARIA":power?"GG Power • 50 lei · Prioritate Gold Rush, un singur semnal":rush?"Miză sugerată: 20 lei • Verifică X înainte de plasare":"Verifică prețul X înainte de plasare",11,0xff9caab7,false,false);
+    TextView note=label(test?"MOD TEST • NU PARIA":purple?"Strong + Silver • miza 75 lei • verifică X":red?"Strong • miza 50 lei • verifică X":power?"Arhivă GG Power":rush?"Arhivă Gold Rush":"Verifică prețul X înainte de plasare",11,0xff9caab7,false,false);
     card.addView(note,lp(-1,-2));
 
     addGap(root,18);

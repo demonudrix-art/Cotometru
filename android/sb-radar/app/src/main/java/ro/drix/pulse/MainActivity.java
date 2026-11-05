@@ -24,7 +24,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.15";
+  static final String APP_VERSION="2.3.16";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -130,7 +130,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     if(m.canUseFullScreenIntent()||prefs.getBoolean("fsi_prompted_v237",false))return;
     prefs.edit().putBoolean("fsi_prompted_v237",true).apply();
     new android.app.AlertDialog.Builder(this).setTitle("Alerte pe ecranul blocat")
-      .setMessage("Pentru Golden Ticket, Gold Rush și GG Power, permite afișarea alertelor pe tot ecranul, inclusiv când telefonul este blocat. Fără această permisiune, Android poate afișa doar notificarea obișnuită.")
+      .setMessage("Pentru 🟣 Strong + Silver și 🔴 Strong, permite afișarea alertelor fullscreen pe ecranul blocat. Fără această permisiune, Android poate afișa doar notificarea obișnuită.")
       .setPositiveButton("Deschide setările",(d,w)->openFullScreenSettings())
       .setNegativeButton("Mai târziu",null).show();
   }
@@ -242,6 +242,20 @@ public class MainActivity extends Activity implements SensorEventListener {
     @JavascriptInterface public String getToken(){return token(MainActivity.this);}
     @JavascriptInterface public String getAppVersion(){return APP_VERSION;}
     @JavascriptInterface public String getFcmStatus(){return FirebaseBootstrap.status(MainActivity.this);}
+    @JavascriptInterface public String getFullscreenDiagnostics(){
+      try{
+        android.app.NotificationManager n=(android.app.NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        JSONObject j=new JSONObject();
+        j.put("apk",APP_VERSION);
+        j.put("fsi_permission",Build.VERSION.SDK_INT<34||n.canUseFullScreenIntent());
+        j.put("last_fcm_ms",prefs.getLong("fcm_last_received_ms",0));
+        j.put("last_fcm_priority",prefs.getString("fcm_last_priority",""));
+        j.put("last_fsi_requested",prefs.getBoolean("fcm_last_fsi_requested",false));
+        j.put("last_notification_importance",prefs.getInt("fcm_last_channel_importance",0));
+        j.put("last_fcm_label",prefs.getString("fcm_last_signal",""));
+        return j.toString();
+      }catch(Exception e){return "{}";}
+    }
     @JavascriptInterface public String isMonitoring(){return prefs.getBoolean("monitor",false)?"true":"false";}
     @JavascriptInterface public void startMonitor(){runOnUiThread(()->startRadar());}
     @JavascriptInterface public void stopMonitor(){runOnUiThread(()->stopRadar());}
