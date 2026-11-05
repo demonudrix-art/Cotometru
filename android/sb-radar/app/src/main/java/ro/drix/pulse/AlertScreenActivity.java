@@ -22,7 +22,7 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Minimal, legible sci-fi alert; native screen does not depend on network fonts or WebView. */
+/** Cinematic themed alert. Pure UI; FCM delivery, alarm and server remain untouched. */
 public class AlertScreenActivity extends Activity {
   private String path="/app?tab=live";
   private int notificationId=0;
@@ -75,7 +75,7 @@ public class AlertScreenActivity extends Activity {
     boolean rush=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLD RUSH");
     boolean power=title!=null&&title.toUpperCase(Locale.ROOT).contains("GG POWER");
     boolean hourly=title!=null&&title.contains("ANTRENAT ORAR");
-    accent=purple?0xffbf95ff:red?0xfffe657c:power?0xffdfb0ff:gold?0xffeac16d:0xff69dcd3;
+    accent=purple?0xffc36aff:red?0xffff3a5f:power?0xffdfb0ff:gold?0xffeac16d:0xff69dcd3;
     int surface=0xff131a25;
     int line=purple?0xff8358a3:red?0xff974454:power?0xff8358a3:gold?0xff77623c:0xff336765;
     String raw=body==null?"":body.trim();
@@ -99,23 +99,31 @@ public class AlertScreenActivity extends Activity {
     LinearLayout root=new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setGravity(Gravity.CENTER);
-    root.setPadding(dp(17),dp(16),dp(17),dp(20));
+    root.setPadding(dp(19),dp(13),dp(19),dp(20));
     scroll.addView(root,new ScrollView.LayoutParams(-1,-1));
 
-    TextView micro=label("S B   R A D A R   /   L I V E   S I G N A L",11,0xff9aa6b8,true,true);
-    micro.setShadowLayer(dp(10),0,0,accent);
+    TextView micro=label("S B  R A D A R",13,0xffe9d5f6,true,true);
+    micro.setLetterSpacing(.16f);
+    micro.setShadowLayer(dp(12),0,0,accent);
     root.addView(micro,lp(-1,-2));
-    addGap(root,11);
-    TextView jackpot=label(purple?"🟣  JACKPOT ALERT  🟣":red?"🔴  JACKPOT ALERT  🔴":"✦  SB RADAR • LIVE  ✦",19,accent,true,true);
-    jackpot.setShadowLayer(dp(15),0,0,accent);
-    jackpot.setLetterSpacing(.09f);
+    addGap(root,10);
+    TextView jackpot=label(purple?"✦  ULTRA JACKPOT  ✦":red?"✦  GOLDEN JACKPOT  ✦":
+      "✦  LIVE ALERT  ✦",23,accent,true,true);
+    jackpot.setShadowLayer(dp(21),0,0,accent);
+    jackpot.setLetterSpacing(.075f);
     root.addView(jackpot,lp(-1,-2));
-    addGap(root,20);
+    addGap(root,13);
+    TextView rarity=label(purple?"♛  STRONG + SILVER  ♛":red?"♛  GOLDEN STRONG  ♛":
+      "✦  SB RADAR  ✦",12,0xffffe6aa,true,true);
+    rarity.setLetterSpacing(.10f);
+    rarity.setShadowLayer(dp(14),0,0,accent);
+    root.addView(rarity,lp(-1,-2));
+    addGap(root,18);
 
     LinearLayout card=new LinearLayout(this);
     card.setOrientation(LinearLayout.VERTICAL);
     card.setGravity(Gravity.CENTER_HORIZONTAL);
-    card.setPadding(dp(15),dp(22),dp(15),dp(18));
+    card.setPadding(dp(13),dp(20),dp(13),dp(17));
     GradientDrawable cardFrame=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
       new int[]{0xf8131727,purple?0xf5211539:red?0xf52b1426:0xf5231726,0xf8131724});
     cardFrame.setCornerRadius(dp(23));
@@ -124,31 +132,37 @@ public class AlertScreenActivity extends Activity {
     card.setElevation(dp(17));
     root.addView(card,lp(-1,-2));
 
-    TextView symbol=label(purple?"🟣  01 / STRONG + SILVER":red?"🔴  02 / STRONG":power?"⚡  03 / GG POWER":gold?"◇  01 / GOLD":rush?"◈  02 / RUSH":"⌁  02 / AI",12,accent,true,true);
+    TextView symbol=label(purple?"✦  NIVEL MAXIM  ✦":red?"✦  PRIORITATE ÎNALTĂ  ✦":
+      power?"⚡ GG POWER":gold?"◇ GOLD":rush?"◈ RUSH":"⌁ TEST AI",12,accent,true,true);
     symbol.setLetterSpacing(.12f);
     symbol.setShadowLayer(dp(11),0,0,accent);
     card.addView(symbol,lp(-1,-2));
     addGap(card,14);
-    TextView heading=label(purple?"STRONG + SILVER":red?"GOLDEN STRONG":power?"GG POWER":gold?"GOLDEN TICKET":rush?"GOLD RUSH":hourly?"ML • ANTRENAT ORAR":"SEMNAL",29,Color.WHITE,true,true);
+    TextView heading=label(purple?"STRONG\n+ SILVER":red?"GOLDEN\nSTRONG":
+      power?"GG POWER":gold?"GOLDEN TICKET":rush?"GOLD RUSH":hourly?"ML • ANTRENAT ORAR":"SEMNAL",
+      purple||red?38:29,Color.WHITE,true,true);
     heading.setLetterSpacing(.06f);
-    heading.setShadowLayer(dp(10),0,0,accent);
+    heading.setShadowLayer(dp(18),0,0,accent);
+    heading.setLineSpacing(dp(1),1f);
     card.addView(heading,lp(-1,-2));
     addGap(card,5);
-    TextView subtitle=label(purple?"MIZĂ 75 LEI • MIN. 57":red?"MIZĂ 50 LEI • MIN. 57":power?"ARHIVĂ GG POWER":gold?"TE SUNĂ BANII!":rush?"ARHIVĂ GOLD RUSH":hourly?"TEST FCM":"SEMNAL • EGAL (X)",12,accent,true,true);
+    TextView subtitle=label(test?"⚠ DEMONSTRAȚIE • NU PARIA":purple?"SEMNAL PREMIUM • EGAL (X)":
+      red?"SEMNAL PRIORITAR • EGAL (X)":gold?"TE SUNĂ BANII!":"SEMNAL • EGAL (X)",
+      13,test?0xffffde94:accent,true,true);
     subtitle.setLetterSpacing(.12f);
     subtitle.setShadowLayer(dp(8),0,0,accent);
     card.addView(subtitle,lp(-1,-2));
-    addGap(card,11);
-    TextView stakes=label(purple?"75 LEI":red?"50 LEI":"⚡ LIVE",35,Color.WHITE,true,true);
+    addGap(card,16);
+    TextView stakes=label(purple?"75 LEI":red?"50 LEI":"⚡ LIVE",purple||red?51:35,Color.WHITE,true,true);
     stakes.setLetterSpacing(.06f);
-    stakes.setShadowLayer(dp(16),0,0,accent);
+    stakes.setShadowLayer(dp(26),0,0,accent);
     card.addView(stakes,lp(-1,-2));
-    addGap(card,17);
+    addGap(card,14);
     View rule=new View(this);
     rule.setBackgroundColor(accent);
     card.addView(rule,lp(-1,1));
-    addGap(card,21);
-    TextView match=label(fixture,21,0xfff2f4f7,true,true);
+    addGap(card,19);
+    TextView match=label(fixture,20,0xfff2f4f7,true,true);
     match.setShadowLayer(dp(4),0,0,accent);
     match.setMaxLines(3);
     match.setLineSpacing(dp(2),1f);
@@ -178,22 +192,27 @@ public class AlertScreenActivity extends Activity {
       row.addView(chip,params);
     }
     addGap(card,17);
-    TextView note=label(test?"MOD TEST • NU PARIA":purple?"Strong + Silver • miza 75 lei • verifică X":red?"Strong • miza 50 lei • verifică X":power?"Arhivă GG Power":rush?"Arhivă Gold Rush":"Verifică prețul X înainte de plasare",11,0xff9caab7,false,false);
+    TextView note=label(test?"⚠ MOD TEST • NU PLASA PARIURI":purple?"STRONG + SILVER • VERIFICĂ PREȚUL X":
+      red?"GOLDEN STRONG • VERIFICĂ PREȚUL X":"Verifică prețul X înainte de plasare",
+      11,test?0xffffde94:0xffcbd1de,true,true);
     card.addView(note,lp(-1,-2));
 
     addGap(root,18);
     Button open=new Button(this);
-    open.setText("DESCHIDE MECIUL   ↗");
+    open.setText(test?"DESCHIDE SB RADAR    ↗":"DESCHIDE MECIUL    ↗");
     open.setTextSize(14);
     open.setTypeface(Typeface.create("sans-serif-condensed",Typeface.BOLD));
     open.setLetterSpacing(.07f);
     open.setAllCaps(false);
     open.setTextColor(0xff091018);
     GradientDrawable openBg=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-      new int[]{purple?0xffb95cff:0xffff3e59,0xfff6e7fb,purple?0xffb95cff:0xffff3e59});
+      purple?new int[]{0xff811cff,0xffe5aaff,0xff8f27ff}:
+      red?new int[]{0xffdd1a41,0xffff97a6,0xffdf254b}:
+      new int[]{0xffdda14a,0xffffffcf,0xffdca055});
     openBg.setCornerRadius(dp(12));
     open.setBackground(openBg);
     open.setElevation(dp(11));
+    open.setShadowLayer(dp(14),0,0,accent);
     root.addView(open,lp(-1,51));
     open.setOnClickListener(v->{
       stopAndDismiss();
@@ -234,11 +253,12 @@ public class AlertScreenActivity extends Activity {
     cinematicPulse.addUpdateListener(a->{
       float t=(Float)a.getAnimatedValue();
       float wave=(float)(.5f+.5f*Math.sin(2*Math.PI*t));
-      float ringScale=1f+.036f*wave;
+      float ringScale=1f+.070f*wave;
       card.setScaleX(ringScale);card.setScaleY(ringScale);
       jackpot.setAlpha(.56f+.44f*wave);
-      jackpot.setScaleX(1f+.11f*wave);jackpot.setScaleY(1f+.11f*wave);
-      stakes.setScaleX(1f+.09f*wave);stakes.setScaleY(1f+.09f*wave);
+      jackpot.setScaleX(1f+.15f*wave);jackpot.setScaleY(1f+.15f*wave);
+      stakes.setScaleX(1f+.15f*wave);stakes.setScaleY(1f+.15f*wave);
+      rarity.setAlpha(.6f+.4f*wave);
       cardFrame.setStroke(dp(3+5*wave),Color.argb(182+(int)(73*wave),
         Color.red(accent),Color.green(accent),Color.blue(accent)));
     });
