@@ -68,4 +68,3 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
     }
   }
 }
-}
