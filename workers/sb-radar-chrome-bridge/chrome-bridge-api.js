@@ -174,6 +174,16 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   if(!autoVersionReady(d))return err('Extensie prea veche pentru execuție. Actualizează la 1.0.4.',409,true);
   const j=await read(req),id=String(j.event_id||'');
   if(!/^\d{4,20}$/.test(id))return err('Eveniment invalid',400,true);
+  // Final bookmaker click is permitted only while the central live feed still
+  // proves 0-0 and the signal still belongs to an active 57' model.
+  const active=await env.DB.prepare("SELECT c.signal_category,c.stake_lei,c.odd_x,c.signal_utc,c.state,c.bookmaker_url FROM sb_radar_chrome_execution_claims_v1 c JOIN ghost_equal_alerts a ON a.event_id=CAST(c.event_id AS INTEGER) AND a.model_version='SB_GOLDEN_ACTIVE_3_TIERS_M57_V2' AND a.stage='BET_NOW' AND a.minute=57 AND a.home_score=0 AND a.away_score=0 WHERE c.owner_username=? AND c.event_id=? AND c.device_id=? AND c.state IN ('leased','preparing') AND datetime(c.lease_expires_utc)>datetime('now') ORDER BY a.triggered_utc DESC LIMIT 1").bind(d.owner_username,id,d.device_id).first();
+  if(!active||!['strong-silver','strong'].includes(active.signal_category)||![50,75].includes(Number(active.stake_lei))||!active.bookmaker_url)return err('Semnalul nu este un filtru activ autorizat',409,true);
+  const newest=await env.DB.prepare("SELECT minute,home_score,away_score,px,captured_utc FROM ghost_equal_samples WHERE event_id=? ORDER BY captured_utc DESC LIMIT 1").bind(Number(id)).first();
+  const age=Date.now()-Date.parse(newest?.captured_utc||'');
+  const quote=Number(newest?.px),quoted=Number(j.odds_client);
+  if(!newest||!Number.isFinite(age)||age<0||age>45000||Number(newest.home_score)!==0||Number(newest.away_score)!==0||!([57,58].includes(Number(newest.minute)))||!Number.isFinite(quote)||quote<=1||!Number.isFinite(quoted)||quoted<=1||Math.abs(quoted-quote)>0.15)return err('Cota sau scorul nu mai corespund unui 0-0 proaspăt. Nu pariez.',409,true);
+  const isPurple=active.signal_category==='strong-silver';
+  if((isPurple&&!(Number(active.stake_lei)===75&&quote>=2.05&&quote<2.15))||(!isPurple&&Number(active.stake_lei)!==50))return err('Categoria mov/roșu s-a schimbat. Nu pariez.',409,true);
   const r=await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state='submitting',updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND state IN ('leased','preparing') AND datetime(lease_expires_utc)>datetime('now')").bind(now(),d.owner_username,id,d.device_id).run();
   if(Number(r.meta?.changes||0)!==1)return err('Lease expirat sau rezervat de alt executor; nu trimite pariul',409,true);
   await event(env,'BOOKMAKER_SUBMITTING',d.device_id,id);
