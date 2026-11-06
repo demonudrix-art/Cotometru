@@ -314,10 +314,12 @@ public final class AdminConsoleActivity extends Activity {
     }
     void renderPC(JSONObject d){
         String id=d.optString("device_id"),name=d.optString("display_name","Calculator");
+        String kind=d.optString("device_kind","computer");
+        String deviceIcon="laptop".equals(kind)?"💻 ":"desktop".equals(kind)?"🖥️ ":"🖥 ";
         String status=d.optString("pairing_status"),version=d.optString("install_version","?");
         boolean online=d.optBoolean("online"),licensed=d.optBoolean("license_active");
         LinearLayout card=panel(pcList,false),title=horizontal();
-        TextView heading=label((online?"● ":"● ")+name,17,online?GREEN:MUTED,true);
+        TextView heading=label((online?"● ":"● ")+deviceIcon+name,17,online?GREEN:MUTED,true);
         title.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         title.addView(chip("pending".equals(status)?"DE APROBAT":online?"ONLINE":"OFFLINE","pending".equals(status)?AMBER:online?GREEN:MUTED));
         add(card,title);
