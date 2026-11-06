@@ -34,6 +34,79 @@ export async function chromeBridgeApi(req,env,path,authenticated){
  const isExtension=!path.includes('/admin/');
  if(req.method==='OPTIONS'&&isExtension)return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization, X-SBR-Device, Content-Type','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Max-Age':'600'}});
  try{
+
+ // Remote popup approval: register observations, alert owner, and execute only
+ // an explicit one-time admin approval bound to the same device + DOM fingerprint.
+ if(path==='/api/chrome/dialog/observe'&&req.method==='POST'){
+  const d=await validDevice(req,env);
+  if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Extensie neautorizată',403,true);
+  const j=await read(req),id=String(j.request_id||''),fingerprint=String(j.fingerprint||''),
+        url=String(j.tab_url||''),message=String(j.dialog_text||'').replace(/\s+/g,' ').trim().slice(0,500),
+        label=String(j.button_label||'').trim().slice(0,35),kind=String(j.kind||'UNKNOWN').slice(0,40);
+  if(!/^[a-zA-Z0-9-]{32,64}$/.test(id)||!/^[a-f0-9]{64}$/.test(fingerprint)||message.length<8||url.length>650)return err('Raport dialog invalid',400,true);
+  let dest;try{dest=new URL(url);}catch{return err('URL invalid',400,true);}
+  if(dest.protocol!=='https:'||!['superbet.ro','www.superbet.ro'].includes(dest.hostname))return err('Origine invalidă',400,true);
+  const normalized=message.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const forbidden=/(depunere|retrage|pariaza|plaseaza|verificare identitate|verifica identitatea|autentific|parola|parol[aă]|2fa|otp|captcha|limita de|autoexclud|auto.exclud|restric|confirmarea pariului|politica|termeni si conditii|blocare cont|verificarea varstei)/;
+  const informational=/(durat[a ]+sesiun|conectat de \d+ minut|castigat|pierdut|pierderi)/.test(normalized);
+  const safeButton=/^(ok|continu[aă]|continua)$/i.test(label);
+  const clickable=informational&&safeButton&&!forbidden.test(normalized)?1:0;
+  const duplicate=await env.DB.prepare("SELECT request_id,status FROM sb_radar_chrome_dialog_requests_v1 WHERE device_id=? AND fingerprint=? AND datetime(created_utc)>=datetime('now','-3 minutes') ORDER BY created_utc DESC LIMIT 1").bind(d.device_id,fingerprint).first();
+  if(duplicate)return reply({ok:true,request_id:duplicate.request_id,status:duplicate.status,clickable:!!clickable,duplicate:true},200,true);
+  const expires=new Date(Date.now()+180000).toISOString();
+  const ins=await env.DB.prepare("INSERT OR IGNORE INTO sb_radar_chrome_dialog_requests_v1(request_id,device_id,owner_username,tab_url,fingerprint,dialog_text,button_label,kind,clickable,expires_utc) VALUES(?,?,?,?,?,?,?,?,?,?)")
+    .bind(id,d.device_id,d.owner_username,url,fingerprint,message,label,kind,clickable,expires).run();
+  if(Number(ins.meta?.changes||0)===1){
+   await event(env,'CHROME_DIALOG_DETECTED',d.device_id,null,kind+' · '+label);
+   try{
+    const push=await env.FCM_DISPATCHER.sendChromeDialog({request_id:id,owner_username:d.owner_username,device_name:d.display_name,dialog_text:message,button_label:label,clickable:!!clickable});
+    await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET push_status=? WHERE request_id=?").bind(push?.sent>0?'sent':'unavailable',id).run();
+   }catch(e){await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET push_status='failed' WHERE request_id=?").bind(id).run().catch(()=>{});}
+  }
+  return reply({ok:true,request_id:id,status:'pending',clickable:!!clickable,expires_utc:expires},200,true);
+ }
+ if(path==='/api/chrome/dialog/poll'&&req.method==='GET'){
+  const d=await validDevice(req,env);
+  if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Neautorizat',403,true);
+  const row=await env.DB.prepare("SELECT request_id,fingerprint,tab_url,button_label,dialog_text FROM sb_radar_chrome_dialog_requests_v1 WHERE device_id=? AND owner_username=? AND clickable=1 AND status='approved' AND datetime(expires_utc)>datetime('now') ORDER BY approved_utc ASC LIMIT 1").bind(d.device_id,d.owner_username).first();
+  return reply({ok:true,request:row||null},200,true);
+ }
+ if(path==='/api/chrome/dialog/claim'&&req.method==='POST'){
+  const d=await validDevice(req,env);
+  if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Neautorizat',403,true);
+  const j=await read(req),id=String(j.request_id||''),fp=String(j.fingerprint||'');
+  if(!/^[a-zA-Z0-9-]{32,64}$/.test(id)||!/^[a-f0-9]{64}$/.test(fp))return err('ID invalid',400,true);
+  const change=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status='executing' WHERE request_id=? AND device_id=? AND owner_username=? AND fingerprint=? AND clickable=1 AND status='approved' AND datetime(expires_utc)>datetime('now')")
+   .bind(id,d.device_id,d.owner_username,fp).run();
+  return reply({ok:Number(change.meta?.changes||0)===1,claimed:Number(change.meta?.changes||0)===1},200,true);
+ }
+ if(path==='/api/chrome/dialog/result'&&req.method==='POST'){
+  const d=await validDevice(req,env);
+  if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Neautorizat',403,true);
+  const j=await read(req),id=String(j.request_id||''),clicked=j.clicked===true,reason=String(j.reason||'').slice(0,180);
+  if(!/^[a-zA-Z0-9-]{32,64}$/.test(id))return err('ID invalid',400,true);
+  const result=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status=?,clicked_utc=CASE WHEN ? THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE NULL END,last_error=? WHERE request_id=? AND device_id=? AND status='executing'")
+    .bind(clicked?'clicked':'failed',clicked?1:0,clicked?null:reason,id,d.device_id).run();
+  if(Number(result.meta?.changes||0)===1)await event(env,clicked?'CHROME_DIALOG_CLICKED':'CHROME_DIALOG_SKIPPED',d.device_id,null,id+' '+reason);
+  return reply({ok:Number(result.meta?.changes||0)===1},200,true);
+ }
+ if(path==='/api/chrome/admin/dialogs'&&req.method==='GET'){
+  const denied=await admin(req,env,authenticated);if(denied)return denied;
+  const rows=(await env.DB.prepare("SELECT r.request_id,r.device_id,d.display_name,d.device_kind,r.dialog_text,r.button_label,r.kind,r.clickable,r.status,r.created_utc,r.expires_utc,r.push_status FROM sb_radar_chrome_dialog_requests_v1 r JOIN sb_radar_chrome_devices_v1 d ON d.device_id=r.device_id WHERE datetime(r.created_utc)>=datetime('now','-24 hours') ORDER BY r.created_utc DESC LIMIT 40").all()).results||[];
+  return reply({ok:true,requests:rows.map(r=>({...r,expired:Date.parse(r.expires_utc)<Date.now()}))});
+ }
+ if((path==='/api/chrome/admin/dialog/approve'||path==='/api/chrome/admin/dialog/reject')&&req.method==='POST'){
+  const denied=await admin(req,env,authenticated);if(denied)return denied;
+  const j=await read(req),id=String(j.request_id||'');
+  if(!/^[a-zA-Z0-9-]{32,64}$/.test(id))return err('ID invalid',400);
+  const approve=path.endsWith('/approve');
+  const change=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status=?,approved_utc=CASE WHEN ? THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE NULL END WHERE request_id=? AND status='pending' AND datetime(expires_utc)>datetime('now') AND (?=0 OR clickable=1) AND EXISTS(SELECT 1 FROM sb_radar_chrome_devices_v1 d WHERE d.device_id=sb_radar_chrome_dialog_requests_v1.device_id AND d.pairing_status='active' AND d.enabled=1)")
+   .bind(approve?'approved':'rejected',approve?1:0,id,approve?1:0).run();
+  if(Number(change.meta?.changes||0)!==1)return err('Cererea a expirat, nu permite clic sau a fost soluționată deja',409);
+  await event(env,approve?'CHROME_DIALOG_USER_APPROVED':'CHROME_DIALOG_USER_REJECTED',null,null,id);
+  return reply({ok:true,status:approve?'approved':'rejected'});
+ }
+
  if(path==='/api/chrome/register'&&req.method==='POST'){
   const j=await read(req),user=String(j.username||'').trim().toLowerCase(),mail=String(j.email||'').trim().toLowerCase(),id=String(j.device_id||''),token=String(j.token||''),name=String(j.display_name||'').trim().slice(0,70);
   if(!isId(id)||!/^[a-f0-9]{64}$/.test(token)||!name||name.length<2)return err('Date dispozitiv invalide',400,true);
