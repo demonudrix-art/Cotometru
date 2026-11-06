@@ -38,7 +38,7 @@ export async function safeManualBet(req,env,who,slipDeviceFor,isOwner){
   stage='write-batch';
   const result=await env.DB.batch([
    env.DB.prepare("INSERT OR IGNORE INTO sb_radar_slip_guard_v1(owner_username,event_key,market,selection,client_ref,source,device_id) VALUES(?,?,'MATCH','ANY',?,'manual',?)").bind(owner,key,ref,device),
-   env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,boost_lei,potential_return_lei) SELECT ?,?,?,?,?,?,?,?,'OPEN',?,? WHERE EXISTS(SELECT 1 FROM sb_radar_slip_guard_v1 WHERE client_ref=?)").bind(ref,device,selection==='X'?eventId:null,fixture,amount,odds,at,boost,potential,ref)
+   env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,boost_lei,potential_return_lei) SELECT ?,?,?,?,?,?,?,?,'OPEN',?,? WHERE EXISTS(SELECT 1 FROM sb_radar_slip_guard_v1 WHERE client_ref=?)").bind(ref,device,selection==='X'?eventId:null,fixture,selection,amount,odds,at,boost,potential,ref)
   ]);
   if(Number(result[0]?.meta?.changes||0)!==1||Number(result[1]?.meta?.changes||0)!==1)return j({error:'Bilet duplicat; celălalt dispozitiv a rezervat primul.',duplicate:true},409);
   stage='read-confirmation';
