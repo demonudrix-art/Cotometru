@@ -61,6 +61,79 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   await env.DB.prepare('UPDATE sb_radar_chrome_devices_v1 SET last_heartbeat_utc=?,superbet_session_ok=?,last_error=?,install_version=? WHERE device_id=?').bind(now(),j.superbet_session_ok===true?1:0,String(j.last_error||'').slice(0,220),String(j.version||'').slice(0,25),d.device_id).run();
   return reply({ok:true,server_utc:now(),license_active:licenseValid(d),license_status:d.license_status||'NONE',license_expires_utc:d.expires_utc||null,execution_enabled:(await stateRow(env))?.value==='true'&&licenseValid(d)},200,true);
  }
+
+ if(path==='/api/chrome/job'&&req.method==='GET'){
+  const d=await validDevice(req,env);
+  if(!d)return err('Cheie dispozitiv invalidă',401,true);
+  if(d.pairing_status!=='active'||!d.enabled)return err('Calculator neaprobat',403,true);
+  if(!licenseValid(d))return reply({ok:true,job:null,reason:'LICENSE_INACTIVE'},200,true);
+  if((await stateRow(env))?.value!=='true')return reply({ok:true,job:null,reason:'AUTO_DISABLED'},200,true);
+  const raw=(await env.DB.prepare("SELECT a.event_id,a.fixture,a.triggered_utc,a.minute,a.home_score,a.away_score,a.gh,a.ga,a.dgh10,a.dga10,a.px FROM ghost_equal_alerts a WHERE a.stage='BET_NOW' AND a.source='SB_RADAR_GOLDEN_V2' AND a.minute=57 AND a.home_score=0 AND a.away_score=0 AND a.gh>=0.28 AND a.gh<0.30 AND a.ga>=0 AND a.ga<0.30 AND a.dgh10<=-0.009999 AND a.dga10<=-0.009999 AND a.px>1 AND datetime(a.triggered_utc)>=datetime('now','-100 seconds') AND NOT EXISTS(SELECT 1 FROM ghost_equal_red_exclusions e WHERE e.event_id=a.event_id) ORDER BY a.triggered_utc DESC LIMIT 12").all()).results||[];
+  for(const a of raw){
+   const eventId=String(a.event_id),purple=Number(a.px)>=2.05&&Number(a.px)<2.15;
+   const blocked=await env.DB.prepare("SELECT 1 FROM sb_radar_slip_guard_v1 WHERE owner_username=? AND event_key=? LIMIT 1").bind(d.owner_username,'event:'+eventId).first();
+   if(blocked)continue;
+   const category=purple?'strong-silver':'strong',stake=purple?75:50;
+   await env.DB.prepare("INSERT OR IGNORE INTO sb_radar_chrome_execution_claims_v1(owner_username,event_id,fixture,market,selection,signal_category,stake_lei,state,signal_utc,odd_x) VALUES(?, ?, ?,'FINAL','X',? ,? ,'pending',?,?)").bind(d.owner_username,eventId,a.fixture,category,stake,a.triggered_utc,a.px).run();
+  }
+  // Atomic acquisition: only one device can lease a pending/expired unsubmitted job.
+  const leased=(await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET device_id=?,state='leased',lease_expires_utc=datetime('now','+90 seconds'),updated_utc=? WHERE rowid=(SELECT rowid FROM sb_radar_chrome_execution_claims_v1 WHERE owner_username=? AND ((state='pending') OR (state IN ('leased','preparing') AND datetime(lease_expires_utc)<datetime('now'))) AND datetime(created_utc)>=datetime('now','-4 minutes') ORDER BY created_utc ASC LIMIT 1) RETURNING event_id,fixture,signal_category,stake_lei,odd_x,lease_expires_utc,client_ref").bind(d.device_id,now(),d.owner_username).all()).results||[])[0]||null;
+  if(!leased)return reply({ok:true,job:null,reason:'QUEUE_EMPTY'},200,true);
+  const key='event:'+leased.event_id;
+  let ref=leased.client_ref;
+  if(!ref){ref=crypto.randomUUID();await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET client_ref=? WHERE owner_username=? AND event_id=? AND device_id=? AND state='leased' AND client_ref IS NULL").bind(ref,d.owner_username,leased.event_id,d.device_id).run();}
+  const guard=await env.DB.prepare("INSERT OR IGNORE INTO sb_radar_slip_guard_v1(owner_username,event_key,market,selection,client_ref,source,device_id) VALUES(?,?,'MATCH','ANY',?,'chrome',?)").bind(d.owner_username,key,ref,d.device_id).run();
+  if(!Number(guard.meta?.changes||0)){
+   const exists=await env.DB.prepare("SELECT source,client_ref FROM sb_radar_slip_guard_v1 WHERE owner_username=? AND event_key=?").bind(d.owner_username,key).first();
+   if(!(exists?.source==='chrome'&&exists?.client_ref===ref)){
+    await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state='cancelled',failure_reason='SLIP_DUPLICATE',updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND state='leased'").bind(now(),d.owner_username,leased.event_id,d.device_id).run();
+    return reply({ok:true,job:null,reason:'DUPLICATE_GUARD'},200,true);
+   }
+  }
+  await event(env,'JOB_LEASED',d.device_id,leased.event_id);
+  return reply({ok:true,job:{event_id:leased.event_id,fixture:leased.fixture,category:leased.signal_category,stake_lei:leased.stake_lei,odd_x:leased.odd_x,lease_expires_utc:leased.lease_expires_utc,selection:'X',market:'FINAL'}},200,true);
+ }
+ if(path==='/api/chrome/submit-started'&&req.method==='POST'){
+  const d=await validDevice(req,env);if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Dispozitiv sau licență nevalidă',403,true);
+  if((await stateRow(env))?.value!=='true')return err('Execuția automată este oprită',409,true);
+  const j=await read(req),id=String(j.event_id||'');
+  if(!/^\d{4,20}$/.test(id))return err('Eveniment invalid',400,true);
+  const r=await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state='submitting',updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND state IN ('leased','preparing') AND datetime(lease_expires_utc)>datetime('now')").bind(now(),d.owner_username,id,d.device_id).run();
+  if(Number(r.meta?.changes||0)!==1)return err('Lease expirat sau rezervat de alt executor; nu trimite pariul',409,true);
+  await event(env,'BOOKMAKER_SUBMITTING',d.device_id,id);
+  return reply({ok:true,state:'submitting'},200,true);
+ }
+ if(path==='/api/chrome/confirm'&&req.method==='POST'){
+  const d=await validDevice(req,env);if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Dispozitiv sau licență nevalidă',403,true);
+  const j=await read(req),eventId=String(j.event_id||''),ticket=String(j.bookmaker_ticket_id||'').trim(),odds=Number(j.odds),evidence=String(j.evidence||'').trim();
+  if(!/^\d{4,20}$/.test(eventId)||!/^[A-Za-z0-9_-]{5,100}$/.test(ticket)||!Number.isFinite(odds)||odds<1.001||odds>10000||!['SUPERBET_ACCEPTED_TICKET','SUPERBET_MY_BETS_CONFIRMED'].includes(evidence))return err('Lipsește ID-ul de bilet și dovada acceptării Superbet',400,true);
+  const claim=await env.DB.prepare("SELECT event_id,fixture,stake_lei,signal_category,state,bookmaker_ticket_id,client_ref FROM sb_radar_chrome_execution_claims_v1 WHERE owner_username=? AND event_id=? AND device_id=?").bind(d.owner_username,eventId,d.device_id).first();
+  if(!claim)return err('Sarcină inexistentă la acest calculator',404,true);
+  if(claim.state==='placed'&&claim.bookmaker_ticket_id===ticket)return reply({ok:true,duplicate:true,state:'placed'},200,true);
+  if(!['submitting','unknown'].includes(claim.state))return err('Confirmarea este permisă numai după trimiterea reală a pariului',409,true);
+  const owner=await env.DB.prepare("SELECT p.device_id FROM sb_device_profiles p JOIN sb_admin a ON p.username=a.username AND a.id=1 JOIN ghost_equal_mobile_devices m ON m.device_id=p.device_id AND m.blocked=0 ORDER BY (SELECT COUNT(*) FROM ghost_equal_bets b WHERE b.device_id=p.device_id) DESC LIMIT 1").first();
+  if(!owner)return err('Nu există dispozitiv Slip Admin pentru sincronizare',503,true);
+  const ref=String(claim.client_ref||crypto.randomUUID()),at=now();
+  try{
+   await env.DB.batch([
+    env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state='placed',bookmaker_ticket_id=?,bookmaker_accepted_utc=?,accepted_evidence=?,odd_x=?,client_ref=?,updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND state IN ('submitting','unknown')").bind(ticket,at,evidence,odds,ref,at,d.owner_username,eventId,d.device_id),
+    env.DB.prepare("INSERT OR IGNORE INTO ghost_equal_bets(client_ref,device_id,event_id,fixture,selection,stake_lei,odds,placed_utc,status,potential_return_lei,notes) VALUES(?,?,?,?,?,?,?,?,'OPEN',?,?)").bind(ref,owner.device_id,Number(eventId),claim.fixture,'X',claim.stake_lei,odds,at,Math.round(claim.stake_lei*odds*100)/100,'BILET PLASAT AUTOMAT | Superbet '+ticket+' | '+claim.signal_category),
+    env.DB.prepare("INSERT OR IGNORE INTO sb_radar_auto_ticket_push_v1(ticket_id,device_id) SELECT ?,device_id FROM sb_radar_fcm_registry WHERE device_id IN (SELECT device_id FROM sb_owner_authorized_devices)").bind(ticket)
+   ]);
+  }catch(e){return err('Confirmarea nu poate fi scrisă. Nu repeta pariul; verifică biletul în Superbet.',503,true)}
+  await event(env,'AUTO_BET_PLACED',d.device_id,eventId,'Superbet #'+ticket+' • '+claim.stake_lei+' lei');
+  try{if(env.FCM_DISPATCHER&&typeof env.FCM_DISPATCHER.deliverAutoTicket==='function')await env.FCM_DISPATCHER.deliverAutoTicket({ticket_id:ticket});}catch(e){console.warn('AUTO_BET_FCM_PENDING',String(e).slice(0,130))}
+  return reply({ok:true,state:'placed',ticket_id:ticket,recorded_in_slip:true,notification_queued:true},200,true);
+ }
+ if(path==='/api/chrome/report-error'&&req.method==='POST'){
+  const d=await validDevice(req,env);if(!d)return err('Dispozitiv invalid',401,true);
+  const j=await read(req),id=String(j.event_id||''),reason=String(j.reason||'').slice(0,200);
+  if(!/^\d{4,20}$/.test(id))return err('Eveniment invalid',400,true);
+  await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state=CASE WHEN state='submitting' THEN 'unknown' ELSE 'failed' END,failure_reason=?,updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND state IN ('leased','preparing','submitting')").bind(reason,now(),d.owner_username,id,d.device_id).run();
+  await event(env,'EXECUTOR_ERROR',d.device_id,id,reason);
+  return reply({ok:true,action:'CHECK_SUPERBET_BEFORE_RETRY'},200,true);
+ }
+
  if(path==='/api/chrome/admin/status'&&req.method==='GET'){
   const denied=await admin(req,env,authenticated);if(denied)return denied;
   return reply({ok:true,...await state(env)});
