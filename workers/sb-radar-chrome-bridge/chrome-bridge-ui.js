@@ -28,6 +28,51 @@ return '<!doctype html><html lang="ro"><head><meta charset="utf-8"><meta name="v
 '</script></body></html>';
 }
 export function chromeBridgeRibbon(html){
- const snippet='<div id="sbr-chrome-status" style="position:relative;z-index:2;text-align:center;padding:5px 8px;background:#1a1019;border-bottom:1px solid #4c2b3e;color:#dbc0d5;font:600 11px system-ui"><a href="/chrome-bridge" style="color:inherit;text-decoration:none">◉ Chrome Bridge · <span id="sbr-chrome-online">verifică executori</span> · <span id="sbr-chrome-bet">Slip online</span></a></div><script>(function(){async function refresh(){try{const r=await fetch("/api/chrome/admin/status",{credentials:"same-origin"});if(!r.ok)return;const j=await r.json();const o=document.getElementById("sbr-chrome-online"),b=document.getElementById("sbr-chrome-bet");if(o)o.textContent=j.online+" / "+j.total+" online";if(b)b.textContent=j.execution_enabled?"AUTOMAT ACTIV":"AUTO OPRIT";}catch(e){}}refresh();setInterval(refresh,12000)})();</script>';
- return html.includes('<body>')?html.replace('<body>','<body>'+snippet):html;
+ const snippet = `<script>(function(){
+ let ready=false,lastAccepted=null;
+ const em=(tag,cls,txt)=>{const x=document.createElement(tag);if(cls)x.className=cls;if(txt!==undefined)x.textContent=txt;return x;};
+ function initialize(){
+  if(ready)return;const live=document.getElementById('live'),slip=document.getElementById('slip');
+  if(!live||!slip)return;ready=true;
+  const card=em('details','sbr-chrome-connect');
+  card.style.cssText='background:linear-gradient(125deg,#251127,#11131e);border:1px solid #51314f;border-radius:14px;padding:10px 13px;margin:10px 0;color:#f3ebf1;font:12px system-ui';
+  const summary=em('summary',null,'◉ Chrome Bridge • Se conectează...');
+  summary.style.cssText='font-size:12px;font-weight:750;cursor:pointer;list-style:none';card.append(summary);
+  const inner=em('div');inner.style.cssText='padding-top:10px;line-height:1.65;white-space:pre-line';inner.textContent='Verifică serverul…';card.append(inner);
+  live.insertBefore(card,live.firstChild);
+  const slipStatus=em('div',null,'◉ Chrome Bridge • nicio confirmare automată');
+  slipStatus.style.cssText='background:#211524;padding:9px;border-radius:9px;margin:7px 0 14px;font:12px system-ui;color:#c5aeca';slip.insertBefore(slipStatus,slip.firstChild);
+  async function poll(){
+   if(document.hidden)return;
+   try{
+    const token=(window.DrixNative&&typeof DrixNative.getToken==='function')?DrixNative.getToken():'';
+    if(!token){summary.textContent='◉ Chrome Bridge • Deschide în APK';return;}
+    const r=await fetch('/api/mobile/chrome-overview',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
+    if(!r.ok)throw Error('HTTP '+r.status);
+    const data=await r.json(),devices=Array.isArray(data.devices)?data.devices:[],tickets=Array.isArray(data.tickets)?data.tickets:[];
+    summary.textContent='◉ Chrome Bridge • '+data.online+'/'+data.total+' online • '+(data.execution_enabled?'EXECUȚIE ACTIVĂ':'AUTO OPRITĂ');
+    inner.replaceChildren();
+    const top=em('div',null,'EXECUTORI SB RADAR');top.style.fontWeight='700';inner.append(top);
+    for(const d of devices){const on=!!d.online,mark=on?'🟢':'🔴';inner.append(em('div',null,mark+' '+d.display_name+' · '+(on?'Online':'Offline')+' · '+(d.license_active?'Licență activă':'Fără licență activă')));}
+    if(!devices.length)inner.append(em('div',null,'Nu există extensii asociate. Admin → Chrome Bridge.'));
+    const newTitle=em('div',null,'BILETE AUTOMATE — REZUMAT');newTitle.style.cssText='margin-top:9px;font-weight:700';inner.append(newTitle);
+    for(const t of tickets.slice(0,8)){const placed=t.state==='placed';const item=em('div',null,(placed?'✅ BILET PLASAT AUTOMAT':'⏳ '+String(t.state||'').toUpperCase())+' • '+(t.fixture||'Meci')+' • '+t.stake_lei+' lei');inner.append(item);}
+    if(!tickets.length)inner.append(em('div',null,'Niciun bilet automat confirmat.'));
+    const confirmed=tickets.filter(x=>x.state==='placed');
+    slipStatus.textContent='◉ Chrome Bridge • '+confirmed.length+' bilete confirmate în ultimele înregistrări; apasă Home → Chrome Bridge pentru detalii';
+    if(confirmed.length){const newest=confirmed[0];const id=String(newest.bookmaker_ticket_id||newest.event_id);
+     if(lastAccepted!==null&&id!==lastAccepted){
+      const toast=em('div',null,'✅ BILET PLASAT AUTOMAT: '+newest.fixture+' · '+newest.stake_lei+' lei');
+      toast.style.cssText='position:fixed;z-index:99999;top:58px;left:10px;right:10px;padding:13px;background:#173d31;border:1px solid #53df9c;border-radius:12px;color:#fff;font:700 13px system-ui;box-shadow:0 12px 26px #0008';
+      document.body.append(toast);setTimeout(()=>toast.remove(),6500);
+      try{if(window.DrixNative&&typeof DrixNative.autoTicketPlaced==='function')DrixNative.autoTicketPlaced(id,String(newest.fixture||''),Number(newest.stake_lei)||0);}catch(e){}
+     }lastAccepted=id;
+    }
+   }catch(e){summary.textContent='◉ Chrome Bridge • Comunicare indisponibilă';inner.textContent='Nu se poate verifica statusul. '+String(e.message||'');}
+  }
+  poll();setInterval(poll,12000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll();});
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
+ })();</script>`;
+ return html.includes('</body>')?html.replace('</body>',snippet+'</body>'):html;
 }
