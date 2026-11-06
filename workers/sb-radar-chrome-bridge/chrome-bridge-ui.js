@@ -23,6 +23,22 @@ export function chromeBridgeRibbon(html){
     const r=await fetch('/api/mobile/chrome-overview',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
     if(!r.ok)throw Error('HTTP '+r.status);
     const data=await r.json(),devices=Array.isArray(data.devices)?data.devices:[],tickets=Array.isArray(data.tickets)?data.tickets:[];
+    // Only a verified SB Radar owner can access the overview. Show admin shortcuts in APK Profile.
+    const profile=document.getElementById('profile');
+    if(profile&&!profile.querySelector('.sbr-admin-shortcuts')){
+      const shortcuts=em('div','sbr-admin-shortcuts');
+      shortcuts.style.cssText='margin:10px 0 16px;padding:13px;border:1px solid #634779;border-radius:14px;background:linear-gradient(115deg,#29203c,#1a1b2c);font:13px system-ui';
+      const label=em('div',null,'ADMIN SB RADAR · LICENȚĂ UNICĂ');
+      label.style.cssText='font-size:11px;font-weight:800;letter-spacing:.09em;color:#dabaff;margin-bottom:8px';shortcuts.append(label);
+      const links=em('div');links.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
+      for(const [href,title] of [['/admin','Licențe & telefoane'],['/chrome-bridge','Calculatoare & extensii']]){
+        const anchor=em('a',null,title);anchor.href=href;
+        anchor.style.cssText='display:inline-block;background:#53366b;color:#fff;padding:10px 12px;border-radius:10px;text-decoration:none;font-weight:750';
+        links.append(anchor);
+      }
+      shortcuts.append(links,em('div',null,'Orice PC aprobat folosește aceeași licență SB Radar, fără taxă separată.'));
+      profile.insertBefore(shortcuts,profile.firstChild);
+    }
     summary.textContent='◉ Chrome Bridge • '+data.online+'/'+data.total+' online • '+(data.execution_enabled?'EXECUȚIE ACTIVĂ':'AUTO OPRITĂ');
     inner.replaceChildren();
     const top=em('div',null,'EXECUTORI SB RADAR');top.style.fontWeight='700';inner.append(top);
