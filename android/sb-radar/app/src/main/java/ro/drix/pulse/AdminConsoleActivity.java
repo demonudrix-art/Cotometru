@@ -1,84 +1,393 @@
 package ro.drix.pulse;
-import android.app.*;import android.content.*;import android.os.*;import android.graphics.*;import android.graphics.drawable.*;import android.view.*;import android.webkit.CookieManager;import android.widget.*;import android.text.InputType;
-import org.json.*;import java.net.*;import java.io.*;import java.nio.charset.StandardCharsets;import java.util.UUID;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.CookieManager;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.TimeZone;
+
+/**
+ * Native SB Radar Admin — v2.3.22.
+ * Chrome computers inherit the SB Radar account license from the server.
+ * Approval still requires a one-time pairing code in the authenticated Admin.
+ * No Chrome-specific payments, pricing or license revocation are exposed here.
+ */
 public final class AdminConsoleActivity extends Activity {
- static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
- static final int BG=0xff100c13,CARD=0xff241a29,WHITE=0xfff7edf5,SOFT=0xffb7abba,RED=0xffe62d50,GREEN=0xff69e7a5;
- LinearLayout root,login,body,pcList,androidList,claimsList;TextView message;EditText user,pass;
- Handler timer=new Handler(Looper.getMainLooper());boolean running=false,busy=false,logged=false;
- Runnable ticker=new Runnable(){public void run(){if(running&&logged&&!busy)refresh();if(running)timer.postDelayed(this,15000);}};
- GradientDrawable bg(int color){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(13*getResources().getDisplayMetrics().density);return d;}
- TextView text(String s,int sp,int c){TextView x=new TextView(this);x.setText(s);x.setTextSize(sp);x.setTextColor(c);x.setPadding(8,7,8,7);return x;}
- LinearLayout col(){LinearLayout x=new LinearLayout(this);x.setOrientation(1);return x;}
- void append(LinearLayout to,View v){to.addView(v,new LinearLayout.LayoutParams(-1,-2));}
- void card(LinearLayout to,LinearLayout card){card.setPadding(13,12,13,12);card.setBackground(bg(CARD));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,7,0,9);to.addView(card,p);}
- Button btn(String s,Runnable run){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextColor(WHITE);b.setTextSize(12);b.setBackground(bg(RED));b.setOnClickListener(v->run.run());return b;}
- EditText field(String hint,String value,boolean secret){EditText x=new EditText(this);x.setSingleLine(true);x.setHint(hint);x.setTextSize(15);x.setTextColor(WHITE);x.setHintTextColor(SOFT);x.setInputType(secret?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_CLASS_TEXT);x.setText(value);return x;}
- JSONObject obj(Object... pairs){JSONObject j=new JSONObject();try{for(int i=0;i+1<pairs.length;i+=2)j.put((String)pairs[i],pairs[i+1]);}catch(Exception ignored){}return j;}
- void note(String s){message.setText(s);}
- interface Callback{void done(JSONObject j);}
- void work(java.util.concurrent.Callable<JSONObject> fn,Callback cb){if(busy)return;busy=true;new Thread(()->{JSONObject data=null;Exception err=null;try{data=fn.call();}catch(Exception e){err=e;}final JSONObject result=data;final Exception error=err;runOnUiThread(()->{busy=false;if(error!=null){note("Server: "+error.getMessage());return;}cb.done(result);});},"SBR-Admin").start();}
- JSONObject api(String path,JSONObject payload)throws Exception{
-  HttpURLConnection c=(HttpURLConnection)new URL(BASE+path).openConnection();c.setConnectTimeout(11000);c.setReadTimeout(11000);c.setRequestProperty("Accept","application/json");
-  String cookie=CookieManager.getInstance().getCookie(BASE);if(cookie!=null)c.setRequestProperty("Cookie",cookie);
-  if(payload!=null){c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Origin",BASE);c.setRequestProperty("Content-Type","application/json");try(OutputStream o=c.getOutputStream()){o.write(payload.toString().getBytes(StandardCharsets.UTF_8));}}
-  int status=c.getResponseCode();String sc=c.getHeaderField("Set-Cookie");if(sc!=null&&sc.contains("sbr_session=")){CookieManager.getInstance().setCookie(BASE,sc);CookieManager.getInstance().flush();}
-  InputStream in=status>=200&&status<300?c.getInputStream():c.getErrorStream();StringBuilder sb=new StringBuilder();if(in!=null)try(BufferedReader r=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8))){String line;while((line=r.readLine())!=null)sb.append(line);}
-  c.disconnect();JSONObject j=new JSONObject(sb.length()==0?"{}":sb.toString());if(status<200||status>=300)throw new IOException(j.optString("error","HTTP "+status));return j;
- }
- void viewState(boolean ok){logged=ok;login.setVisibility(ok?View.GONE:View.VISIBLE);body.setVisibility(ok?View.VISIBLE:View.GONE);}
- void call(String path,JSONObject payload){work(()->api(path,payload),j->{note("Modificarea a fost salvată în Cloudflare.");refresh();});}
- void confirm(String title,String description,Runnable action){new AlertDialog.Builder(this).setTitle(title).setMessage(description).setNegativeButton("Renunță",null).setPositiveButton("Confirm",(d,w)->action.run()).show();}
- @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
-  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setBackgroundColor(BG);root=col();root.setPadding(14,15,14,35);scroll.addView(root);setContentView(scroll);
-  append(root,text("SB RADAR • ADMIN",24,WHITE));append(root,btn("← Înapoi în SB Radar",this::finish));message=text("Se verifică sesiunea…",12,SOFT);append(root,message);
-  login=col();card(root,login);append(login,text("Autentificare administrator",17,WHITE));user=field("Utilizator","drix",false);pass=field("Parolă Admin","",true);append(login,user);append(login,pass);
-  append(login,btn("Autentifică-te",()->work(()->api("/api/admin/login",obj("username",user.getText().toString().trim(),"password",pass.getText().toString())),j->{pass.setText("");viewState(true);refresh();})));
-  body=col();append(root,body);append(body,btn("Reîmprospătează toate licențele",this::refresh));append(body,btn("Deconectează Admin",()->call("/api/admin/logout",obj())));
-  append(body,text("EXECUTORI CHROME • LICENȚE",18,WHITE));pcList=col();append(body,pcList);
-  append(body,text("ANDROID • LICENȚE",18,WHITE));androidList=col();append(body,androidList);
-  append(body,text("SLIP • BILETE AUTOMATE",18,WHITE));claimsList=col();append(body,claimsList);
-  LinearLayout billing=col();card(body,billing);append(billing,text("ABONAMENTE ȘI PLĂȚI",16,WHITE));append(billing,text("Planurile existente: lunar 39 lei și anual 349 lei. Stripe este în modul TEST: nu încasa plăți reale. Licențele Chrome se pot tarifa individual prin Admin.",12,SOFT));
-  viewState(false);work(()->api("/api/admin/state",null),j->{viewState(j.optBoolean("authenticated"));if(logged)refresh();else note("Autentifică-te cu contul Admin existent.");});
- }
- void refresh(){if(!logged||busy)return;work(()->{JSONObject j=new JSONObject();j.put("pc",api("/api/chrome/admin/devices",null));j.put("android",api("/api/admin/devices",null));j.put("slip",api("/api/chrome/admin/claims",null));return j;},this::render);}
- void render(JSONObject data){
-  JSONObject pcs=data.optJSONObject("pc"),android=data.optJSONObject("android"),slip=data.optJSONObject("slip");if(pcs==null||android==null||slip==null)return;
-  note("SB Radar online • "+pcs.optInt("online")+"/"+pcs.optInt("total")+" calculatoare conectate • Automatizare "+(pcs.optBoolean("execution_enabled")?"ACTIVĂ":"OPRITĂ"));
-  pcList.removeAllViews();JSONArray array=pcs.optJSONArray("devices");if(array==null||array.length()==0)append(pcList,text("Nicio extensie conectată. Instalează Chrome Bridge v0.6 și aprobă codul aici.",12,SOFT));
-  if(array!=null)for(int i=0;i<array.length();i++){JSONObject p=array.optJSONObject(i);if(p!=null)device(p);}
-  androidList.removeAllViews();JSONArray phones=android.optJSONArray("devices");if(phones!=null)for(int i=0;i<phones.length();i++){JSONObject p=phones.optJSONObject(i);if(p!=null)phone(p);}
-  claimsList.removeAllViews();JSONArray bets=slip.optJSONArray("claims");if(bets==null||bets.length()==0)append(claimsList,text("Încă nu există bilete automate confirmate.",12,SOFT));
-  if(bets!=null)for(int i=0;i<Math.min(15,bets.length());i++){JSONObject p=bets.optJSONObject(i);if(p==null)continue;LinearLayout c=col();append(c,text(("placed".equals(p.optString("state"))?"✅ BILET PLASAT AUTOMAT":"⏳ "+p.optString("state").toUpperCase())+" • "+p.optString("fixture","Meci"),13,WHITE));append(c,text(p.optDouble("stake_lei")+" lei • "+p.optString("signal_category")+" • "+p.optString("bookmaker_ticket_id","Neconfirmat"),12,SOFT));card(claimsList,c);}
- }
- void device(JSONObject d){
-  String id=d.optString("device_id"),name=d.optString("display_name"),state=d.optString("pairing_status");LinearLayout c=col();
-  append(c,text((d.optBoolean("online")?"🟢 ":"🔴 ")+name,16,WHITE));append(c,text(state.toUpperCase()+" • "+d.optString("owner_username")+" • "+(d.optInt("superbet_session_ok")==1?"Superbet OK":"Superbet neconfirmat"),11,SOFT));
-  append(c,text("Licență: "+(d.optBoolean("license_active")?"ACTIVĂ":"INACTIVĂ")+" • "+d.optDouble("monthly_price_lei")+" lei/"+d.optString("billing_cycle","monthly")+" • "+d.optString("expires_utc","fără expirare"),11,SOFT));
-  if("pending".equals(state)){EditText code=field("Codul de 6 cifre","",false);code.setInputType(InputType.TYPE_CLASS_NUMBER);append(c,code);append(c,btn("Aprobă extensia",()->{String x=code.getText().toString().trim();if(!x.matches("[0-9]{6}")){note("Codul trebuie să aibă 6 cifre");return;}call("/api/chrome/admin/approve",obj("device_id",id,"code",x));}));}
-  if("active".equals(state)){
-   append(c,btn("Configurează prețul",()->plan(d)));
-   append(c,btn("Înregistrează încasare / gratuit",()->pay(d)));
-   append(c,btn("Revocă licența",()->confirm("Revocă licența",name,()->call("/api/chrome/admin/license-revoke",obj("device_id",id)))));
-   append(c,btn("Revocă calculatorul",()->confirm("Dezactivează extensia",name,()->call("/api/chrome/admin/revoke",obj("device_id",id)))));
-  }card(pcList,c);
- }
- void plan(JSONObject d){String id=d.optString("device_id");LinearLayout fields=col();fields.setPadding(15,0,15,0);
-  EditText plan=field("Nume plan",d.optString("plan_name","Personalizat"),false),price=field("Preț lei/ciclu",String.valueOf(d.optDouble("monthly_price_lei",0)),false);
-  price.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);append(fields,plan);append(fields,price);
-  new AlertDialog.Builder(this).setTitle("Plan pentru "+d.optString("display_name")).setView(fields).setNeutralButton("Anual",(x,w)->savePlan(id,plan,price,"yearly")).setNegativeButton("Renunță",null).setPositiveButton("Lunar",(x,w)->savePlan(id,plan,price,"monthly")).show();
- }
- void savePlan(String id,EditText plan,EditText price,String cycle){try{double x=Double.parseDouble(price.getText().toString().replace(',','.'));if(x<0)throw new Exception();call("/api/chrome/admin/license-plan",obj("device_id",id,"plan_name",plan.getText().toString(),"price_lei",x,"billing_cycle",cycle));}catch(Exception e){note("Preț invalid.");}}
- void pay(JSONObject d){String id=d.optString("device_id");LinearLayout fields=col();fields.setPadding(15,0,15,0);EditText amount=field("Sumă încasată (0 = gratuit)",String.valueOf(d.optDouble("monthly_price_lei",0)),false);append(fields,amount);
-  EditText days=field("Zile gratuite dacă suma = 0","30",false);append(fields,days);append(fields,text("Înregistrează numai bani deja încasați. Nu debitează clientul.",11,SOFT));
-  new AlertDialog.Builder(this).setTitle("Licență "+d.optString("display_name")).setView(fields).setNegativeButton("Anulează",null).setPositiveButton("Înregistrează",(x,w)->{try{double a=Double.parseDouble(amount.getText().toString().replace(',','.'));int n=Integer.parseInt(days.getText().toString());if(a<0||n<1||n>3660)throw new Exception();confirm("Confirmare",a==0?"Acorzi "+n+" zile gratuite?":"Confirmi încasarea reală de "+a+" lei?",()->call("/api/chrome/admin/license-payment",obj("device_id",id,"amount_lei",a,"free_days",n,"payment_reference","manual-"+UUID.randomUUID())));}catch(Exception e){note("Date plată invalide.");}}).show();
- }
- void phone(JSONObject p){String id=p.optString("device_id"),who=p.optString("profile_username",p.optString("model","Telefon"));LinearLayout c=col();
-  append(c,text("📱 "+who,15,WHITE));append(c,text("Licență: "+p.optString("license_status","PENDING")+" • Expiră: "+p.optString("expires_utc","—"),11,SOFT));
-  append(c,btn("Acordă 1 lună",()->confirm("Licență Android",who,()->call("/api/admin/license",obj("device_id",id,"count",1,"unit","month")))));
-  append(c,btn("Revocă licența",()->confirm("Revocare Android",who,()->call("/api/admin/revoke",obj("device_id",id)))));
-  card(androidList,c);
- }
- @Override protected void onResume(){super.onResume();running=true;timer.removeCallbacks(ticker);timer.postDelayed(ticker,15000);}
- @Override protected void onPause(){super.onPause();running=false;timer.removeCallbacks(ticker);}
+    static final String BASE = "https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
+    static final int BG=0xFF0F0B17, PANEL=0xFF211B2D, PANEL_HI=0xFF30233F, WHITE=0xFFF8F2FF,
+        MUTED=0xFFB6A9C3, STROKE=0xFF51415F, PURPLE=0xFFA75BE0, PURPLE_LIGHT=0xFFD8B1FF,
+        RED=0xFFFA5878, GREEN=0xFF66E5B3, AMBER=0xFFFFD18A, TILE=0xFF171321;
+    LinearLayout root, loginPanel, dashboard, pcList, phoneList, betsList, tabsRow, sectionPC, sectionPhones, sectionBets;
+    TextView feedback, serverStatus, ownerLicense, ownerExpiry, pcCount, phoneCount, betCount;
+    TextView[] tabs=new TextView[3];
+    EditText username, password;
+    final Handler timer=new Handler(Looper.getMainLooper());
+    boolean running=false, busy=false, logged=false;
+    int selectedTab=0;
+    String expandedPc="", expandedPhone="";
+    final Runnable ticker=new Runnable(){
+        @Override public void run(){if(running&&logged&&!busy)refresh();if(running)timer.postDelayed(this,15000);}
+    };
+
+    int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
+    GradientDrawable shape(int fill,int border,float radius){
+        GradientDrawable d=new GradientDrawable();d.setColor(fill);d.setCornerRadius(dp(radius));
+        if(border!=0)d.setStroke(dp(1),border);return d;
+    }
+    GradientDrawable gradient(int top,int bottom,int border,float radius){
+        GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{top,bottom});
+        d.setCornerRadius(dp(radius));if(border!=0)d.setStroke(dp(1),border);return d;
+    }
+    LinearLayout vertical(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
+    LinearLayout horizontal(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.HORIZONTAL);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
+    void add(LinearLayout parent,View child){parent.addView(child,new LinearLayout.LayoutParams(-1,ViewGroup.LayoutParams.WRAP_CONTENT));}
+    void space(LinearLayout parent,int height){View v=new View(this);parent.addView(v,new LinearLayout.LayoutParams(1,dp(height)));}
+    void padding(View v,int a,int b,int c,int d){v.setPadding(dp(a),dp(b),dp(c),dp(d));}
+    TextView label(String value,int size,int color,boolean bold){
+        TextView t=new TextView(this);t.setText(value);t.setTextColor(color);t.setTextSize(size);
+        t.setGravity(Gravity.CENTER_VERTICAL);t.setIncludeFontPadding(true);
+        if(bold)t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return t;
+    }
+    TextView chip(String value,int color){
+        TextView t=label(value,11,color,true);padding(t,9,5,9,5);
+        t.setBackground(shape(PANEL_HI,color==GREEN?0xFF356F61:STROKE,40));return t;
+    }
+    LinearLayout panel(LinearLayout into,boolean featured){
+        LinearLayout card=vertical();padding(card,15,15,15,15);
+        card.setBackground(featured?gradient(0xFF352343,0xFF1A1B2A,0xFF72548D,18):shape(PANEL,STROKE,17));
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);
+        params.setMargins(0,dp(7),0,dp(8));into.addView(card,params);return card;
+    }
+    TextView action(String value,boolean main,Runnable onClick){
+        TextView t=label(value,13,WHITE,true);t.setGravity(Gravity.CENTER);
+        padding(t,12,10,12,10);t.setMinHeight(dp(42));
+        GradientDrawable background=main?gradient(0xFF9553DB,0xFFBA4DA4,0,12):shape(0xFF31273E,0xFF6C527B,12);
+        t.setBackground(new RippleDrawable(ColorStateList.valueOf(0x55FFFFFF),background,null));
+        t.setOnClickListener(v->onClick.run());t.setClickable(true);t.setFocusable(true);return t;
+    }
+    void rowAction(LinearLayout into,String value,boolean main,Runnable fn){
+        TextView t=action(value,main,fn);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);
+        p.topMargin=dp(8);into.addView(t,p);
+    }
+    EditText field(String hint,String defaultValue,boolean secret){
+        EditText e=new EditText(this);e.setSingleLine(true);e.setHint(hint);
+        e.setTextSize(14);e.setTextColor(WHITE);e.setHintTextColor(MUTED);
+        e.setBackground(shape(TILE,STROKE,11));padding(e,12,10,12,10);
+        e.setInputType(secret?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_CLASS_TEXT);
+        e.setText(defaultValue);return e;
+    }
+    JSONObject json(Object... values){
+        JSONObject r=new JSONObject();try{for(int i=0;i+1<values.length;i+=2)r.put((String)values[i],values[i+1]);}catch(Exception ignored){}return r;
+    }
+    String timestamp(String raw){
+        if(raw==null||raw.length()<10)return "—";
+        try{
+            SimpleDateFormat parse=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss",Locale.US);parse.setTimeZone(TimeZone.getTimeZone("UTC"));
+            Date time=parse.parse(raw.substring(0,Math.min(19,raw.length())));
+            SimpleDateFormat format=new SimpleDateFormat("dd MMM yyyy, HH:mm",new Locale("ro","RO"));
+            format.setTimeZone(TimeZone.getTimeZone("Europe/Bucharest"));return format.format(time);
+        }catch(Exception ignored){return raw.length()>16?raw.substring(0,16):raw;}
+    }
+    interface Callback{void onSuccess(JSONObject data);}
+    void request(java.util.concurrent.Callable<JSONObject> call,Callback callback){
+        if(busy)return;busy=true;
+        new Thread(()->{
+            JSONObject data=null;Exception exception=null;
+            try{data=call.call();}catch(Exception e){exception=e;}
+            final JSONObject result=data;final Exception error=exception;
+            runOnUiThread(()->{
+                busy=false;
+                if(error!=null){notify("Eroare conexiune: "+error.getMessage(),true);return;}
+                callback.onSuccess(result);
+            });
+        },"SBR-Admin-Native").start();
+    }
+    JSONObject api(String endpoint,JSONObject payload)throws Exception{
+        HttpURLConnection c=(HttpURLConnection)new URL(BASE+endpoint).openConnection();
+        c.setConnectTimeout(11000);c.setReadTimeout(11000);
+        c.setRequestProperty("Accept","application/json");
+        String cookie=CookieManager.getInstance().getCookie(BASE);
+        if(cookie!=null)c.setRequestProperty("Cookie",cookie);
+        if(payload!=null){
+            c.setRequestMethod("POST");c.setDoOutput(true);
+            c.setRequestProperty("Origin",BASE);c.setRequestProperty("Content-Type","application/json");
+            try(OutputStream out=c.getOutputStream()){out.write(payload.toString().getBytes(StandardCharsets.UTF_8));}
+        }
+        int status=c.getResponseCode();String session=c.getHeaderField("Set-Cookie");
+        if(session!=null&&session.contains("sbr_session=")){
+            CookieManager.getInstance().setCookie(BASE,session);CookieManager.getInstance().flush();
+        }
+        InputStream input=status>=200&&status<300?c.getInputStream():c.getErrorStream();
+        StringBuilder response=new StringBuilder();
+        if(input!=null)try(BufferedReader r=new BufferedReader(new InputStreamReader(input,StandardCharsets.UTF_8))){
+            String line;while((line=r.readLine())!=null)response.append(line);
+        }
+        c.disconnect();
+        JSONObject result=new JSONObject(response.length()==0?"{}":response.toString());
+        if(status<200||status>=300)throw new IOException(result.optString("error","HTTP "+status));
+        return result;
+    }
+    void notify(String value,boolean warning){
+        feedback.setText(value);feedback.setTextColor(warning?AMBER:MUTED);
+        feedback.setVisibility(value.isEmpty()?View.GONE:View.VISIBLE);
+    }
+    void state(boolean active){
+        logged=active;loginPanel.setVisibility(active?View.GONE:View.VISIBLE);
+        dashboard.setVisibility(active?View.VISIBLE:View.GONE);
+    }
+    void mutate(String endpoint,JSONObject payload,String success){
+        request(()->api(endpoint,payload),response->{
+            notify(success,false);
+            if(endpoint.equals("/api/admin/logout"))state(false);else refresh();
+        });
+    }
+    void confirm(String title,String description,Runnable run){
+        new AlertDialog.Builder(this).setTitle(title).setMessage(description)
+            .setNegativeButton("Anulează",null)
+            .setPositiveButton("Confirmă",(dialog,which)->run.run()).show();
+    }
+    TextView addCount(LinearLayout to,String title){
+        LinearLayout tile=vertical();padding(tile,11,9,11,9);tile.setBackground(shape(TILE,STROKE,12));
+        TextView number=label("—",22,WHITE,true);add(tile,number);add(tile,label(title,10,MUTED,false));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);p.setMargins(dp(3),0,dp(3),0);to.addView(tile,p);
+        return number;
+    }
+    @Override public void onCreate(Bundle bundle){
+        super.onCreate(bundle);
+        getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
+        ScrollView scrolling=new ScrollView(this);scrolling.setFillViewport(true);scrolling.setBackgroundColor(BG);
+        root=vertical();padding(root,15,16,15,36);scrolling.addView(root);setContentView(scrolling);
+
+        LinearLayout header=horizontal();
+        TextView back=action("‹",false,this::finish);
+        back.setTextSize(24);back.setMinWidth(dp(43));header.addView(back);
+        LinearLayout brand=vertical();padding(brand,11,0,0,0);
+        add(brand,label("SB RADAR  /  ADMIN",17,WHITE,true));
+        add(brand,label("Controlul licențelor și calculatoarelor",11,MUTED,false));
+        header.addView(brand,new LinearLayout.LayoutParams(0,-2,1));add(root,header);
+        space(root,12);
+        feedback=label("",12,MUTED,false);feedback.setVisibility(View.GONE);add(root,feedback);
+
+        loginPanel=vertical();LinearLayout loginCard=panel(loginPanel,true);
+        add(loginCard,label("Administrator",19,WHITE,true));
+        add(loginCard,label("Folosește contul Admin existent. Nu este nevoie de o a doua licență.",12,MUTED,false));
+        space(loginCard,13);username=field("Utilizator","drix",false);add(loginCard,username);
+        space(loginCard,9);password=field("Parolă Admin","",true);add(loginCard,password);
+        rowAction(loginCard,"Conectează-te",true,()->request(
+            ()->api("/api/admin/login",json("username",username.getText().toString().trim(),"password",password.getText().toString())),
+            j->{password.setText("");state(true);refresh();}
+        ));
+        add(root,loginPanel);
+
+        dashboard=vertical();add(root,dashboard);
+        LinearLayout info=panel(dashboard,true);
+        LinearLayout top=horizontal();
+        LinearLayout left=vertical();add(left,label("CENTRU DE CONTROL",11,PURPLE_LIGHT,true));
+        serverStatus=label("Se verifică serverul...",17,WHITE,true);add(left,serverStatus);
+        top.addView(left,new LinearLayout.LayoutParams(0,-2,1));
+        top.addView(chip("● LIVE",GREEN));add(info,top);
+        space(info,10);
+        ownerLicense=label("O singură licență SB Radar",17,GREEN,true);add(info,ownerLicense);
+        ownerExpiry=label("Calculatoarele Chrome sunt incluse în abonament.",12,MUTED,false);add(info,ownerExpiry);
+        space(info,8);
+        add(info,label("Niciun tarif separat pentru extensii. Fiecare calculator nou se aprobă securizat cu un cod.",12,MUTED,false));
+
+        LinearLayout stats=horizontal();padding(stats,0,7,0,9);
+        pcCount=addCount(stats,"Calculatoare");phoneCount=addCount(stats,"Telefoane");betCount=addCount(stats,"Bilete");add(dashboard,stats);
+
+        LinearLayout toolbar=horizontal();
+        TextView reload=action("↻  Actualizează",false,this::refresh);
+        toolbar.addView(reload,new LinearLayout.LayoutParams(0,-2,1));
+        TextView signOut=action("Deconectare",false,()->
+            confirm("Deconectare Admin","Ieși din administrare pe acest telefon?",()->
+                mutate("/api/admin/logout",json(),"Deconectat.")));
+        LinearLayout.LayoutParams signParams=new LinearLayout.LayoutParams(0,-2,1);
+        signParams.leftMargin=dp(8);toolbar.addView(signOut,signParams);add(dashboard,toolbar);
+        space(dashboard,15);
+        tabsRow=horizontal();add(dashboard,tabsRow);
+        String[] titles={"Calculatoare","Telefoane","Bilete"};
+        for(int i=0;i<3;i++){
+            final int id=i;TextView t=action(titles[i],false,()->switchTab(id));t.setTextSize(12);
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.setMargins(dp(2),0,dp(2),0);
+            tabsRow.addView(t,lp);tabs[i]=t;
+        }
+        space(dashboard,10);
+
+        sectionPC=vertical();add(dashboard,sectionPC);
+        add(sectionPC,label("CALCULATOARE & EXTENSII",13,PURPLE_LIGHT,true));
+        add(sectionPC,label("Un singur abonament. PC-uri nelimitate înregistrate, cu aprobare individuală.",12,MUTED,false));
+        pcList=vertical();add(sectionPC,pcList);
+
+        sectionPhones=vertical();add(dashboard,sectionPhones);
+        add(sectionPhones,label("TELEFOANE ANDROID",13,PURPLE_LIGHT,true));
+        add(sectionPhones,label("Administrează separat accesul telefoanelor de utilizatori. Extensiile nu au abonament propriu.",12,MUTED,false));
+        phoneList=vertical();add(sectionPhones,phoneList);
+
+        sectionBets=vertical();add(dashboard,sectionBets);
+        add(sectionBets,label("BILETE • CHROME BRIDGE",13,PURPLE_LIGHT,true));
+        add(sectionBets,label("Un bilet este confirmat numai după acceptarea Superbet și recuperarea identificatorului.",12,MUTED,false));
+        betsList=vertical();add(sectionBets,betsList);
+
+        LinearLayout footer=panel(dashboard,false);
+        add(footer,label("Abonamente SB Radar",14,WHITE,true));
+        add(footer,label("Lunar 39 lei · Anual 349 lei. Extensiile Chrome sunt incluse în licența contului. Stripe este încă în modul TEST; nu înregistra plăți reale aici.",11,MUTED,false));
+        switchTab(0);state(false);
+        request(()->api("/api/admin/state",null),j->{
+            state(j.optBoolean("authenticated"));
+            if(logged)refresh();else notify("Autentifică-te pentru a administra SB Radar.",false);
+        });
+    }
+    void switchTab(int id){
+        selectedTab=id;
+        for(int i=0;i<tabs.length;i++){
+            tabs[i].setBackground(shape(i==id?0xFF603779:0xFF282033,i==id?PURPLE:STROKE,12));
+            tabs[i].setTextColor(i==id?WHITE:MUTED);
+        }
+        sectionPC.setVisibility(id==0?View.VISIBLE:View.GONE);
+        sectionPhones.setVisibility(id==1?View.VISIBLE:View.GONE);
+        sectionBets.setVisibility(id==2?View.VISIBLE:View.GONE);
+    }
+    void refresh(){
+        if(!logged||busy)return;
+        request(()->{
+            JSONObject data=new JSONObject();
+            data.put("chrome",api("/api/chrome/admin/devices",null));
+            data.put("android",api("/api/admin/devices",null));
+            data.put("bets",api("/api/chrome/admin/claims",null));
+            return data;
+        },this::render);
+    }
+    void render(JSONObject response){
+        JSONObject chrome=response.optJSONObject("chrome"),android=response.optJSONObject("android"),bets=response.optJSONObject("bets");
+        if(chrome==null||android==null||bets==null){notify("Răspuns incomplet de la server.",true);return;}
+        JSONArray pcs=chrome.optJSONArray("devices"),phones=android.optJSONArray("devices"),claims=bets.optJSONArray("claims");
+        int connected=chrome.optInt("online"),total=chrome.optInt("total");
+        serverStatus.setText("SB Radar online · "+connected+"/"+total+" PC");
+        pcCount.setText(String.valueOf(total));phoneCount.setText(String.valueOf(phones==null?0:phones.length()));
+        int placed=0; if(claims!=null)for(int i=0;i<claims.length();i++){JSONObject x=claims.optJSONObject(i);if(x!=null&&"placed".equals(x.optString("state")))placed++;}
+        betCount.setText(String.valueOf(placed));
+        JSONObject lic=chrome.optJSONObject("account_license");
+        boolean active=lic!=null&&lic.optBoolean("active");
+        ownerLicense.setText(active?"● Licență SB Radar activă":"● Verifică licența SB Radar");
+        ownerLicense.setTextColor(active?GREEN:AMBER);
+        ownerExpiry.setText(active?"Valabilă până la "+timestamp(lic.optString("expires_utc"))+" · Chrome inclus":"Extensiile moștenesc licența activă a contului, fără plată pe PC.");
+        tabs[0].setText("PC "+total);tabs[1].setText("Android "+(phones==null?0:phones.length()));tabs[2].setText("Bilete "+placed);
+        pcList.removeAllViews();
+        if(pcs==null||pcs.length()==0){
+            LinearLayout card=panel(pcList,false);add(card,label("Niciun calculator asociat",15,WHITE,true));
+            add(card,label("Instalează Chrome Bridge, introdu utilizatorul și emailul, apoi aprobă codul de 6 cifre din acest ecran.",12,MUTED,false));
+        }else for(int i=0;i<pcs.length();i++){JSONObject p=pcs.optJSONObject(i);if(p!=null)renderPC(p);}
+        phoneList.removeAllViews();
+        if(phones==null||phones.length()==0)add(phoneList,label("Nu există telefoane înregistrate.",12,MUTED,false));
+        else for(int i=0;i<phones.length();i++){JSONObject p=phones.optJSONObject(i);if(p!=null)renderPhone(p);}
+        betsList.removeAllViews();
+        if(claims==null||claims.length()==0)add(betsList,label("Nu există bilete automate recente.",12,MUTED,false));
+        else for(int i=0;i<Math.min(25,claims.length());i++){JSONObject p=claims.optJSONObject(i);if(p!=null)renderTicket(p);}
+    }
+    void renderPC(JSONObject d){
+        String id=d.optString("device_id"),name=d.optString("display_name","Calculator");
+        String status=d.optString("pairing_status"),version=d.optString("install_version","?");
+        boolean online=d.optBoolean("online"),licensed=d.optBoolean("license_active");
+        LinearLayout card=panel(pcList,false),title=horizontal();
+        TextView heading=label((online?"● ":"● ")+name,17,online?GREEN:MUTED,true);
+        title.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
+        title.addView(chip("pending".equals(status)?"DE APROBAT":online?"ONLINE":"OFFLINE","pending".equals(status)?AMBER:online?GREEN:MUTED));
+        add(card,title);
+        add(card,label("Chrome Bridge v"+version+" · "+d.optString("owner_username")+" · "+("active".equals(status)?"Asociat":"pending".equals(status)?"În așteptare":"Revocat"),12,MUTED,false));
+        add(card,label((licensed?"✓ Licența SB Radar inclusă":"⚠ Licență inactivă")+"  ·  "+(d.optInt("superbet_session_ok")==1?"Superbet conectat":"Superbet neconfirmat"),12,licensed?GREEN:AMBER,false));
+        if("pending".equals(status)){
+            space(card,8);
+            EditText code=field("Cod asociere • 6 cifre","",false);
+            code.setInputType(InputType.TYPE_CLASS_NUMBER);add(card,code);
+            rowAction(card,"Aprobă calculatorul",true,()->{
+                String digits=code.getText().toString().trim();
+                if(!digits.matches("\\d{6}")){notify("Codul trebuie să conțină 6 cifre.",true);return;}
+                mutate("/api/chrome/admin/approve",json("device_id",id,"code",digits),"Calculator aprobat. Licența SB Radar este inclusă.");
+            });
+        }else if("active".equals(status)){
+            TextView more=label(expandedPc.equals(id)?"Detalii ▴":"Detalii și opțiuni ▾",12,PURPLE_LIGHT,true);
+            padding(more,2,12,2,7);more.setClickable(true);more.setFocusable(true);add(card,more);
+            LinearLayout details=vertical();
+            add(details,label("Ultima comunicare: "+timestamp(d.optString("last_heartbeat_utc")),11,MUTED,false));
+            add(details,label("Licență comună până la "+timestamp(d.optString("expires_utc")),11,MUTED,false));
+            if(!d.optString("last_error").isEmpty())add(details,label("Ultima informare: "+d.optString("last_error"),11,AMBER,false));
+            rowAction(details,"Revocă doar acest calculator",false,()->
+                confirm("Revocă PC",name+" va pierde accesul. Celelalte calculatoare și licența SB Radar rămân active.",
+                    ()->mutate("/api/chrome/admin/revoke",json("device_id",id),"Calculator revocat.")));
+            details.setVisibility(expandedPc.equals(id)?View.VISIBLE:View.GONE);add(card,details);
+            more.setOnClickListener(v->{expandedPc=details.getVisibility()==View.VISIBLE?"":id;
+                details.setVisibility(expandedPc.equals(id)?View.VISIBLE:View.GONE);
+                more.setText(expandedPc.equals(id)?"Detalii ▴":"Detalii și opțiuni ▾");});
+        }
+    }
+    void renderPhone(JSONObject d){
+        String id=d.optString("device_id");
+        String owner=d.optString("profile_username");
+        String titleName=owner.isEmpty()?d.optString("model","Telefon Android"):owner;
+        String status=d.optString("license_status","PENDING");
+        LinearLayout card=panel(phoneList,false);
+        LinearLayout title=horizontal();
+        title.addView(label("▣ "+titleName,16,WHITE,true),new LinearLayout.LayoutParams(0,-2,1));
+        title.addView(chip(status,"ACTIVE".equals(status)?GREEN:AMBER));add(card,title);
+        add(card,label("Expiră: "+timestamp(d.optString("expires_utc")),12,MUTED,false));
+        TextView options=label(expandedPhone.equals(id)?"Administrare ▴":"Administrare licență ▾",12,PURPLE_LIGHT,true);
+        padding(options,2,10,2,8);add(card,options);
+        LinearLayout actions=vertical();
+        rowAction(actions,"Prelungește cu 1 lună",false,()->
+            confirm("Prelungește licența",titleName+" · Acordi o lună suplimentară?",
+                ()->mutate("/api/admin/license",json("device_id",id,"count",1,"unit","month"),"Licență prelungită.")));
+        rowAction(actions,"Revocă licența telefonului",false,()->
+            confirm("Revocă licența",titleName+" · Sigur revoci accesul acestui telefon?",
+                ()->mutate("/api/admin/revoke",json("device_id",id),"Acces revocat.")));
+        actions.setVisibility(expandedPhone.equals(id)?View.VISIBLE:View.GONE);add(card,actions);
+        options.setOnClickListener(v->{expandedPhone=actions.getVisibility()==View.VISIBLE?"":id;
+            actions.setVisibility(expandedPhone.equals(id)?View.VISIBLE:View.GONE);
+            options.setText(expandedPhone.equals(id)?"Administrare ▴":"Administrare licență ▾");});
+    }
+    void renderTicket(JSONObject d){
+        String state=d.optString("state"),category=d.optString("signal_category");
+        boolean accepted="placed".equals(state),question="unknown".equals(state);
+        int color=accepted?GREEN:question?AMBER:MUTED;
+        LinearLayout card=panel(betsList,false);
+        add(card,label((accepted?"✓ ":question?"! ":"· ")+d.optString("fixture","Meci"),14,WHITE,true));
+        String categoryLabel="strong-silver".equals(category)?"🟣 MOV":"strong".equals(category)?"🔴 ROȘU":"TEST";
+        String status=accepted?"BILET CONFIRMAT":question?"REZULTAT INCERT":state.toUpperCase(Locale.ROOT);
+        add(card,label(categoryLabel+" · "+status+" · "+d.optDouble("stake_lei",0)+" lei",12,color,true));
+        String ticketId=d.optString("bookmaker_ticket_id");
+        add(card,label((ticketId.isEmpty()?"ID Superbet în așteptare":"ID Superbet: "+ticketId)+" · "+timestamp(d.optString("updated_utc")),11,MUTED,false));
+    }
+    @Override protected void onResume(){
+        super.onResume();running=true;timer.removeCallbacks(ticker);timer.postDelayed(ticker,15000);
+    }
+    @Override protected void onPause(){
+        super.onPause();running=false;timer.removeCallbacks(ticker);
+    }
 }
