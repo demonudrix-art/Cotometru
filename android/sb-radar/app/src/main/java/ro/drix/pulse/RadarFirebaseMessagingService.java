@@ -18,6 +18,14 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       .putString("fcm_last_signal",d.getOrDefault("signal_label",""))
       .putString("fcm_last_priority",message.getPriority()==RemoteMessage.PRIORITY_HIGH?"HIGH":"NORMAL")
       .apply();
+    if("AUTO_TICKET_PLACED".equals(d.get("stage"))){
+      try{
+        String ticket=d.getOrDefault("ticket_id","");
+        double stake=Double.parseDouble(d.getOrDefault("stake_lei","0"));
+        AutoTicketNotifier.post(this,ticket,d.getOrDefault("fixture","Meci"),d.getOrDefault("signal_type",""),stake);
+      }catch(Exception e){android.util.Log.w("SB_Radar_FCM","Auto ticket receipt invalid",e);}
+      return;
+    }
     if(!"BET_NOW".equals(d.get("stage")))return;
     boolean isTest="true".equalsIgnoreCase(d.getOrDefault("test","false"));
     String label=d.getOrDefault("signal_label","").toUpperCase(Locale.ROOT).trim();
