@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.20";
+  static final String APP_VERSION="2.3.21";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -87,6 +87,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     "var previous=tab;window.tab=function(){var value=previous.apply(this,arguments);sync();return value;};"+
     "new MutationObserver(sync).observe(nav,{attributes:true,attributeFilter:['class']});sync();"+
     "}catch(e){}})();";
+  static final String NATIVE_ADMIN_ENTRY_SCRIPT="(function(){try{if(!window.DrixNative||typeof DrixNative.openAdminConsole!=='function')return;var profile=document.getElementById('profile');if(!profile||document.getElementById('sbNativeAdminEntry'))return;var b=document.createElement('button');b.id='sbNativeAdminEntry';b.textContent='🛡 ADMIN · LICENȚE & CHROME BRIDGE';b.style.cssText='display:block;width:100%;margin:5px 0 15px;padding:14px;border:1px solid #87354d;border-radius:13px;background:#4b1830;color:white;font-weight:800;font-size:13px';b.addEventListener('click',function(){DrixNative.openAdminConsole()});profile.insertBefore(b,profile.firstChild);}catch(e){}})();";
   static float tiltClamp(float v,float min,float max){return Math.max(min,Math.min(max,v));}
   static float tiltDeadZone(float v,float zone){
     return Math.abs(v)<=zone?0f:Math.copySign(Math.abs(v)-zone,v);
@@ -139,6 +140,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         if(url!=null&&url.startsWith(BASE+"/app")){
           if(gravitySensor!=null)view.evaluateJavascript(NATIVE_TILT_GUARD_SCRIPT,null);
           view.evaluateJavascript(NATIVE_NAV_SCRIPT,null);
+          view.evaluateJavascript(NATIVE_ADMIN_ENTRY_SCRIPT,null);
           // A slow page may finish its JS setup after the HTML load event.
           view.postDelayed(()->{
             if(!isFinishing()&&web==view)view.evaluateJavascript(NATIVE_NAV_SCRIPT,null);
@@ -439,6 +441,8 @@ public class MainActivity extends Activity implements SensorEventListener {
     @JavascriptInterface public void testNotification(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GOLDEN TICKET"));}
     @JavascriptInterface public void testGoldenAlert(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GOLDEN TICKET"));}
     @JavascriptInterface public void testMlAlert(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GOLD RUSH"));}
+    @JavascriptInterface public void openAdminConsole(){runOnUiThread(()->startActivity(new Intent(MainActivity.this,AdminConsoleActivity.class)));}
+    @JavascriptInterface public void autoTicketPlaced(String ticketId,String fixture,double stake){runOnUiThread(()->AutoTicketNotifier.post(MainActivity.this,ticketId,fixture,"",stake));}
     @JavascriptInterface public void setupFullScreenAlerts(){runOnUiThread(()->openFullScreenSettings());}
   }
 }
