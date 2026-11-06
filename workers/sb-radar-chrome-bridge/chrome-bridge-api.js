@@ -8,13 +8,13 @@ function randomToken(len=32){const buf=crypto.getRandomValues(new Uint8Array(len
 function sameOrigin(req){const u=new URL(req.url);return req.headers.get('Origin')===u.origin;}
 function isId(t){return /^[A-Za-z0-9_-]{24,96}$/.test(String(t||''));}
 async function read(req){try{return await req.json()}catch{return {};}}
-function licenseValid(x){return !!x&&x.license_status==='ACTIVE'&&!!x.expires_utc&&Date.parse(x.expires_utc)>Date.now();}
+function licenseValid(x){return !!x&&String(x.license_status||'').toLowerCase()==='active'&&!!x.expires_utc&&Date.parse(x.expires_utc)>Date.now()&&(!x.parent_license_device_id||(x.parent_license_status==='ACTIVE'&&!!x.parent_license_expires_utc&&Date.parse(x.parent_license_expires_utc)>Date.now()));}
 async function validDevice(req,env){
  const id=String(req.headers.get('X-SBR-Device')||'');
  const t=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,'');
  if(!isId(id)||!/^[a-f0-9]{64}$/.test(t))return null;
  const hash=await digest(t);
- return await env.DB.prepare("SELECT d.device_id,d.owner_username,d.display_name,d.pairing_status,d.enabled,d.superbet_session_ok,l.status AS license_status,l.expires_utc,l.monthly_price_lei,l.billing_cycle,l.plan_name FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id WHERE d.device_id=? AND a.token_hash=?").bind(id,hash).first();
+ return await env.DB.prepare("SELECT d.device_id,d.owner_username,d.display_name,d.pairing_status,d.enabled,d.superbet_session_ok,l.status AS license_status,l.expires_utc,l.monthly_price_lei,l.billing_cycle,l.plan_name,l.parent_license_device_id,pl.status AS parent_license_status,pl.expires_utc AS parent_license_expires_utc FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id LEFT JOIN sb_licenses pl ON pl.device_id=l.parent_license_device_id WHERE d.device_id=? AND a.token_hash=?").bind(id,hash).first();
 }
 async function admin(req,env,authenticated){
  if(!(await authenticated(req,env)))return err('Acces doar administrator',401);
@@ -141,7 +141,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
  }
  if(path==='/api/chrome/admin/devices'&&req.method==='GET'){
   const denied=await admin(req,env,authenticated);if(denied)return denied;
-  const devices=(await env.DB.prepare("SELECT d.device_id,d.owner_username,d.owner_email,d.display_name,d.pairing_status,d.enabled,d.superbet_session_ok,d.install_version,d.last_heartbeat_utc,d.registered_utc,d.approved_utc,d.last_error,a.approval_expires_utc,l.status AS license_status,l.expires_utc,l.monthly_price_lei,l.billing_cycle,l.plan_name,COALESCE((SELECT ROUND(SUM(amount_lei),2) FROM sb_radar_chrome_license_payments_v1 p WHERE p.device_id=d.device_id),0) AS amount_paid_lei FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id ORDER BY d.registered_utc DESC LIMIT 300").all()).results||[];
+  const devices=(await env.DB.prepare("SELECT d.device_id,d.owner_username,d.owner_email,d.display_name,d.pairing_status,d.enabled,d.superbet_session_ok,d.install_version,d.last_heartbeat_utc,d.registered_utc,d.approved_utc,d.last_error,a.approval_expires_utc,l.status AS license_status,l.expires_utc,l.monthly_price_lei,l.billing_cycle,l.plan_name,l.parent_license_device_id,pl.status AS parent_license_status,pl.expires_utc AS parent_license_expires_utc,COALESCE((SELECT ROUND(SUM(amount_lei),2) FROM sb_radar_chrome_license_payments_v1 p WHERE p.device_id=d.device_id),0) AS amount_paid_lei FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id LEFT JOIN sb_licenses pl ON pl.device_id=l.parent_license_device_id ORDER BY d.registered_utc DESC LIMIT 300").all()).results||[];
   return reply({ok:true,devices:devices.map(x=>({...x,online:x.pairing_status==='active'&&x.enabled===1&&!!x.last_heartbeat_utc&&Date.now()-Date.parse(x.last_heartbeat_utc)<50000,license_active:licenseValid(x)})),...await state(env)});
  }
  if(path==='/api/chrome/admin/approve'&&req.method==='POST'){
@@ -170,7 +170,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   const d=await env.DB.prepare('SELECT owner_username FROM sb_radar_chrome_devices_v1 WHERE device_id=?').bind(id).first();
   if(!d)return err('Extensie necunoscută',404);
   const cur=now();
-  await env.DB.prepare("INSERT INTO sb_radar_chrome_licenses_v1(device_id,status,updated_utc,monthly_price_lei,plan_name,billing_cycle) VALUES(?,'REVOKED',?,?,?,?) ON CONFLICT(device_id) DO UPDATE SET monthly_price_lei=excluded.monthly_price_lei,plan_name=excluded.plan_name,billing_cycle=excluded.billing_cycle,updated_utc=excluded.updated_utc").bind(id,cur,rate,plan,cycle).run();
+  await env.DB.prepare("INSERT INTO sb_radar_chrome_licenses_v1(device_id,status,updated_utc,monthly_price_lei,plan_name,billing_cycle) VALUES(?,'revoked',?,?,?,?) ON CONFLICT(device_id) DO UPDATE SET monthly_price_lei=excluded.monthly_price_lei,plan_name=excluded.plan_name,billing_cycle=excluded.billing_cycle,updated_utc=excluded.updated_utc").bind(id,cur,rate,plan,cycle).run();
   await event(env,'LICENSE_PLAN',id,null,plan+': '+rate+' lei / '+cycle);
   return reply({ok:true,device_id:id,price_lei:rate,billing_cycle:cycle});
  }
@@ -187,7 +187,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   try{
    const r=await env.DB.batch([
     env.DB.prepare("INSERT INTO sb_radar_chrome_license_payments_v1(device_id,amount_lei,coverage_days,method,reference,paid_utc,created_by,notes) VALUES(?,?,?,'manual',?,?,?,?)").bind(id,amount,days,ref,now(),'drix',comment),
-    env.DB.prepare("UPDATE sb_radar_chrome_licenses_v1 SET status='ACTIVE',issued_utc=COALESCE(issued_utc,?),updated_utc=?,expires_utc=strftime('%Y-%m-%dT%H:%M:%fZ',datetime(max(coalesce(datetime(expires_utc),datetime('now')),datetime('now')), '+' || ? || ' days')) WHERE device_id=?").bind(now(),now(),days,id)
+    env.DB.prepare("UPDATE sb_radar_chrome_licenses_v1 SET status='active',issued_utc=COALESCE(issued_utc,?),updated_utc=?,expires_utc=strftime('%Y-%m-%dT%H:%M:%fZ',datetime(max(coalesce(datetime(expires_utc),datetime('now')),datetime('now')), '+' || ? || ' days')) WHERE device_id=?").bind(now(),now(),days,id)
    ]);
    if(!r[0]?.meta?.changes||!r[1]?.meta?.changes)return err('Plata nu a fost înregistrată',409);
   }catch(e){return err('Plata nu a fost înregistrată; verifică referința unică',409)}
@@ -198,7 +198,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
  if(path==='/api/chrome/admin/license-revoke'&&req.method==='POST'){
   const denied=await admin(req,env,authenticated);if(denied)return denied;
   const j=await read(req),id=String(j.device_id||'');if(!isId(id))return err('Dispozitiv invalid',400);
-  await env.DB.prepare("UPDATE sb_radar_chrome_licenses_v1 SET status='REVOKED',updated_utc=? WHERE device_id=?").bind(now(),id).run();
+  await env.DB.prepare("UPDATE sb_radar_chrome_licenses_v1 SET status='revoked',updated_utc=? WHERE device_id=?").bind(now(),id).run();
   await event(env,'LICENSE_REVOKED',id);
   return reply({ok:true});
  }
