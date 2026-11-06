@@ -64,6 +64,15 @@ export async function chromeBridgeApi(req,env,path,authenticated){
 
 
  // One explicit, single-use 2 RON integration test. It cannot activate the live 75/50 RON scanner.
+ if(path==='/api/chrome/test/status'&&req.method==='GET'){
+   const d=await validDevice(req,env);
+   if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Calculator sau licență nevalidă',403,true);
+   const id=new URL(req.url).searchParams.get('event_id')||'';
+   if(!/^\d{4,20}$/.test(id))return err('ID meci invalid',400,true);
+   const row=await env.DB.prepare("SELECT event_id,state,signal_category,stake_lei,bookmaker_ticket_id,bookmaker_accepted_utc,failure_reason,updated_utc FROM sb_radar_chrome_execution_claims_v1 WHERE owner_username=? AND device_id=? AND event_id=? AND signal_category='test'").bind(d.owner_username,d.device_id,id).first();
+   return reply({ok:true,job:row||null},200,true);
+ }
+
  if(path==='/api/chrome/test/claim'&&req.method==='POST'){
    const d=await validDevice(req,env);
    if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Calculator sau licență nevalidă',403,true);
