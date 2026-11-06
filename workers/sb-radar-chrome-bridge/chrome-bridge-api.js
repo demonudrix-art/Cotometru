@@ -62,6 +62,54 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   return reply({ok:true,server_utc:now(),license_active:licenseValid(d),license_status:d.license_status||'NONE',license_expires_utc:d.expires_utc||null,execution_enabled:(await stateRow(env))?.value==='true'&&licenseValid(d)},200,true);
  }
 
+
+ // One explicit, single-use 2 RON integration test. It cannot activate the live 75/50 RON scanner.
+ if(path==='/api/chrome/test/claim'&&req.method==='POST'){
+   const d=await validDevice(req,env);
+   if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Calculator sau licență nevalidă',403,true);
+   if(d.owner_username.toLowerCase()!=='drix')return err('Test disponibil doar administratorului',403,true);
+   const j=await read(req),id=String(j.event_id||'');
+   if(id!=='15578280')return err('ID de meci neautorizat pentru acest test',400,true);
+   const exists=await env.DB.prepare("SELECT 1 AS found FROM ghost_equal_bets WHERE event_id=? LIMIT 1").bind(Number(id)).first();
+   if(exists)return err('Există deja acest meci în Slip; test blocat',409,true);
+   const other=await env.DB.prepare("SELECT 1 AS found FROM sb_radar_slip_guard_v1 WHERE owner_username=? AND event_key=? LIMIT 1").bind(d.owner_username,'event:'+id).first();
+   if(other)return err('Meci rezervat deja în Slip; test blocat',409,true);
+   const link='https://superbet.ro/cote/fotbal/balestier-khalsa-r-vs-tampines-rovers-r-15578280?t=offer-live-91408&mdt=o';
+   const fixture='Balestier Khalsa (R)·Tampines Rovers (R)';
+   await env.DB.prepare("INSERT OR IGNORE INTO sb_radar_chrome_execution_claims_v1(owner_username,event_id,market,selection,signal_category,stake_lei,state,fixture,bookmaker_url) VALUES(? ,?,'FINAL','X','test',2,'pending',?,?)").bind(d.owner_username,id,fixture,link).run();
+   const rs=(await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET device_id=?,state='leased',lease_expires_utc=datetime('now','+150 seconds'),updated_utc=? WHERE owner_username=? AND event_id=? AND market='FINAL' AND selection='X' AND signal_category='test' AND stake_lei=2 AND state='pending' RETURNING event_id,fixture,stake_lei,state,lease_expires_utc,bookmaker_url").bind(d.device_id,now(),d.owner_username,id).all()).results||[];
+   if(rs.length!==1)return err('Testul a fost deja revendicat sau executat. Nu îl repeta.',409,true);
+   const ref=crypto.randomUUID();
+   await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET client_ref=? WHERE owner_username=? AND event_id=? AND device_id=? AND state='leased'").bind(ref,d.owner_username,id,d.device_id).run();
+   const reserved=await env.DB.prepare("INSERT OR IGNORE INTO sb_radar_slip_guard_v1(owner_username,event_key,market,selection,client_ref,source,device_id) VALUES(?,?,'MATCH','ANY',?,'chrome',?)").bind(d.owner_username,'event:'+id,ref,d.device_id).run();
+   if(Number(reserved.meta?.changes||0)!==1){await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state='cancelled',failure_reason='DUPLICATE_GUARD',updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND state='leased'").bind(now(),d.owner_username,id,d.device_id).run();return err('Meciul a fost deja rezervat, nu continua',409,true);}
+   await event(env,'TEST_2LEI_LEASED',d.device_id,id);
+   return reply({ok:true,job:{...rs[0],market:'FINAL',selection:'X',category:'test',stake_lei:2}},200,true);
+ }
+ if(path==='/api/chrome/test/start'&&req.method==='POST'){
+   const d=await validDevice(req,env);
+   if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Calculator sau licență nevalidă',403,true);
+   const j=await read(req),id=String(j.event_id||'');
+   if(id!=='15578280')return err('ID meci neautorizat',400,true);
+   if(!d.superbet_session_ok)return err('Sesiune Superbet neconfirmată. Verifică fila și popupurile.',409,true);
+   const changed=await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state='submitting',updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND signal_category='test' AND stake_lei=2 AND state='leased' AND datetime(lease_expires_utc)>datetime('now')").bind(now(),d.owner_username,id,d.device_id).run();
+   if(Number(changed.meta?.changes||0)!==1)return err('Test deja început, lease expirat sau revendicat de alt PC',409,true);
+   await event(env,'TEST_2LEI_SUBMITTING',d.device_id,id);
+   return reply({ok:true,state:'submitting',event_id:id},200,true);
+ }
+ if(path==='/api/chrome/test/abort'&&req.method==='POST'){
+   const d=await validDevice(req,env);if(!d)return err('Calculator neautorizat',401,true);
+   const j=await read(req),id=String(j.event_id||'');
+   if(id!=='15578280')return err('ID invalid',400,true);
+   const before=await env.DB.prepare("SELECT state FROM sb_radar_chrome_execution_claims_v1 WHERE owner_username=? AND event_id=? AND device_id=? AND signal_category='test'").bind(d.owner_username,id,d.device_id).first();
+   if(!before)return err('Test inexistent',404,true);
+   const state=before.state==='submitting'?'unknown':'failed';
+   const msg=String(j.reason||'').slice(0,200);
+   await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state=?,failure_reason=?,updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND signal_category='test' AND state IN ('leased','submitting')").bind(state,msg,now(),d.owner_username,id,d.device_id).run();
+   await event(env,'TEST_2LEI_'+state.toUpperCase(),d.device_id,id,msg);
+   return reply({ok:true,state,retry_permitted:false},200,true);
+ }
+
  if(path==='/api/chrome/job'&&req.method==='GET'){
   const d=await validDevice(req,env);
   if(!d)return err('Cheie dispozitiv invalidă',401,true);
