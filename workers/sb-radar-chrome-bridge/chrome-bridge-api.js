@@ -85,6 +85,12 @@ export async function chromeBridgeApi(req,env,path,authenticated){
    const other=await env.DB.prepare("SELECT 1 AS found FROM sb_radar_slip_guard_v1 WHERE owner_username=? AND event_key=? LIMIT 1").bind(d.owner_username,'event:'+id).first();
    if(other)return err('Meci rezervat deja în Slip; test blocat',409,true);
    
+
+   // A prior reservation that never crossed the bookmaker-submission boundary
+   // may be reactivated only after an explicit new 2-lei authorization.
+   // Placed, submitting and unknown tickets are NEVER reset here.
+   await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state='pending',device_id=NULL,client_ref=NULL,lease_expires_utc=NULL,failure_reason=NULL,updated_utc=? WHERE owner_username=? AND event_id=? AND signal_category='test' AND state='cancelled' AND failure_reason='ABANDONED_BEFORE_SUBMISSION_USER_REQUEST' AND bookmaker_ticket_id IS NULL AND NOT EXISTS (SELECT 1 FROM sb_radar_chrome_events_v1 e WHERE e.event_id=? AND e.kind='TEST_2LEI_SUBMITTING')").bind(now(),d.owner_username,id,id).run();
+
    await env.DB.prepare("INSERT OR IGNORE INTO sb_radar_chrome_execution_claims_v1(owner_username,event_id,market,selection,signal_category,stake_lei,state,fixture,bookmaker_url) VALUES(? ,?,'FINAL','X','test',2,'pending',?,?)").bind(d.owner_username,id,fixture,link).run();
    const rs=(await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET device_id=?,state='leased',lease_expires_utc=datetime('now','+150 seconds'),updated_utc=? WHERE owner_username=? AND event_id=? AND market='FINAL' AND selection='X' AND signal_category='test' AND stake_lei=2 AND state='pending' RETURNING event_id,fixture,stake_lei,state,lease_expires_utc,bookmaker_url").bind(d.device_id,now(),d.owner_username,id).all()).results||[];
    if(rs.length!==1)return err('Testul a fost deja revendicat sau executat. Nu îl repeta.',409,true);
