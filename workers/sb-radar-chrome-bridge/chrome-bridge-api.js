@@ -9,13 +9,13 @@ function sameOrigin(req){const u=new URL(req.url);return req.headers.get('Origin
 function isId(t){return /^[A-Za-z0-9_-]{24,96}$/.test(String(t||''));}
 async function read(req){try{return await req.json()}catch{return {};}}
 function autoVersionReady(x){const v=String(x?.install_version||'').split('.').map(Number);return v.length===3&&v.every(Number.isFinite)&&(v[0]>1||v[0]===1&&(v[1]>0||v[1]===0&&v[2]>=4));}
-function licenseValid(x){return !!x&&String(x.license_status||'').toLowerCase()==='active'&&!!x.expires_utc&&Date.parse(x.expires_utc)>Date.now()&&(!x.parent_license_device_id||(x.parent_license_status==='ACTIVE'&&!!x.parent_license_expires_utc&&Date.parse(x.parent_license_expires_utc)>Date.now()));}
+function licenseValid(x){if(!x||String(x.license_status||'').toLowerCase()!=='active')return false;return x.parent_license_device_id?(x.parent_license_status==='ACTIVE'&&!!x.parent_license_expires_utc&&Date.parse(x.parent_license_expires_utc)>Date.now()):!!x.expires_utc&&Date.parse(x.expires_utc)>Date.now();}
 async function validDevice(req,env){
  const id=String(req.headers.get('X-SBR-Device')||'');
  const t=(req.headers.get('Authorization')||'').replace(/^Bearer\s+/i,'');
  if(!isId(id)||!/^[a-f0-9]{64}$/.test(t))return null;
  const hash=await digest(t);
- return await env.DB.prepare("SELECT d.device_id,d.owner_username,d.display_name,d.pairing_status,d.enabled,d.superbet_session_ok,d.install_version,l.status AS license_status,l.expires_utc,l.monthly_price_lei,l.billing_cycle,l.plan_name,l.parent_license_device_id,pl.status AS parent_license_status,pl.expires_utc AS parent_license_expires_utc FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id LEFT JOIN sb_licenses pl ON pl.device_id=l.parent_license_device_id WHERE d.device_id=? AND a.token_hash=?").bind(id,hash).first();
+ return await env.DB.prepare("SELECT d.device_id,d.owner_username,d.display_name,d.pairing_status,d.enabled,d.superbet_session_ok,d.install_version,l.status AS license_status,CASE WHEN l.parent_license_device_id IS NOT NULL THEN pl.expires_utc ELSE l.expires_utc END AS expires_utc,l.monthly_price_lei,l.billing_cycle,l.plan_name,l.parent_license_device_id,pl.status AS parent_license_status,pl.expires_utc AS parent_license_expires_utc FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id LEFT JOIN sb_licenses pl ON pl.device_id=l.parent_license_device_id WHERE d.device_id=? AND a.token_hash=?").bind(id,hash).first();
 }
 async function admin(req,env,authenticated){
  if(!(await authenticated(req,env)))return err('Acces doar administrator',401);
@@ -228,8 +228,9 @@ export async function chromeBridgeApi(req,env,path,authenticated){
  }
  if(path==='/api/chrome/admin/devices'&&req.method==='GET'){
   const denied=await admin(req,env,authenticated);if(denied)return denied;
-  const devices=(await env.DB.prepare("SELECT d.device_id,d.owner_username,d.owner_email,d.display_name,d.pairing_status,d.enabled,d.superbet_session_ok,d.install_version,d.last_heartbeat_utc,d.registered_utc,d.approved_utc,d.last_error,a.approval_expires_utc,l.status AS license_status,l.expires_utc,l.monthly_price_lei,l.billing_cycle,l.plan_name,l.parent_license_device_id,pl.status AS parent_license_status,pl.expires_utc AS parent_license_expires_utc,COALESCE((SELECT ROUND(SUM(amount_lei),2) FROM sb_radar_chrome_license_payments_v1 p WHERE p.device_id=d.device_id),0) AS amount_paid_lei FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id LEFT JOIN sb_licenses pl ON pl.device_id=l.parent_license_device_id ORDER BY d.registered_utc DESC LIMIT 300").all()).results||[];
-  return reply({ok:true,devices:devices.map(x=>({...x,online:x.pairing_status==='active'&&x.enabled===1&&!!x.last_heartbeat_utc&&Date.now()-Date.parse(x.last_heartbeat_utc)<50000,license_active:licenseValid(x)})),...await state(env)});
+  const devices=(await env.DB.prepare("SELECT d.device_id,d.owner_username,d.owner_email,d.display_name,d.pairing_status,d.enabled,d.superbet_session_ok,d.install_version,d.last_heartbeat_utc,d.registered_utc,d.approved_utc,d.last_error,a.approval_expires_utc,l.status AS license_status,CASE WHEN l.parent_license_device_id IS NOT NULL THEN pl.expires_utc ELSE l.expires_utc END AS expires_utc,l.monthly_price_lei,l.billing_cycle,l.plan_name,l.parent_license_device_id,pl.status AS parent_license_status,pl.expires_utc AS parent_license_expires_utc,COALESCE((SELECT ROUND(SUM(amount_lei),2) FROM sb_radar_chrome_license_payments_v1 p WHERE p.device_id=d.device_id),0) AS amount_paid_lei FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id LEFT JOIN sb_licenses pl ON pl.device_id=l.parent_license_device_id ORDER BY d.registered_utc DESC LIMIT 300").all()).results||[];
+  const account=await env.DB.prepare("SELECT p.device_id,l.status,l.expires_utc FROM sb_device_profiles p JOIN sb_admin a ON LOWER(a.username)=LOWER(p.username) AND a.id=1 JOIN sb_licenses l ON l.device_id=p.device_id WHERE p.is_owner=1 ORDER BY CASE WHEN l.status='ACTIVE' THEN 0 ELSE 1 END,l.expires_utc DESC LIMIT 1").first();
+  return reply({ok:true,account_license:{status:account?.status||'NONE',expires_utc:account?.expires_utc||null,active:account?.status==='ACTIVE'&&Date.parse(account.expires_utc)>Date.now(),chrome_included:true},devices:devices.map(x=>({...x,online:x.pairing_status==='active'&&x.enabled===1&&!!x.last_heartbeat_utc&&Date.now()-Date.parse(x.last_heartbeat_utc)<50000,license_active:licenseValid(x),license_included:!!x.parent_license_device_id,monthly_price_lei:x.parent_license_device_id?0:x.monthly_price_lei,plan_name:x.parent_license_device_id?'Inclus în SB Radar':x.plan_name})),...await state(env)});
  }
  if(path==='/api/chrome/admin/approve'&&req.method==='POST'){
   const denied=await admin(req,env,authenticated);if(denied)return denied;
@@ -237,9 +238,18 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   if(!isId(id)||!/^\d{6}$/.test(code))return err('Identificator sau cod invalid');
   const p=await env.DB.prepare("SELECT d.pairing_status,a.approval_code_hash,a.approval_expires_utc FROM sb_radar_chrome_devices_v1 d JOIN sb_radar_chrome_auth_v1 a ON d.device_id=a.device_id WHERE d.device_id=?").bind(id).first();
   if(!p||p.pairing_status!=='pending'||Date.parse(p.approval_expires_utc)<Date.now()||await digest(code)!==p.approval_code_hash)return err('Cod expirat, greșit sau dispozitivul nu este în așteptare',403);
-  await env.DB.prepare("UPDATE sb_radar_chrome_devices_v1 SET pairing_status='active',enabled=1,approved_utc=? WHERE device_id=? AND pairing_status='pending'").bind(now(),id).run();
-  await event(env,'DEVICE_APPROVED',id);
-  return reply({ok:true,device_id:id});
+  // Approval binds a new Chrome computer to the owner's existing SB Radar license.
+  // Entering username/email without the admin-confirmed pairing code never grants access.
+  const parent=await env.DB.prepare("SELECT p.device_id,l.status,l.expires_utc FROM sb_radar_chrome_devices_v1 d JOIN sb_admin a ON LOWER(a.username)=LOWER(d.owner_username) AND LOWER(a.email)=LOWER(d.owner_email) AND a.id=1 JOIN sb_device_profiles p ON p.is_owner=1 AND LOWER(p.username)=LOWER(a.username) JOIN sb_licenses l ON l.device_id=p.device_id WHERE d.device_id=? ORDER BY CASE WHEN l.status='ACTIVE' THEN 0 ELSE 1 END,l.expires_utc DESC LIMIT 1").bind(id).first();
+  if(!parent)return err('Nu există licență SB Radar asociată contului Admin; nu se poate aproba automat',409);
+  const stamp=now();
+  const updates=await env.DB.batch([
+   env.DB.prepare("UPDATE sb_radar_chrome_devices_v1 SET pairing_status='active',enabled=1,approved_utc=? WHERE device_id=? AND pairing_status='pending'").bind(stamp,id),
+   env.DB.prepare("INSERT INTO sb_radar_chrome_licenses_v1(device_id,parent_license_device_id,status,issued_utc,expires_utc,updated_utc,monthly_price_lei,plan_name,billing_cycle,note) VALUES(?,?,'active',?,?,?,0,'Inclus în SB Radar','yearly','Licență moștenită de la cont; fără plată separată') ON CONFLICT(device_id) DO UPDATE SET parent_license_device_id=excluded.parent_license_device_id,status='active',expires_utc=excluded.expires_utc,updated_utc=excluded.updated_utc,monthly_price_lei=0,plan_name='Inclus în SB Radar',note=excluded.note").bind(id,parent.device_id,stamp,parent.expires_utc,stamp)
+  ]);
+  if(Number(updates?.[0]?.meta?.changes||0)!==1)return err('Aprobarea nu s-a finalizat; verifică statusul dispozitivului',409);
+  await event(env,'DEVICE_APPROVED_ACCOUNT_LICENSE',id,null,'Licență SB Radar inclusă');
+  return reply({ok:true,device_id:id,license_included:true,license_active:parent.status==='ACTIVE'&&Date.parse(parent.expires_utc)>Date.now(),license_expires_utc:parent.expires_utc});
  }
  if(path==='/api/chrome/admin/revoke'&&req.method==='POST'){
   const denied=await admin(req,env,authenticated);if(denied)return denied;
@@ -251,6 +261,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
  }
 
  if(path==='/api/chrome/admin/license-plan'&&req.method==='POST'){
+  return err('Extensia este inclusă în licența contului SB Radar. Planurile individuale nu sunt active.',409);
   const denied=await admin(req,env,authenticated);if(denied)return denied;
   const j=await read(req),id=String(j.device_id||''),rate=Number(j.price_lei),cycle=String(j.billing_cycle||'monthly'),plan=String(j.plan_name||'Personalizat').trim().slice(0,65);
   if(!isId(id)||!Number.isFinite(rate)||rate<0||rate>100000||!['monthly','yearly'].includes(cycle)||!plan)return err('Date licență invalide',400);
@@ -262,6 +273,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   return reply({ok:true,device_id:id,price_lei:rate,billing_cycle:cycle});
  }
  if(path==='/api/chrome/admin/license-payment'&&req.method==='POST'){
+  return err('Nu se încasează abonament separat pentru extensii. Gestionează licența SB Radar.',409);
   const denied=await admin(req,env,authenticated);if(denied)return denied;
   const j=await read(req),id=String(j.device_id||''),amount=Number(j.amount_lei),ref=String(j.payment_reference||'').trim(),comment=String(j.notes||'').slice(0,200);
   if(!isId(id)||!Number.isFinite(amount)||amount<0||amount>100000||!/^[A-Za-z0-9_-]{16,90}$/.test(ref))return err('Plată sau referință invalidă',400);
@@ -283,6 +295,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   return reply({ok:true,device_id:id,license:info,days_added:days,amount_lei:amount});
  }
  if(path==='/api/chrome/admin/license-revoke'&&req.method==='POST'){
+  return err('Licența este comună contului SB Radar. Pentru a elimina un PC, folosește Revocă calculator.',409);
   const denied=await admin(req,env,authenticated);if(denied)return denied;
   const j=await read(req),id=String(j.device_id||'');if(!isId(id))return err('Dispozitiv invalid',400);
   await env.DB.prepare("UPDATE sb_radar_chrome_licenses_v1 SET status='revoked',updated_utc=? WHERE device_id=?").bind(now(),id).run();
