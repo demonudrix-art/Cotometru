@@ -45,9 +45,9 @@ public final class AdminConsoleActivity extends Activity {
     static final int BG=0xFF0F0B17, PANEL=0xFF211B2D, PANEL_HI=0xFF30233F, WHITE=0xFFF8F2FF,
         MUTED=0xFFB6A9C3, STROKE=0xFF51415F, PURPLE=0xFFA75BE0, PURPLE_LIGHT=0xFFD8B1FF,
         RED=0xFFFA5878, GREEN=0xFF66E5B3, AMBER=0xFFFFD18A, TILE=0xFF171321;
-    LinearLayout root, loginPanel, dashboard, pcList, phoneList, betsList, tabsRow, sectionPC, sectionPhones, sectionBets;
+    LinearLayout root, loginPanel, dashboard, pcList, phoneList, betsList, dialogsList, tabsRow, sectionPC, sectionPhones, sectionBets, sectionDialogs;
     TextView feedback, serverStatus, ownerLicense, ownerExpiry, pcCount, phoneCount, betCount;
-    TextView[] tabs=new TextView[3];
+    TextView[] tabs=new TextView[4];
     EditText username, password;
     final Handler timer=new Handler(Looper.getMainLooper());
     boolean running=false, busy=false, logged=false;
@@ -233,8 +233,8 @@ public final class AdminConsoleActivity extends Activity {
         signParams.leftMargin=dp(8);toolbar.addView(signOut,signParams);add(dashboard,toolbar);
         space(dashboard,15);
         tabsRow=horizontal();add(dashboard,tabsRow);
-        String[] titles={"Calculatoare","Telefoane","Bilete"};
-        for(int i=0;i<3;i++){
+        String[] titles={"PC","Android","Bilete","Ferestre"};
+        for(int i=0;i<4;i++){
             final int id=i;TextView t=action(titles[i],false,()->switchTab(id));t.setTextSize(12);
             LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.setMargins(dp(2),0,dp(2),0);
             tabsRow.addView(t,lp);tabs[i]=t;
@@ -256,10 +256,15 @@ public final class AdminConsoleActivity extends Activity {
         add(sectionBets,label("Un bilet este confirmat numai după acceptarea Superbet și recuperarea identificatorului.",12,MUTED,false));
         betsList=vertical();add(sectionBets,betsList);
 
+        sectionDialogs=vertical();add(dashboard,sectionDialogs);
+        add(sectionDialogs,label("CERERI DE CONFIRMARE SUPERBET",13,PURPLE_LIGHT,true));
+        add(sectionDialogs,label("După notificarea pe Samsung citește mesajul și aprobă explicit un singur clic. Cererile expiră după 3 minute. Alte dialoguri necesită intervenție la PC.",12,MUTED,false));
+        dialogsList=vertical();add(sectionDialogs,dialogsList);
+
         LinearLayout footer=panel(dashboard,false);
         add(footer,label("Abonamente SB Radar",14,WHITE,true));
         add(footer,label("Lunar 39 lei · Anual 349 lei. Extensiile Chrome sunt incluse în licența contului. Stripe este încă în modul TEST; nu înregistra plăți reale aici.",11,MUTED,false));
-        switchTab(0);state(false);
+        switchTab(getIntent()!=null&&getIntent().getBooleanExtra("SBR_OPEN_DIALOGS",false)?3:0);state(false);
         request(()->api("/api/admin/state",null),j->{
             state(j.optBoolean("authenticated"));
             if(logged)refresh();else notify("Autentifică-te pentru a administra SB Radar.",false);
@@ -274,6 +279,7 @@ public final class AdminConsoleActivity extends Activity {
         sectionPC.setVisibility(id==0?View.VISIBLE:View.GONE);
         sectionPhones.setVisibility(id==1?View.VISIBLE:View.GONE);
         sectionBets.setVisibility(id==2?View.VISIBLE:View.GONE);
+        sectionDialogs.setVisibility(id==3?View.VISIBLE:View.GONE);
     }
     void refresh(){
         if(!logged||busy)return;
@@ -282,13 +288,14 @@ public final class AdminConsoleActivity extends Activity {
             data.put("chrome",api("/api/chrome/admin/devices",null));
             data.put("android",api("/api/admin/devices",null));
             data.put("bets",api("/api/chrome/admin/claims",null));
+            data.put("dialogs",api("/api/chrome/admin/dialogs",null));
             return data;
         },this::render);
     }
     void render(JSONObject response){
-        JSONObject chrome=response.optJSONObject("chrome"),android=response.optJSONObject("android"),bets=response.optJSONObject("bets");
-        if(chrome==null||android==null||bets==null){notify("Răspuns incomplet de la server.",true);return;}
-        JSONArray pcs=chrome.optJSONArray("devices"),phones=android.optJSONArray("devices"),claims=bets.optJSONArray("claims");
+        JSONObject chrome=response.optJSONObject("chrome"),android=response.optJSONObject("android"),bets=response.optJSONObject("bets"),dialogs=response.optJSONObject("dialogs");
+        if(chrome==null||android==null||bets==null||dialogs==null){notify("Răspuns incomplet de la server.",true);return;}
+        JSONArray pcs=chrome.optJSONArray("devices"),phones=android.optJSONArray("devices"),claims=bets.optJSONArray("claims"),approvals=dialogs.optJSONArray("requests");
         int connected=chrome.optInt("online"),total=chrome.optInt("total");
         serverStatus.setText("SB Radar online · "+connected+"/"+total+" PC");
         pcCount.setText(String.valueOf(total));phoneCount.setText(String.valueOf(phones==null?0:phones.length()));
@@ -299,7 +306,9 @@ public final class AdminConsoleActivity extends Activity {
         ownerLicense.setText(active?"● Licență SB Radar activă":"● Verifică licența SB Radar");
         ownerLicense.setTextColor(active?GREEN:AMBER);
         ownerExpiry.setText(active?"Valabilă până la "+timestamp(lic.optString("expires_utc"))+" · Chrome inclus":"Extensiile moștenesc licența activă a contului, fără plată pe PC.");
-        tabs[0].setText("PC "+total);tabs[1].setText("Android "+(phones==null?0:phones.length()));tabs[2].setText("Bilete "+placed);
+        tabs[0].setText("PC "+total);tabs[1].setText("Tel. "+(phones==null?0:phones.length()));tabs[2].setText("Bilete "+placed);
+        int waiting=0;if(approvals!=null)for(int i=0;i<approvals.length();i++){JSONObject r=approvals.optJSONObject(i);if(r!=null&&"pending".equals(r.optString("status"))&&!r.optBoolean("expired"))waiting++;}
+        tabs[3].setText("Ferestre "+waiting);
         pcList.removeAllViews();
         if(pcs==null||pcs.length()==0){
             LinearLayout card=panel(pcList,false);add(card,label("Niciun calculator asociat",15,WHITE,true));
@@ -311,6 +320,9 @@ public final class AdminConsoleActivity extends Activity {
         betsList.removeAllViews();
         if(claims==null||claims.length()==0)add(betsList,label("Nu există bilete automate recente.",12,MUTED,false));
         else for(int i=0;i<Math.min(25,claims.length());i++){JSONObject p=claims.optJSONObject(i);if(p!=null)renderTicket(p);}
+        dialogsList.removeAllViews();
+        if(approvals==null||approvals.length()==0)add(dialogsList,label("Nu există popup-uri raportate.",12,MUTED,false));
+        else for(int i=0;i<Math.min(25,approvals.length());i++){JSONObject d=approvals.optJSONObject(i);if(d!=null)renderDialog(d);}
     }
     void renderPC(JSONObject d){
         String id=d.optString("device_id"),name=d.optString("display_name","Calculator");
@@ -385,6 +397,34 @@ public final class AdminConsoleActivity extends Activity {
         add(card,label(categoryLabel+" · "+status+" · "+d.optDouble("stake_lei",0)+" lei",12,color,true));
         String ticketId=d.optString("bookmaker_ticket_id");
         add(card,label((ticketId.isEmpty()?"ID Superbet în așteptare":"ID Superbet: "+ticketId)+" · "+timestamp(d.optString("updated_utc")),11,MUTED,false));
+    }
+
+    void renderDialog(JSONObject d){
+        final String id=d.optString("request_id"),status=d.optString("status","pending"),
+            name=d.optString("display_name","PC"),text=d.optString("dialog_text",""),
+            labelButton=d.optString("button_label","OK");
+        final boolean pending="pending".equals(status)&&!d.optBoolean("expired");
+        final boolean canApprove=pending&&d.optInt("clickable",0)==1;
+        LinearLayout card=panel(dialogsList,pending);
+        add(card,label(("pending".equals(status)?"● ":"· ")+name+" · "+status.toUpperCase(Locale.ROOT),15,pending?PURPLE_LIGHT:MUTED,true));
+        add(card,label(text.isEmpty()?"Textul dialogului nu este disponibil":text,13,WHITE,false));
+        add(card,label("Buton: "+(labelButton.isEmpty()?"necunoscut":labelButton)+" · Expiră "+timestamp(d.optString("expires_utc")),11,MUTED,false));
+        if(canApprove){
+            rowAction(card,"Confirmă «"+labelButton+"» pe "+name,true,()->
+                confirm("Confirmare Superbet",text+"\n\nAutorizezi un singur clic «"+labelButton+"» în browserul "+name+"?",()->
+                    mutate("/api/chrome/admin/dialog/approve",json("request_id",id),"Aprobarea a fost trimisă către "+name+". Chrome o execută numai dacă dialogul este neschimbat.")));
+        }else if(pending){
+            add(card,label("Pentru această fereastră nu este permis clicul de la distanță. Verifică direct în browser.",12,AMBER,false));
+        }
+        if(pending)rowAction(card,"Ignoră această cerere",false,()->
+            mutate("/api/chrome/admin/dialog/reject",json("request_id",id),"Cerere ignorată."));
+    }
+    @Override protected void onNewIntent(android.content.Intent intent){
+        super.onNewIntent(intent);setIntent(intent);
+        if(intent!=null&&intent.getBooleanExtra("SBR_OPEN_DIALOGS",false)){
+            switchTab(3);
+            if(logged)refresh();
+        }
     }
     @Override protected void onResume(){
         super.onResume();running=true;timer.removeCallbacks(ticker);timer.postDelayed(ticker,15000);
