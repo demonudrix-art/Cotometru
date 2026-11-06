@@ -53,7 +53,7 @@ export function chromeBridgeRibbon(html){
     summary.textContent='◉ Chrome Bridge • '+data.online+'/'+data.total+' online • '+(data.execution_enabled?'EXECUȚIE ACTIVĂ':'AUTO OPRITĂ');
     inner.replaceChildren();
     const top=em('div',null,'EXECUTORI SB RADAR');top.style.fontWeight='700';inner.append(top);
-    for(const d of devices){const on=!!d.online,mark=on?'🟢':'🔴';inner.append(em('div',null,mark+' '+d.display_name+' · '+(on?'Online':'Offline')+' · '+(d.license_active?'Licență activă':'Fără licență activă')));}
+    for(const d of devices){const on=!!d.online,mark=on?'🟢':'🔴';inner.append(em('div',null,mark+' '+d.display_name+' · '+(on?'Online':'Offline')+' · '+(d.last_error&&/confirmare manuală/i.test(d.last_error)?'⚠️ Așteaptă confirmare Superbet':d.superbet_session_ok?'Superbet OK':'Sesiune Superbet indisponibilă')+' · '+(d.license_active?'Licență activă':'Fără licență activă')));}
     if(!devices.length)inner.append(em('div',null,'Nu există extensii asociate. Admin → Chrome Bridge.'));
     const newTitle=em('div',null,'BILETE AUTOMATE — REZUMAT');newTitle.style.cssText='margin-top:9px;font-weight:700';inner.append(newTitle);
     for(const t of tickets.slice(0,8)){const placed=t.state==='placed';const item=em('div',null,(placed?'✅ BILET PLASAT AUTOMAT':'⏳ '+String(t.state||'').toUpperCase())+' • '+(t.fixture||'Meci')+' • '+t.stake_lei+' lei');inner.append(item);}
