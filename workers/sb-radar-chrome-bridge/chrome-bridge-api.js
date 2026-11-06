@@ -217,9 +217,18 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   const d=await validDevice(req,env);if(!d)return err('Dispozitiv invalid',401,true);
   const j=await read(req),id=String(j.event_id||''),reason=String(j.reason||'').slice(0,200);
   if(!/^\d{4,20}$/.test(id))return err('Eveniment invalid',400,true);
-  await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state=CASE WHEN state='submitting' THEN 'unknown' ELSE 'failed' END,failure_reason=?,updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND state IN ('leased','preparing','submitting')").bind(reason,now(),d.owner_username,id,d.device_id).run();
+  // A failed DOM preflight NEVER clicked Superbet. Release only its stale
+  // Chrome reservation so the owner can log a manually placed slip.
+  // An attempt that reached 'submitting' becomes 'unknown' and keeps its lock:
+  // it may have been accepted and must never be retried automatically.
+  const result=await env.DB.batch([
+    env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET state=CASE WHEN state='submitting' THEN 'unknown' ELSE 'failed' END,failure_reason=?,updated_utc=? WHERE owner_username=? AND event_id=? AND device_id=? AND state IN ('leased','preparing','submitting')").bind(reason,now(),d.owner_username,id,d.device_id),
+    env.DB.prepare("DELETE FROM sb_radar_slip_guard_v1 WHERE owner_username=? AND event_key=? AND market='MATCH' AND selection='ANY' AND source='chrome' AND device_id=? AND NOT EXISTS(SELECT 1 FROM ghost_equal_bets b WHERE b.event_id=CAST(? AS INTEGER)) AND EXISTS(SELECT 1 FROM sb_radar_chrome_execution_claims_v1 c WHERE c.owner_username=? AND c.event_id=? AND c.device_id=? AND c.state='failed' AND c.bookmaker_ticket_id IS NULL AND c.client_ref=sb_radar_slip_guard_v1.client_ref) AND NOT EXISTS(SELECT 1 FROM sb_radar_chrome_events_v1 e WHERE e.event_id=? AND e.kind IN ('TEST_2LEI_SUBMITTING','BOOKMAKER_SUBMITTING','AUTO_BET_PLACED'))").bind(d.owner_username,'event:'+id,d.device_id,id,d.owner_username,id,d.device_id,id)
+  ]);
+  const reservationReleased=Number(result[1]?.meta?.changes||0)===1;
   await event(env,'EXECUTOR_ERROR',d.device_id,id,reason);
-  return reply({ok:true,action:'CHECK_SUPERBET_BEFORE_RETRY'},200,true);
+  if(reservationReleased)await event(env,'PRESUBMIT_GUARD_RELEASED',d.device_id,id,'Manual Slip now available; automatic execution remains failed.');
+  return reply({ok:true,action:reservationReleased?'MANUAL_SLIP_ALLOWED':'CHECK_SUPERBET_BEFORE_RETRY',reservation_released:reservationReleased},200,true);
  }
 
  if(path==='/api/chrome/admin/status'&&req.method==='GET'){
