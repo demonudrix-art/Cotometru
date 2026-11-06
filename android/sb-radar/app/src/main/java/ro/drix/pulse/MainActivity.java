@@ -6,6 +6,8 @@ import android.app.PendingIntent;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -24,12 +26,23 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.19";
+  static final String APP_VERSION="2.3.20";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
   LinearLayout root;
   SharedPreferences prefs;
+  FrameLayout nativeSurface;
+  LinearLayout nativeSplash;
+  LinearLayout nativeBottomTabs;
+  final LinearLayout[] nativeTabCells=new LinearLayout[4];
+  final TextView[] nativeTabGlyphs=new TextView[4];
+  final TextView[] nativeTabLabels=new TextView[4];
+  static final String[] NATIVE_ROUTES={"live","slip","roi","profile"};
+  static final String[] NATIVE_LABELS={"RADAR","SLIP","ROI","PROFIL"};
+  static final String[] NATIVE_GLYPHS={"◎","▤","⌁","♙"};
+  boolean nativeTabsVisible=false;
+  String nativeActiveRoute="live";
   // Native gravity sensor: 3D radar moves from launch, without a screen tap.
   // Does not touch FCM, betting signals, the alert monitor, or the 2D view.
   SensorManager tiltSensorManager;
@@ -55,6 +68,24 @@ public class MainActivity extends Activity implements SensorEventListener {
     "window.setRadar3DCamera=function(p,y){"+
     "if(!window.__sbNativeTiltWrite&&!(typeof radar3dMotionHoldUntil!=='undefined'&&Date.now()<radar3dMotionHoldUntil))return;"+
     "return camera.apply(this,arguments)};"+
+    "}catch(e){}})();";
+
+  // The four-tab navigation is rendered by Android. The radar and account
+  // forms stay backed by the existing licensed web app and API.
+  // If injection cannot initialize, the original web navigation remains visible.
+  static final String NATIVE_NAV_SCRIPT=
+    "(function(){try{if(window.__sbAndroidNavInstalled||typeof tab!=='function')return;"+
+    "var nav=document.getElementById('nav');if(!nav)return;"+
+    "window.__sbAndroidNavInstalled=true;"+
+    "var style=document.createElement('style');style.id='sb-android-native-nav-css';"+
+    "style.textContent='html.sb-android-native-nav #nav{display:none!important}';document.head.appendChild(style);"+
+    "function sync(){var enabled=!nav.classList.contains('hidden');"+
+    "document.documentElement.classList.toggle('sb-android-native-nav',enabled);"+
+    "if(!window.DrixNative)return;DrixNative.setNativeTabsVisible(enabled);"+
+    "var which=['live','slip','roi','profile'].find(function(n){var e=document.getElementById('tab-'+n);return e&&e.classList.contains('active')});"+
+    "if(which)DrixNative.setNativeTabActive(which)}"+
+    "var previous=tab;window.tab=function(){var value=previous.apply(this,arguments);sync();return value;};"+
+    "new MutationObserver(sync).observe(nav,{attributes:true,attributeFilter:['class']});sync();"+
     "}catch(e){}})();";
   static float tiltClamp(float v,float min,float max){return Math.max(min,Math.min(max,v));}
   static float tiltDeadZone(float v,float zone){
@@ -105,13 +136,28 @@ public class MainActivity extends Activity implements SensorEventListener {
       }
       @Override public void onPageFinished(WebView view,String url){
         super.onPageFinished(view,url);
-        if(gravitySensor!=null&&url!=null&&url.startsWith(BASE+"/app"))
-          view.evaluateJavascript(NATIVE_TILT_GUARD_SCRIPT,null);
+        if(url!=null&&url.startsWith(BASE+"/app")){
+          if(gravitySensor!=null)view.evaluateJavascript(NATIVE_TILT_GUARD_SCRIPT,null);
+          view.evaluateJavascript(NATIVE_NAV_SCRIPT,null);
+          // A slow page may finish its JS setup after the HTML load event.
+          view.postDelayed(()->{
+            if(!isFinishing()&&web==view)view.evaluateJavascript(NATIVE_NAV_SCRIPT,null);
+          },380);
+          view.postDelayed(()->{
+            if(!isFinishing()&&web==view)view.evaluateJavascript(NATIVE_NAV_SCRIPT,null);
+          },1150);
+        }
+        hideNativeSplash();
       }
       @Override public void onReceivedError(WebView view,WebResourceRequest req,WebResourceError e){if(req.isForMainFrame())showOffline();}
       @Override public void onReceivedHttpError(WebView view,WebResourceRequest req,WebResourceResponse resp){if(req.isForMainFrame()&&resp.getStatusCode()>=500)showOffline();}
     });
-    root.addView(web,new LinearLayout.LayoutParams(-1,0,1f));
+    nativeSurface=new FrameLayout(this);
+    nativeSurface.setBackgroundColor(0xff101719);
+    nativeSurface.addView(web,new FrameLayout.LayoutParams(-1,-1));
+    buildNativeSplash();
+    root.addView(nativeSurface,new LinearLayout.LayoutParams(-1,0,1f));
+    buildNativeTabs();
     footer=new TextView(this);footer.setText("APK "+APP_VERSION+"  •  Server —");
     footer.setTextSize(10);footer.setTextColor(0xff97a5b4);footer.setPadding(14,5,12,7);footer.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
     root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
@@ -157,8 +203,130 @@ public class MainActivity extends Activity implements SensorEventListener {
       }catch(Exception e){runOnUiThread(this::showOffline);}
     }).start();
   }
+  private int dp(float value){return Math.round(value*getResources().getDisplayMetrics().density);}
+
+  private GradientDrawable nativeBackground(int fill,int outline,int radius){
+    GradientDrawable bg=new GradientDrawable();
+    bg.setColor(fill);
+    bg.setCornerRadius(dp(radius));
+    if(outline!=0)bg.setStroke(dp(1),outline);
+    return bg;
+  }
+
+  private void buildNativeSplash(){
+    nativeSplash=new LinearLayout(this);
+    nativeSplash.setOrientation(LinearLayout.VERTICAL);
+    nativeSplash.setGravity(Gravity.CENTER);
+    nativeSplash.setBackgroundColor(0xff0c111a);
+    TextView symbol=new TextView(this);
+    symbol.setText("◎");symbol.setTextSize(56);
+    symbol.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    symbol.setTextColor(0xfff12c53);
+    symbol.setGravity(Gravity.CENTER);
+    nativeSplash.addView(symbol,new LinearLayout.LayoutParams(-1,dp(72)));
+    TextView title=new TextView(this);
+    title.setText("SB RADAR");
+    title.setTextSize(25);title.setLetterSpacing(.13f);
+    title.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+    title.setTextColor(0xfff7f2f5);title.setGravity(Gravity.CENTER);
+    nativeSplash.addView(title,new LinearLayout.LayoutParams(-1,dp(46)));
+    TextView subtitle=new TextView(this);
+    subtitle.setText("FOTBAL LIVE  •  ALERTE  •  STATISTICI");
+    subtitle.setTextSize(10);subtitle.setLetterSpacing(.11f);
+    subtitle.setTextColor(0xffbbaebc);subtitle.setGravity(Gravity.CENTER);
+    nativeSplash.addView(subtitle,new LinearLayout.LayoutParams(-1,dp(27)));
+    ProgressBar spinner=new ProgressBar(this,null,android.R.attr.progressBarStyleSmall);
+    spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(0xfff13f62));
+    LinearLayout.LayoutParams spin=new LinearLayout.LayoutParams(dp(26),dp(26));
+    spin.topMargin=dp(24);spin.gravity=Gravity.CENTER_HORIZONTAL;
+    nativeSplash.addView(spinner,spin);
+    nativeSurface.addView(nativeSplash,new FrameLayout.LayoutParams(-1,-1));
+  }
+
+  private void hideNativeSplash(){
+    if(nativeSplash==null||nativeSplash.getVisibility()!=View.VISIBLE)return;
+    LinearLayout splash=nativeSplash;
+    splash.animate().cancel();
+    splash.animate().alpha(0f).setDuration(180).withEndAction(()->{
+      if(splash==nativeSplash)splash.setVisibility(View.GONE);
+    }).start();
+  }
+
+  private void buildNativeTabs(){
+    nativeBottomTabs=new LinearLayout(this);
+    nativeBottomTabs.setOrientation(LinearLayout.HORIZONTAL);
+    nativeBottomTabs.setGravity(Gravity.CENTER_VERTICAL);
+    nativeBottomTabs.setPadding(dp(8),dp(5),dp(8),dp(5));
+    nativeBottomTabs.setBackgroundColor(0xff17121c);
+    for(int i=0;i<NATIVE_ROUTES.length;i++){
+      final int n=i;
+      LinearLayout cell=new LinearLayout(this);
+      cell.setOrientation(LinearLayout.VERTICAL);
+      cell.setGravity(Gravity.CENTER);
+      cell.setPadding(dp(2),dp(5),dp(2),dp(5));
+      cell.setClickable(true);cell.setFocusable(true);
+      cell.setContentDescription(NATIVE_LABELS[i]);
+      TextView symbol=new TextView(this);
+      symbol.setText(NATIVE_GLYPHS[i]);
+      symbol.setTextSize(24);symbol.setGravity(Gravity.CENTER);
+      cell.addView(symbol,new LinearLayout.LayoutParams(-1,dp(29)));
+      TextView label=new TextView(this);
+      label.setText(NATIVE_LABELS[i]);
+      label.setTextSize(10);label.setLetterSpacing(.04f);
+      label.setTypeface(Typeface.DEFAULT,Typeface.BOLD);label.setGravity(Gravity.CENTER);
+      cell.addView(label,new LinearLayout.LayoutParams(-1,dp(20)));
+      LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(60),1f);
+      cp.setMargins(dp(2),0,dp(2),0);
+      nativeBottomTabs.addView(cell,cp);
+      nativeTabCells[i]=cell;nativeTabGlyphs[i]=symbol;nativeTabLabels[i]=label;
+      cell.setOnClickListener(v->{
+        v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        selectNativeTab(NATIVE_ROUTES[n]);
+      });
+    }
+    nativeBottomTabs.setVisibility(View.GONE);
+    root.addView(nativeBottomTabs,new LinearLayout.LayoutParams(-1,dp(70)));
+    renderNativeTabState();
+  }
+
+  private void renderNativeTabState(){
+    for(int i=0;i<NATIVE_ROUTES.length;i++){
+      boolean active=NATIVE_ROUTES[i].equals(nativeActiveRoute);
+      if(nativeTabCells[i]==null)continue;
+      nativeTabCells[i].setBackground(nativeBackground(active?0xff65172f:0xff19141f,
+          active?0xff8b2747:0,14));
+      int tint=active?0xfff9f2f5:0xffb6a6b7;
+      nativeTabGlyphs[i].setTextColor(tint);
+      nativeTabLabels[i].setTextColor(tint);
+      nativeTabCells[i].setSelected(active);
+    }
+  }
+
+  private void selectNativeTab(String route){
+    boolean valid=false;
+    for(String candidate:NATIVE_ROUTES)if(candidate.equals(route)){valid=true;break;}
+    if(!valid)return;
+    nativeActiveRoute=route;renderNativeTabState();
+    if(web!=null)web.evaluateJavascript(
+      "try{if(typeof tab==='function')tab('"+route+"')}catch(e){}",null);
+  }
+
+  private void showNativeTabs(boolean enabled){
+    nativeTabsVisible=enabled;
+    if(nativeBottomTabs!=null)
+      nativeBottomTabs.setVisibility(enabled?View.VISIBLE:View.GONE);
+  }
+
+  private void selectNativeTabFromWeb(String route){
+    for(String candidate:NATIVE_ROUTES)if(candidate.equals(route)){
+      nativeActiveRoute=route;renderNativeTabState();return;
+    }
+  }
+
   private void showOffline(){
     String page="<!doctype html><html lang='ro'><meta name='viewport' content='width=device-width,initial-scale=1'><body style='background:#101719;color:#f3f4f7;font:16px system-ui;padding:34px;text-align:center'><div style='font-size:50px'>📡</div><h2>SB Radar este offline</h2><p>Nu putem încărca datele acum. Verifică Wi-Fi sau datele mobile.</p><button style='padding:13px 25px;border:0;border-radius:12px;background:#ed2944;color:white' onclick='DrixNative.retry()'>Reîncearcă</button></body></html>";
+    showNativeTabs(false);
+    hideNativeSplash();
     web.loadDataWithBaseURL(BASE+"/app",page,"text/html","UTF-8",null);
   }
   private void openIntent(Intent intent){
@@ -168,6 +336,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     String path="/app?tab="+tab;
     if(id!=null&&id.matches("[0-9]{1,16}"))path+="&event_id="+id;
     if(bet!=null&&bet.matches("[0-9]{1,16}"))path+="&bet_id="+bet;
+    showNativeTabs(false);
     web.loadUrl(BASE+path);
   }
   private void acknowledgeAlert(Intent i){
@@ -194,6 +363,7 @@ public class MainActivity extends Activity implements SensorEventListener {
   @Override public void onAccuracyChanged(Sensor sensor,int accuracy){}
   @Override public void onSensorChanged(SensorEvent e){
     if(e.sensor!=gravitySensor||web==null||e.values.length<3||!web.isShown())return;
+    if(nativeTabsVisible&&!"live".equals(nativeActiveRoute))return;
     long now=SystemClock.elapsedRealtime();
     if(now-lastTiltFrameMs<65)return; // Cap work to ~15fps when visible.
     lastTiltFrameMs=now;
@@ -239,6 +409,12 @@ public class MainActivity extends Activity implements SensorEventListener {
   }
   private void stopRadar(){prefs.edit().putBoolean("monitor",false).apply();stopService(new Intent(this,AlertService.class));}
   public class NativeBridge{
+    @JavascriptInterface public void setNativeTabsVisible(boolean enabled){
+      runOnUiThread(()->showNativeTabs(enabled));
+    }
+    @JavascriptInterface public void setNativeTabActive(String route){
+      runOnUiThread(()->selectNativeTabFromWeb(route));
+    }
     @JavascriptInterface public String getToken(){return token(MainActivity.this);}
     @JavascriptInterface public String getAppVersion(){return APP_VERSION;}
     @JavascriptInterface public String getFcmStatus(){return FirebaseBootstrap.status(MainActivity.this);}
