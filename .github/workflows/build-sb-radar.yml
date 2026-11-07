@@ -42,7 +42,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         id: apk_upload
         with:
-          name: SB-Radar-v2.3.27-System-Pulse-Debug-APK
+          name: SB-Radar-v2.3.28-System-Pulse-9-Components-APK
           path: android/sb-radar/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
       - name: Save build artifact pointer
