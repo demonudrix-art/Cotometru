@@ -35,6 +35,7 @@ async function evaluate(env){
     devices:"SELECT COALESCE(SUM(CASE WHEN enabled=1 AND pairing_status='active' THEN 1 ELSE 0 END),0) enabled,COALESCE(SUM(CASE WHEN enabled=1 AND pairing_status='active' AND datetime(last_heartbeat_utc)>=datetime('now','-50 seconds') THEN 1 ELSE 0 END),0) online,COALESCE(SUM(CASE WHEN enabled=1 AND pairing_status='active' AND datetime(last_heartbeat_utc)>=datetime('now','-50 seconds') AND superbet_session_ok=1 THEN 1 ELSE 0 END),0) ready FROM sb_radar_chrome_devices_v1",
     lastChrome:"SELECT display_name,device_kind,last_heartbeat_utc,superbet_session_ok,last_error,install_version FROM sb_radar_chrome_devices_v1 WHERE enabled=1 AND pairing_status='active' ORDER BY last_heartbeat_utc DESC LIMIT 1",
     poll:"SELECT logged_utc,device_id,description FROM sb_radar_chrome_events_v1 WHERE kind='JOB_POLL_AUDIT' ORDER BY id DESC LIMIT 1",
+    transport:"SELECT MAX(received_utc) last_market_report,COALESCE(SUM(CAST(json_extract(counters_json,'$.fetch_requests') AS INTEGER)),0) fetch_count,COALESCE(SUM(CAST(json_extract(counters_json,'$.xhr_requests') AS INTEGER)),0) xhr_count,COALESCE(SUM(CAST(json_extract(counters_json,'$.ws_messages') AS INTEGER)),0) ws_count,COALESCE(SUM(CAST(json_extract(counters_json,'$.sse_messages') AS INTEGER)),0) sse_count,COALESCE(SUM(CAST(json_extract(counters_json,'$.app_ping_like') AS INTEGER)),0) ping_count FROM sb_radar_market_pulse_reports_v1 WHERE datetime(received_utc)>=datetime('now','-10 minutes')",
     alerts:"SELECT triggered_utc,event_id FROM ghost_equal_alerts WHERE stage='BET_NOW' ORDER BY triggered_utc DESC LIMIT 1",
     fcm:"SELECT updated_utc,status FROM sb_radar_fcm_sent ORDER BY updated_utc DESC LIMIT 1",
     claims:"SELECT state,updated_utc,event_id,substr(failure_reason,1,120) failure_reason FROM sb_radar_chrome_execution_claims_v1 WHERE state IN ('failed','unknown') AND datetime(updated_utc)>=datetime('now','-60 minutes') ORDER BY updated_utc DESC LIMIT 1",
@@ -82,6 +83,17 @@ async function evaluate(env){
   else if(!ready)state.chrome=phase('warn',online+'/'+enabled+' online; sesiune Superbet neverificată',{online,ready,enabled});
   else if(pa>150)state.chrome=phase('warn',ready+' slave pregătit(e), dar fără audit job de '+pa+'s',{online,ready,enabled,poll_age_sec:pa});
   else state.chrome=phase('ok',ready+' slave pregătit(e) / '+enabled+' configurate · ultimul job poll '+pa+'s',{online,ready,enabled,poll_age_sec:pa,last_device:top.display_name});
+  // Enrich the existing Chrome heartbeat, but never mark it unhealthy when
+  // Market Pulse is not yet installed or the page has no network activity.
+  const transport=got('transport'),marketAge=seconds(transport.last_market_report);
+  if(!bad('transport')&&Number.isFinite(marketAge)&&state.chrome){
+    state.chrome.metric={...state.chrome.metric,market_pulse:{
+      last_report_age_sec:marketAge,fetch_10m:Number(transport.fetch_count||0),
+      xhr_10m:Number(transport.xhr_count||0),ws_messages_10m:Number(transport.ws_count||0),
+      sse_messages_10m:Number(transport.sse_count||0),app_ping_like_10m:Number(transport.ping_count||0)
+    }};
+    if(marketAge<180)state.chrome.detail+=' · Market Pulse: Fetch '+Number(transport.fetch_count||0)+', WS '+Number(transport.ws_count||0)+', SSE '+Number(transport.sse_count||0);
+  }
   const signal=got('alerts'),fcm=got('fcm'),aa=seconds(signal.triggered_utc),fa=seconds(fcm.updated_utc);
   if(bad('alerts')||bad('fcm'))state.notifications=phase('warn','Istoricul FCM nu poate fi citit');
   else if(aa>900)state.notifications=phase('ok','Fără semnale recente de livrat (nu este eroare)',{latest_signal_age_sec:Number.isFinite(aa)?aa:null});
