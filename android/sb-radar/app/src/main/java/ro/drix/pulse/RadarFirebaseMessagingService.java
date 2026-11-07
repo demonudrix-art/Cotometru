@@ -19,7 +19,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       .putString("fcm_last_priority",message.getPriority()==RemoteMessage.PRIORITY_HIGH?"HIGH":"NORMAL")
       .apply();
     if("CHROME_DIALOG_REQUEST".equals(d.get("stage"))){
-      ChromeDialogNotifier.post(this,d.getOrDefault("request_id",""),d.getOrDefault("device_name","Calculator"),d.getOrDefault("body",""),"true".equalsIgnoreCase(d.getOrDefault("clickable","false")));
+      ChromeDialogNotifier.post(this,d.getOrDefault("request_id",""),d.getOrDefault("device_name","Calculator"),d.getOrDefault("body",""),d.getOrDefault("button_label","OK"),"true".equalsIgnoreCase(d.getOrDefault("clickable","false")));
       return;
     }
     if("AUTO_TICKET_PLACED".equals(d.get("stage"))){
