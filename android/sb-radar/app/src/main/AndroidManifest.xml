@@ -15,6 +15,7 @@
     android:excludeFromRecents="true" android:showWhenLocked="true" android:turnScreenOn="true"
     android:theme="@android:style/Theme.Material.NoActionBar"/>
   <receiver android:name=".AlertDismissReceiver" android:exported="false"/>
+  <receiver android:name=".ChromeDialogApprovalReceiver" android:exported="false"/>
   <service android:name=".RadarFirebaseMessagingService" android:exported="false">
    <intent-filter><action android:name="com.google.firebase.MESSAGING_EVENT"/></intent-filter>
   </service>
