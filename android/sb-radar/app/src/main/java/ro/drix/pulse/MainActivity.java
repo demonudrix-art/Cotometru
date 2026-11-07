@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.26";
+  static final String APP_VERSION="2.3.27";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -45,6 +45,13 @@ public class MainActivity extends Activity implements SensorEventListener {
   String nativeActiveRoute="live";
   // Native gravity sensor: 3D radar moves from launch, without a screen tap.
   // Does not touch FCM, betting signals, the alert monitor, or the 2D view.
+  final Handler pulseTimer=new Handler(Looper.getMainLooper());
+  final Runnable pulseTick=new Runnable(){
+    @Override public void run(){
+      SystemPulse.heartbeat(MainActivity.this,true);
+      pulseTimer.postDelayed(this,30000);
+    }
+  };
   SensorManager tiltSensorManager;
   Sensor gravitySensor;
   long lastTiltFrameMs;
@@ -394,6 +401,8 @@ public class MainActivity extends Activity implements SensorEventListener {
   }
   @Override protected void onResume(){
     super.onResume();
+    pulseTimer.removeCallbacks(pulseTick);
+    pulseTimer.post(pulseTick);
     tiltCalSamples=0;tiltSumP=0;tiltSumW=0;
     tiltFilteredP=Float.NaN;tiltFilteredW=Float.NaN;
     tiltTargetP=48f;tiltTargetW=-12f;
@@ -403,6 +412,8 @@ public class MainActivity extends Activity implements SensorEventListener {
       tiltSensorManager.registerListener(this,gravitySensor,SensorManager.SENSOR_DELAY_GAME);
   }
   @Override protected void onPause(){
+    pulseTimer.removeCallbacks(pulseTick);
+    SystemPulse.heartbeat(this,false);
     if(tiltSensorManager!=null)tiltSensorManager.unregisterListener(this);
     super.onPause();
   }
