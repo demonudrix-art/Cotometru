@@ -63,7 +63,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   if(Number(ins.meta?.changes||0)===1){
    // Exact Android action "Aprobă OK": auto-authorize only the existing
    // server-approved, single-use Chrome dialog. Other actions stay manual.
-   if(label==='OK'&&clickable===1){
+ if ((label === 'OK' || label === 'Continuă sesiunea') && clickable === 1) {
     const auto=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status='approved',approved_utc=strftime('%Y-%m-%dT%H:%M:%fZ','now'),push_status='auto_approved' WHERE request_id=? AND device_id=? AND clickable=1 AND status='pending' AND datetime(expires_utc)>datetime('now')").bind(id,d.device_id).run();
     if(Number(auto.meta?.changes||0)===1){
      await event(env,'CHROME_DIALOG_AUTO_APPROVED',d.device_id,null,'OK '+id);
