@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.25";
+  static final String APP_VERSION="2.3.26";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -304,13 +304,37 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
   }
 
+  private boolean isAppWebPage(String url){
+    if(url==null)return false;
+    try{
+      Uri u=Uri.parse(url);
+      return "https".equals(u.getScheme())&&
+        "ghost-equal-alert-v1.drix-beast-xray.workers.dev".equals(u.getHost())&&
+        "/app".equals(u.getPath());
+    }catch(Exception ignored){return false;}
+  }
+
+  /**
+   * Always route native tabs to the SB Radar app. Admin /chrome-bridge and
+   * /admin are separate HTML documents and do not define window.tab(...).
+   * Simply calling tab() on them changes the native highlight but not the
+   * WebView page, leaving Admin stuck over Radar/Slip/ROI.
+   */
   private void selectNativeTab(String route){
     boolean valid=false;
     for(String candidate:NATIVE_ROUTES)if(candidate.equals(route)){valid=true;break;}
-    if(!valid)return;
-    nativeActiveRoute=route;renderNativeTabState();
-    if(web!=null)web.evaluateJavascript(
-      "try{if(typeof tab==='function')tab('"+route+"')}catch(e){}",null);
+    if(!valid||web==null)return;
+    nativeActiveRoute=route;
+    renderNativeTabState();
+    if(!isAppWebPage(web.getUrl())){
+      // A real navigation restores the entire radar document and its listeners.
+      web.loadUrl(BASE+"/app?tab="+route);
+      return;
+    }
+    // Normal in-app transitions stay instant and do not reload WebView.
+    web.evaluateJavascript(
+      "try{if(typeof tab==='function'){tab('"+route+"')}"+
+      "else{location.assign('/app?tab="+route+"')}}catch(e){location.assign('/app?tab="+route+"')}",null);
   }
 
   private void showNativeTabs(boolean enabled){
