@@ -110,7 +110,13 @@ export default {
    return json({ok:true,interval_sec:30},200,cors);
   }
   if(p==='/v1/pulse'&&req.method==='GET'){
-   const rows=(await env.DB.prepare('SELECT component,status,detail,metric_json,observed_utc FROM sb_radar_pulse_state_v1 ORDER BY component').all()).results||[];
+   let rows=(await env.DB.prepare('SELECT component,status,detail,metric_json,observed_utc FROM sb_radar_pulse_state_v1 ORDER BY component').all()).results||[];
+   // Cron changes can take time to propagate. A privileged Admin read bootstraps
+   // the pulse and refreshes stale data, never touching the betting pipeline.
+   if(!rows.length || seconds(rows[0].observed_utc)>140){
+     await record(env,await evaluate(env));
+     rows=(await env.DB.prepare('SELECT component,status,detail,metric_json,observed_utc FROM sb_radar_pulse_state_v1 ORDER BY component').all()).results||[];
+   }
    const incidents=(await env.DB.prepare('SELECT component,previous_status,new_status,detail,observed_utc FROM sb_radar_pulse_incidents_v1 ORDER BY id DESC LIMIT 20').all()).results||[];
    const generated=rows[0]?.observed_utc||null;
    return json({ok:true,generated_utc:generated,age_sec:Number.isFinite(seconds(generated))?seconds(generated):null,stale:seconds(generated)>140,components:rows.map(r=>({component:r.component,status:r.status,detail:r.detail,metrics:JSON.parse(r.metric_json||'{}'),observed_utc:r.observed_utc})),incidents},200,cors);
