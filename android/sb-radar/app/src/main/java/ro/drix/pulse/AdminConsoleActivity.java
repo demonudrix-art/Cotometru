@@ -321,7 +321,7 @@ public final class AdminConsoleActivity extends Activity {
         JSONArray parts=pulse.optJSONArray("components");
         int green=0,amber=0,red=0;
         StringBuilder details=new StringBuilder();
-        String[][] labels={{"cloudflare","Cloudflare"},{"feed","Superbet Live"},{"scanner","Scanner 57′"},{"chrome","Chrome Slaves"},{"notifications","FCM"},{"database","D1"},{"android","APK"},{"pipeline","Pipeline"}};
+        String[][] labels={{"cloudflare","Cloudflare"},{"feed","Cote Superbet"},{"history","Live istoric"},{"scanner","Scanner 57′"},{"chrome","Chrome Slaves"},{"notifications","FCM"},{"database","D1"},{"android","APK"},{"pipeline","Pipeline"}};
         for(String[] pair:labels){
             JSONObject x=null;
             if(parts!=null)for(int i=0;i<parts.length();i++){
