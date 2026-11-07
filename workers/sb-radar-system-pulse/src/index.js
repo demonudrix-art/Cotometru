@@ -25,6 +25,7 @@ async function evaluate(env){
   const queries={
     db:"SELECT 1 AS ok",
     scanner:"SELECT * FROM sb_radar_scan_health WHERE id=1",
+    quotes:"SELECT MAX(captured_utc) AS last_quote,COUNT(*) AS quotes_2m FROM quote_state WHERE datetime(captured_utc)>=datetime('now','-2 minutes')",
     latestLive:"SELECT id,started_utc,saved,error FROM live_runs ORDER BY id DESC LIMIT 1",
     lastGoodLive:"SELECT id,started_utc,saved FROM live_runs WHERE error IS NULL ORDER BY id DESC LIMIT 1",
     snapshot:"SELECT captured_utc FROM live_snapshots ORDER BY captured_utc DESC LIMIT 1",
@@ -50,13 +51,18 @@ async function evaluate(env){
   state.scanner=bad('scanner')?phase('down','Nu pot citi jurnalul scannerului'):sa>150?phase('down','Scanner fără procesare confirmată de '+sa+'s',{age_sec:sa}):sa>75||Number(scan.error_count)>0?phase('warn','Scanner degradat; ultima actualizare '+sa+'s',{age_sec:sa,errors:scan.error_count}):phase('ok','Scanner activ; '+Number(scan.scanned_candidates||0)+' candidați verificați, '+Number(scan.skipped_candidates||0)+' omiși',{age_sec:sa,scanned:scan.scanned_candidates,skipped:scan.skipped_candidates,alerts:scan.alerts});
   const live=got('latestLive'),good=got('lastGoodLive'),snapshot=got('snapshot');
   const la=seconds(live.started_utc),ga=seconds(good.started_utc),sn=seconds(snapshot.captured_utc);
-  if(bad('latestLive')||bad('lastGoodLive')||bad('snapshot'))state.feed=phase('down','Eroare la citirea jurnalului Live/SSE');
+  const quote=got('quotes'),qa=seconds(quote.last_quote);
+  if(bad('quotes'))state.feed=phase('down','Jurnalul cotelor Superbet nu poate fi citit');
+  else if(qa>180)state.feed=phase('down','Cote live neactualizate de '+qa+'s',{age_sec:qa,quotes_2m:quote.quotes_2m});
+  else if(qa>75)state.feed=phase('warn','Actualizările cotelor au întârzieri: '+qa+'s',{age_sec:qa,quotes_2m:quote.quotes_2m});
+  else state.feed=phase('ok','Cote Superbet actualizate; '+Number(quote.quotes_2m||0)+' evenimente în ultimele 2 min',{age_sec:qa,quotes_2m:quote.quotes_2m});
+  if(bad('latestLive')||bad('lastGoodLive')||bad('snapshot'))state.history=phase('down','Nu pot citi ingestia de instantanee live');
   else if(live.error){
-    const detail='Eroare Live: '+String(live.error).slice(0,145)+' · ultimul succes '+(Number.isFinite(ga)?ga+'s':'necunoscut');
-    state.feed=phase(ga>900?'down':'warn',detail,{age_sec:la,last_success_age_sec:Number.isFinite(ga)?ga:null});
-  }else if(la>900) state.feed=phase('down','Ingestie Live neexecutată de '+la+'s',{age_sec:la});
-  else if(la>420) state.feed=phase('warn','Ingestie Live întârziată '+la+'s',{age_sec:la});
-  else state.feed=phase('ok','Feed verificat; ultima rulare '+la+'s, '+Number(live.saved||0)+' salvări',{age_sec:la,snapshot_age_sec:Number.isFinite(sn)?sn:null});
+    const detail='Instantanee istorice: '+String(live.error).slice(0,145)+' · ultimul succes '+(Number.isFinite(ga)?ga+'s':'necunoscut');
+    state.history=phase(ga>900?'down':'warn',detail,{age_sec:la,last_success_age_sec:Number.isFinite(ga)?ga:null});
+  }else if(la>900) state.history=phase('down','Instantanee istorice blocate de '+la+'s',{age_sec:la});
+  else if(la>420) state.history=phase('warn','Instantanee istorice întârziate '+la+'s',{age_sec:la});
+  else state.history=phase('ok','Arhivare instantanee: ultima rulare '+la+'s, '+Number(live.saved||0)+' salvări',{age_sec:la,snapshot_age_sec:Number.isFinite(sn)?sn:null});
   const ds=got('devices'),top=got('lastChrome'),poll=got('poll');
   const online=Number(ds.online||0),ready=Number(ds.ready||0),enabled=Number(ds.enabled||0);
   const pa=seconds(poll.logged_utc),cha=seconds(top.last_heartbeat_utc);
