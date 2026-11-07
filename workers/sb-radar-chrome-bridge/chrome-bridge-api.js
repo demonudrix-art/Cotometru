@@ -52,7 +52,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
  const isExtension=!path.includes('/admin/');
  if(req.method==='OPTIONS'&&isExtension)return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization, X-SBR-Device, Content-Type','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Max-Age':'600'}});
  try{
- if(path==='/api/chrome/market-pulse'||path==='/api/chrome/market-pulse/status')return marketPulseEndpoint(req,env,path,{validDevice,licenseValid,reply,err,read,now});
+ if(path==='/api/chrome/market-pulse'||path==='/api/chrome/market-pulse/status'||path==='/api/chrome/market-pulse/correlation')return marketPulseEndpoint(req,env,path,{validDevice,licenseValid,reply,err,read,now});
 
  // Remote popup approval: register observations, alert owner, and execute only
  // an explicit one-time admin approval bound to the same device + DOM fingerprint.
