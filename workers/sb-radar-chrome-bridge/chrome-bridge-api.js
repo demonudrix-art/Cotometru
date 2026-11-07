@@ -110,19 +110,37 @@ export async function chromeBridgeApi(req,env,path,authenticated){
    .bind(id,d.device_id,d.owner_username,fp).run();
   return reply({ok:Number(change.meta?.changes||0)===1,claimed:Number(change.meta?.changes||0)===1},200,true);
  }
+ // Passive telemetry of a human-origin click observed by the content script.
+ // This route never presses a button or changes betting settings.
+ if(path==='/api/chrome/dialog/manual-click'&&req.method==='POST'){
+  const d=await validDevice(req,env);
+  if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Neautorizat',403,true);
+  const j=await read(req),id=String(j.request_id||''),fp=String(j.fingerprint||''),url=String(j.tab_url||''),label=String(j.button_label||'');
+  if(!/^[a-zA-Z0-9-]{32,64}$/.test(id)||!/^[a-f0-9]{64}$/.test(fp)||j.dom_is_trusted!==true)return err('Telemetrie invalidă',400,true);
+  const change=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status='clicked',clicked_utc=COALESCE(clicked_utc,strftime('%Y-%m-%dT%H:%M:%fZ','now')),click_origin='manual_trusted_observed',click_origin_utc=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE request_id=? AND device_id=? AND owner_username=? AND fingerprint=? AND tab_url=? AND button_label=? AND clickable=1 AND status IN ('pending','approved','executing','clicked') AND datetime(expires_utc)>datetime('now') AND (click_origin IS NULL OR click_origin!='manual_trusted_observed')")
+   .bind(id,d.device_id,d.owner_username,fp,url,label).run();
+  if(Number(change.meta?.changes||0)===1)await event(env,'CHROME_DIALOG_CLICK_MANUAL_OBSERVED',d.device_id,null,id);
+  return reply({ok:true,recorded:Number(change.meta?.changes||0)===1},200,true);
+ }
  if(path==='/api/chrome/dialog/result'&&req.method==='POST'){
   const d=await validDevice(req,env);
   if(!d||d.pairing_status!=='active'||!d.enabled||!licenseValid(d))return err('Neautorizat',403,true);
   const j=await read(req),id=String(j.request_id||''),clicked=j.clicked===true,reason=String(j.reason||'').slice(0,180);
   if(!/^[a-zA-Z0-9-]{32,64}$/.test(id))return err('ID invalid',400,true);
-  const result=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status=?,clicked_utc=CASE WHEN ? THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE NULL END,last_error=? WHERE request_id=? AND device_id=? AND status='executing'")
-    .bind(clicked?'clicked':'failed',clicked?1:0,clicked?null:reason,id,d.device_id).run();
-  if(Number(result.meta?.changes||0)===1)await event(env,clicked?'CHROME_DIALOG_CLICKED':'CHROME_DIALOG_SKIPPED',d.device_id,null,id+' '+reason);
+  // A successful content-script .click() is a reported attempt, not verified site acceptance.
+  // Older extension versions cannot distinguish a manual DOM click reliably.
+  const origin=j.click_origin==='extension_script'?'extension_script_reported':'legacy_origin_unverified';
+  const result=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status=?,clicked_utc=CASE WHEN ? THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE NULL END,last_error=?,click_origin=CASE WHEN ? THEN ? ELSE click_origin END,click_origin_utc=CASE WHEN ? THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE click_origin_utc END WHERE request_id=? AND device_id=? AND status='executing'")
+    .bind(clicked?'clicked':'failed',clicked?1:0,clicked?null:reason,clicked?1:0,origin,clicked?1:0,id,d.device_id).run();
+  if(Number(result.meta?.changes||0)===1){
+    await event(env,clicked?'CHROME_DIALOG_CLICKED':'CHROME_DIALOG_SKIPPED',d.device_id,null,id+' '+reason);
+    if(clicked)await event(env,origin==='extension_script_reported'?'CHROME_DIALOG_CLICK_EXTENSION_REPORTED':'CHROME_DIALOG_CLICK_ORIGIN_UNVERIFIED',d.device_id,null,id);
+  }
   return reply({ok:Number(result.meta?.changes||0)===1},200,true);
  }
  if(path==='/api/chrome/admin/dialogs'&&req.method==='GET'){
   const denied=await admin(req,env,authenticated);if(denied)return denied;
-  const rows=(await env.DB.prepare("SELECT r.request_id,r.device_id,d.display_name,d.device_kind,r.dialog_text,r.button_label,r.kind,r.clickable,r.status,r.created_utc,r.expires_utc,r.approved_utc,r.clicked_utc,r.last_error,r.push_status FROM sb_radar_chrome_dialog_requests_v1 r JOIN sb_radar_chrome_devices_v1 d ON d.device_id=r.device_id WHERE datetime(r.created_utc)>=datetime('now','-24 hours') ORDER BY r.created_utc DESC LIMIT 40").all()).results||[];
+  const rows=(await env.DB.prepare("SELECT r.request_id,r.device_id,d.display_name,d.device_kind,r.dialog_text,r.button_label,r.kind,r.clickable,r.status,r.created_utc,r.expires_utc,r.approved_utc,r.clicked_utc,r.last_error,r.push_status,r.click_origin,r.click_origin_utc FROM sb_radar_chrome_dialog_requests_v1 r JOIN sb_radar_chrome_devices_v1 d ON d.device_id=r.device_id WHERE datetime(r.created_utc)>=datetime('now','-24 hours') ORDER BY r.created_utc DESC LIMIT 40").all()).results||[];
   return reply({ok:true,requests:rows.map(r=>({...r,expired:Date.parse(r.expires_utc)<Date.now()}))});
  }
  if((path==='/api/chrome/admin/dialog/approve'||path==='/api/chrome/admin/dialog/reject')&&req.method==='POST'){
