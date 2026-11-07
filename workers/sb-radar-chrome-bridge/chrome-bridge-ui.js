@@ -12,7 +12,59 @@ export function chromeBridgeRibbon(html){
   const summary=em('summary',null,'◉ Chrome Bridge • Se conectează...');
   summary.style.cssText='font-size:12px;font-weight:750;cursor:pointer;list-style:none';card.append(summary);
   const inner=em('div');inner.style.cssText='padding-top:10px;line-height:1.65;white-space:pre-line';inner.textContent='Verifică serverul…';card.append(inner);
+  // The dialog inbox stays visible on RADAR/HOME; it is not hidden in Admin.
+  const popupHome=em('section','sbr-dialog-approval-home');
+  popupHome.setAttribute('aria-live','polite');
+  popupHome.style.cssText='background:linear-gradient(115deg,#2e1c37,#191a2a);border:1px solid #79519a;border-radius:15px;padding:11px 12px;margin:9px 0 12px;color:#fff;font:13px system-ui;box-shadow:0 6px 24px #0003';
+  const popupHeader=em('div',null,'⚠️ CONFIRMĂRI SUPERBET · 0 de aprobat');
+  popupHeader.style.cssText='font-weight:850;color:#e6c0ff;letter-spacing:.02em;line-height:1.35';
+  const popupDetails=em('div',null,'Nicio confirmare în așteptare · Titu / Otopeni');
+  popupDetails.style.cssText='font-size:12px;color:#bcaec8;margin-top:5px';
+  popupHome.append(popupHeader,popupDetails);
   live.insertBefore(card,live.firstChild);
+  live.insertBefore(popupHome,card);
+  let popupInFlight=false;
+  const homeActionButton=(label,primary,fn)=>{
+    const b=em('button',null,label);b.type='button';b.style.cssText='border:1px solid '+(primary?'#b78bda':'#694d71')+';background:'+(primary?'linear-gradient(100deg,#8444c4,#b448ad)':'#37293b')+';color:#fff;border-radius:10px;min-height:42px;padding:10px 12px;font:750 13px system-ui;flex:1';
+    b.addEventListener('click',fn);return b;
+  };
+  async function homeRespond(token,id,action){
+    if(popupInFlight)return;popupInFlight=true;
+    try{
+      const response=await fetch('/api/mobile/chrome-dialog-action',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({request_id:id,action})});
+      const result=await response.json();
+      if(!response.ok)throw Error(result.error||'Eroare confirmare');
+      popupDetails.replaceChildren(em('div',null,action==='approve'?'✓ Aprobarea a fost trimisă. Extensia va apăsa numai dacă dialogul este neschimbat.':'Cererea a fost respinsă.'));
+      await poll();
+    }catch(e){popupDetails.append(em('div',null,'⚠️ '+String(e.message||e)));}
+    finally{popupInFlight=false;}
+  }
+  function renderHomeDialogs(token,all){
+    const pending=all.filter(x=>x.status==='pending'&&!x.expired&&Date.parse(x.expires_utc)>Date.now());
+    popupHeader.textContent='⚠️ CONFIRMĂRI SUPERBET · '+pending.length+' de aprobat';
+    popupHome.style.borderColor=pending.length?'#f18d91':'#79519a';
+    popupDetails.replaceChildren();
+    if(!pending.length){
+      const recent=all.find(x=>['approved','executing','clicked','failed','rejected'].includes(x.status));
+      if(recent)popupDetails.append(em('div',null,(recent.status==='clicked'?'✓ Confirmat pe PC':recent.status==='approved'||recent.status==='executing'?'⏳ Aprobarea este în procesare':'Ultima cerere: '+recent.status)+' · '+recent.display_name));
+      else popupDetails.append(em('div',null,'Nicio confirmare în așteptare · Titu / Otopeni'));
+      return;
+    }
+    for(const item of pending.slice(0,3)){
+      const wrap=em('div');wrap.style.cssText='margin-top:10px;background:#221b30;border:1px solid #674a78;border-radius:12px;padding:12px';
+      const name=em('div',null,(item.device_kind==='laptop'?'💻 ':'🖥️ ')+item.display_name+' • Superbet');
+      name.style.cssText='color:#edc7ff;font-weight:800;margin-bottom:6px';wrap.append(name);
+      const message=em('div',null,item.dialog_text||'Mesaj indisponibil');message.style.cssText='color:#f8efff;font-size:13px;line-height:1.4;overflow-wrap:anywhere';wrap.append(message);
+      const expiry=em('div',null,'Buton „'+(item.button_label||'')+'” · expiră în '+Math.max(0,Math.ceil((Date.parse(item.expires_utc)-Date.now())/1000))+' sec');
+      expiry.style.cssText='font-size:11px;color:#cbbcd2;margin-top:6px';wrap.append(expiry);
+      const actions=em('div');actions.style.cssText='display:flex;gap:9px;flex-wrap:wrap;margin-top:10px';
+      if(Number(item.clickable)===1)actions.append(homeActionButton('✓ Aprobă „'+item.button_label+'”',true,()=>homeRespond(token,item.request_id,'approve')));
+      else actions.append(em('div',null,'Necesită intervenție directă la calculator; aprobarea de la distanță nu este permisă.'));
+      actions.append(homeActionButton('Respinge',false,()=>homeRespond(token,item.request_id,'reject')));
+      wrap.append(actions);popupDetails.append(wrap);
+    }
+  }
+
   const slipStatus=em('div',null,'◉ Chrome Bridge • nicio confirmare automată');
   slipStatus.style.cssText='background:#211524;padding:9px;border-radius:9px;margin:7px 0 14px;font:12px system-ui;color:#c5aeca';slip.insertBefore(slipStatus,slip.firstChild);
   async function poll(){
@@ -22,7 +74,8 @@ export function chromeBridgeRibbon(html){
     if(!token){summary.textContent='◉ Chrome Bridge • Deschide în APK';return;}
     const r=await fetch('/api/mobile/chrome-overview',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
     if(!r.ok)throw Error('HTTP '+r.status);
-    const data=await r.json(),devices=Array.isArray(data.devices)?data.devices:[],tickets=Array.isArray(data.tickets)?data.tickets:[];
+    const data=await r.json(),devices=Array.isArray(data.devices)?data.devices:[],tickets=Array.isArray(data.tickets)?data.tickets:[],dialogs=Array.isArray(data.dialogs)?data.dialogs:[];
+    renderHomeDialogs(token,dialogs);
     // Only a verified SB Radar owner can access the overview. Show admin shortcuts in APK Profile.
     const profile=document.getElementById('profile');
     if(profile&&!profile.querySelector('.sbr-admin-shortcuts')){
@@ -57,9 +110,9 @@ export function chromeBridgeRibbon(html){
       try{if(window.DrixNative&&typeof DrixNative.autoTicketPlaced==='function')DrixNative.autoTicketPlaced(id,String(newest.fixture||''),Number(newest.stake_lei)||0);}catch(e){}
      }lastAccepted=id;
     }
-   }catch(e){summary.textContent='◉ Chrome Bridge • Comunicare indisponibilă';inner.textContent='Nu se poate verifica statusul. '+String(e.message||'');}
+   }catch(e){summary.textContent='◉ Chrome Bridge • Comunicare indisponibilă';inner.textContent='Nu se poate verifica statusul. '+String(e.message||'');popupHeader.textContent='⚠️ CONFIRMĂRI SUPERBET · Conexiune indisponibilă';}
   }
-  poll();setInterval(poll,12000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll();});
+  poll();setInterval(poll,6000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll();});
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
  })();</script>`;
