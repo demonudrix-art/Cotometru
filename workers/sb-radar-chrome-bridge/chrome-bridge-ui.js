@@ -15,6 +15,7 @@ export function chromeBridgeRibbon(html){
   // The dialog inbox stays visible on RADAR/HOME; it is not hidden in Admin.
   const popupHome=em('section','sbr-dialog-approval-home');
   popupHome.setAttribute('aria-live','polite');
+  popupHome.style.display='none';
   popupHome.style.cssText='background:linear-gradient(115deg,#2e1c37,#191a2a);border:1px solid #79519a;border-radius:15px;padding:11px 12px;margin:9px 0 12px;color:#fff;font:13px system-ui;box-shadow:0 6px 24px #0003';
   const popupHeader=em('div',null,'⚠️ CONFIRMĂRI SUPERBET · 0 de aprobat');
   popupHeader.style.cssText='font-weight:850;color:#e6c0ff;letter-spacing:.02em;line-height:1.35';
@@ -71,9 +72,10 @@ export function chromeBridgeRibbon(html){
    if(document.hidden)return;
    try{
     const token=(window.DrixNative&&typeof DrixNative.getToken==='function')?DrixNative.getToken():'';
-    if(!token){summary.textContent='◉ Chrome Bridge • Deschide în APK';return;}
+    if(!token){card.style.display='none';popupHome.style.display='none';slipStatus.style.display='none';return;}
     const r=await fetch('/api/mobile/chrome-overview',{headers:{Authorization:'Bearer '+token},cache:'no-store'});
-    if(!r.ok)throw Error('HTTP '+r.status);
+    if(!r.ok){if(r.status===403||r.status===401){card.style.display='none';popupHome.style.display='none';slipStatus.style.display='none';return;}throw Error('HTTP '+r.status);}
+    card.style.display='block';popupHome.style.display='block';slipStatus.style.display='block';
     const data=await r.json(),devices=Array.isArray(data.devices)?data.devices:[],tickets=Array.isArray(data.tickets)?data.tickets:[],dialogs=Array.isArray(data.dialogs)?data.dialogs:[];
     renderHomeDialogs(token,dialogs);
     // Only a verified SB Radar owner can access the overview. Show admin shortcuts in APK Profile.
