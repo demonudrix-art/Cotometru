@@ -8,10 +8,32 @@ export async function chromeMobileOverview(env,deviceId,isOwner){
  const user=(await env.DB.prepare('SELECT username FROM sb_admin WHERE id=1').first())?.username||'';
  const devices=(await env.DB.prepare("SELECT d.device_id,d.display_name,d.device_kind,d.pairing_status,d.enabled,d.last_heartbeat_utc,d.superbet_session_ok,d.last_error,l.status license_status,CASE WHEN l.parent_license_device_id IS NOT NULL THEN pl.expires_utc ELSE l.expires_utc END expires_utc,l.parent_license_device_id,pl.status parent_license_status,pl.expires_utc parent_license_expires_utc FROM sb_radar_chrome_devices_v1 d LEFT JOIN sb_radar_chrome_licenses_v1 l ON l.device_id=d.device_id LEFT JOIN sb_licenses pl ON pl.device_id=l.parent_license_device_id WHERE d.owner_username=? ORDER BY d.registered_utc DESC LIMIT 100").bind(user).all()).results||[];
  const tickets=(await env.DB.prepare("SELECT event_id,fixture,signal_category,stake_lei,state,device_id,bookmaker_ticket_id,bookmaker_accepted_utc,created_utc,updated_utc FROM sb_radar_chrome_execution_claims_v1 WHERE owner_username=? ORDER BY updated_utc DESC LIMIT 35").bind(user).all()).results||[];
+ const dialogs=(await env.DB.prepare("SELECT r.request_id,r.device_id,d.display_name,d.device_kind,r.dialog_text,r.button_label,r.kind,r.clickable,r.status,r.created_utc,r.expires_utc FROM sb_radar_chrome_dialog_requests_v1 r JOIN sb_radar_chrome_devices_v1 d ON d.device_id=r.device_id WHERE r.owner_username=? AND ((r.status='pending' AND datetime(r.expires_utc)>datetime('now')) OR (datetime(r.created_utc)>=datetime('now','-15 minutes') AND r.status IN ('approved','executing','clicked','failed','rejected'))) ORDER BY CASE WHEN r.status='pending' AND datetime(r.expires_utc)>datetime('now') THEN 0 ELSE 1 END,r.created_utc DESC LIMIT 12").bind(user).all()).results||[];
  const f=await env.DB.prepare("SELECT value FROM sb_radar_chrome_bridge_settings_v1 WHERE key='execution_enabled'").first();
  const at=Date.now(),mapped=devices.map(d=>({device_id:d.device_id,display_name:d.display_name,online:d.pairing_status==='active'&&Number(d.enabled)===1&&!!d.last_heartbeat_utc&&at-Date.parse(d.last_heartbeat_utc)<50000,license_active:String(d.license_status||'').toLowerCase()==='active'&&(!d.parent_license_device_id?(!!d.expires_utc&&Date.parse(d.expires_utc)>at):(d.parent_license_status==='ACTIVE'&&!!d.parent_license_expires_utc&&Date.parse(d.parent_license_expires_utc)>at)),superbet_session_ok:Number(d.superbet_session_ok)===1,last_error:d.last_error||null}));
- return j({ok:true,online:mapped.filter(x=>x.online).length,total:mapped.length,execution_enabled:f?.value==='true',devices:mapped,tickets});
+ return j({ok:true,online:mapped.filter(x=>x.online).length,total:mapped.length,execution_enabled:f?.value==='true',devices:mapped,tickets,dialogs:dialogs.map(d=>({...d,expired:Date.parse(d.expires_utc)<=Date.now()}))});
 }
+/**
+ * One-tap approval for the owner's native Android notification AND Radar/Home.
+ * The BEARER mobile device token is authenticated in mobileApi before this call.
+ * Approval is limited to an explicitly identified, short-lived, safe dialog.
+ */
+export async function chromeMobileDialogAction(req,env,deviceId,isOwner){
+ if(!await isOwner(env,deviceId))return j({error:'Doar administratorul poate aproba confirmări Chrome'},403);
+ let body;try{body=await req.json()}catch{return j({error:'Cerere JSON invalidă'},400)}
+ const id=String(body.request_id||''),action=String(body.action||'');
+ if(!/^[a-zA-Z0-9-]{32,64}$/.test(id)||!['approve','reject'].includes(action))return j({error:'Cerere invalidă'},400);
+ const admin=await env.DB.prepare("SELECT username FROM sb_admin WHERE id=1").first();
+ if(!admin?.username)return j({error:'Administrator neconfigurat'},403);
+ const approve=action==='approve';
+ const updated=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status=?,approved_utc=CASE WHEN ?=1 THEN strftime('%Y-%m-%dT%H:%M:%fZ','now') ELSE approved_utc END WHERE request_id=? AND owner_username=? AND status='pending' AND datetime(expires_utc)>datetime('now') AND (?=0 OR clickable=1) AND EXISTS(SELECT 1 FROM sb_radar_chrome_devices_v1 d WHERE d.device_id=sb_radar_chrome_dialog_requests_v1.device_id AND d.pairing_status='active' AND d.enabled=1)")
+  .bind(approve?'approved':'rejected',approve?1:0,id,admin.username,approve?1:0).run();
+ if(Number(updated.meta?.changes||0)!==1)return j({error:'Confirmarea a expirat, nu este permisă sau a fost deja soluționată. Niciun clic nu a fost autorizat.'},409);
+ await env.DB.prepare("INSERT INTO sb_radar_chrome_events_v1(kind,description) VALUES(?,?)")
+  .bind(approve?'CHROME_DIALOG_ANDROID_APPROVED':'CHROME_DIALOG_ANDROID_REJECTED','owner_android:'+deviceId.slice(0,8)+' request:'+id).run();
+ return j({ok:true,status:approve?'approved':'rejected',request_id:id,executed:false,detail:approve?'Aprobarea transmisă extensiei; clicul urmează numai dacă dialogul este identic.':'Cerere respinsă.'});
+}
+
 export async function safeManualBet(req,env,who,slipDeviceFor,isOwner){
  let stage='request';
  try{
