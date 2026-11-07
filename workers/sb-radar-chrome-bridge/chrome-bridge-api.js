@@ -30,6 +30,23 @@ async function state(env){
 async function event(env,kind,deviceId=null,eventId=null,desc=''){
  await env.DB.prepare("INSERT INTO sb_radar_chrome_events_v1(kind,device_id,event_id,description) VALUES(?,?,?,?)").bind(kind,deviceId,eventId,String(desc).slice(0,300)).run();
 }
+// Low-volume, read-only diagnosis: record one Chrome job poll per device per minute.
+async function auditJobPoll(env,d,reason){
+ if(!d?.device_id)return;
+ try{
+  const previous=await env.DB.prepare("SELECT logged_utc FROM sb_radar_chrome_events_v1 WHERE kind='JOB_POLL_AUDIT' AND device_id=? ORDER BY id DESC LIMIT 1").bind(d.device_id).first();
+  if(previous&&Date.now()-Date.parse(previous.logged_utc)<55000)return;
+  const last=await env.DB.prepare("SELECT a.event_id,a.triggered_utc,a.minute,a.home_score,a.away_score,a.gh,a.ga,a.dgh10,a.dga10,a.px,c.sport_id,e.event_id AS excluded,g.event_key AS guarded,x.state AS claim_state FROM ghost_equal_alerts a LEFT JOIN event_catalog c ON c.event_id=a.event_id LEFT JOIN ghost_equal_red_exclusions e ON e.event_id=a.event_id LEFT JOIN sb_radar_slip_guard_v1 g ON g.event_key=('event:'||a.event_id) AND g.owner_username=? LEFT JOIN sb_radar_chrome_execution_claims_v1 x ON x.event_id=CAST(a.event_id AS TEXT) AND x.owner_username=? WHERE a.stage='BET_NOW' AND a.source='SB_RADAR_GOLDEN_V2' AND a.signal_family='GOLDEN_TICKET' AND a.model_version='SB_GOLDEN_ACTIVE_3_TIERS_M57_V2' AND datetime(a.triggered_utc)>=datetime('now','-5 minutes') ORDER BY a.triggered_utc DESC LIMIT 1").bind(d.owner_username,d.owner_username).first();
+  let detail='NO_SIGNAL_LAST_5M';
+  if(last){
+   const age=Math.max(0,Math.round((Date.now()-Date.parse(last.triggered_utc))/1000));
+   const eligible=last.minute===57&&last.home_score===0&&last.away_score===0&&last.gh>=0.28&&last.gh<0.30&&last.ga>=0&&last.ga<0.30&&last.dgh10<=-0.009999&&last.dga10<=-0.009999&&last.px>1;
+   const why=last.excluded?'EXCLUDED':!eligible?'NOT_ELIGIBLE':age>100?'SIGNAL_WINDOW_EXPIRED_100S':Number(last.sport_id)!==5?'CATALOG_MISSING_OR_NONFOOTBALL':last.guarded?'SLIP_ALREADY_RESERVED':last.claim_state?'CLAIM_'+last.claim_state:'ELIGIBLE_WITHOUT_CLAIM';
+   detail=why+' event='+last.event_id+' age='+age+'s x='+last.px;
+  }
+  await event(env,'JOB_POLL_AUDIT',d.device_id,last?.event_id||null,(reason+' | '+detail).slice(0,280));
+ }catch(e){console.warn('JOB_POLL_AUDIT',String(e).slice(0,140));}
+}
 export async function chromeBridgeApi(req,env,path,authenticated){
  const isExtension=!path.includes('/admin/');
  if(req.method==='OPTIONS'&&isExtension)return new Response(null,{status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization, X-SBR-Device, Content-Type','Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Max-Age':'600'}});
@@ -105,7 +122,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
  }
  if(path==='/api/chrome/admin/dialogs'&&req.method==='GET'){
   const denied=await admin(req,env,authenticated);if(denied)return denied;
-  const rows=(await env.DB.prepare("SELECT r.request_id,r.device_id,d.display_name,d.device_kind,r.dialog_text,r.button_label,r.kind,r.clickable,r.status,r.created_utc,r.expires_utc,r.push_status FROM sb_radar_chrome_dialog_requests_v1 r JOIN sb_radar_chrome_devices_v1 d ON d.device_id=r.device_id WHERE datetime(r.created_utc)>=datetime('now','-24 hours') ORDER BY r.created_utc DESC LIMIT 40").all()).results||[];
+  const rows=(await env.DB.prepare("SELECT r.request_id,r.device_id,d.display_name,d.device_kind,r.dialog_text,r.button_label,r.kind,r.clickable,r.status,r.created_utc,r.expires_utc,r.approved_utc,r.clicked_utc,r.last_error,r.push_status FROM sb_radar_chrome_dialog_requests_v1 r JOIN sb_radar_chrome_devices_v1 d ON d.device_id=r.device_id WHERE datetime(r.created_utc)>=datetime('now','-24 hours') ORDER BY r.created_utc DESC LIMIT 40").all()).results||[];
   return reply({ok:true,requests:rows.map(r=>({...r,expired:Date.parse(r.expires_utc)<Date.now()}))});
  }
  if((path==='/api/chrome/admin/dialog/approve'||path==='/api/chrome/admin/dialog/reject')&&req.method==='POST'){
@@ -216,9 +233,9 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   const d=await validDevice(req,env);
   if(!d)return err('Cheie dispozitiv invalidă',401,true);
   if(d.pairing_status!=='active'||!d.enabled)return err('Calculator neaprobat',403,true);
-  if(!licenseValid(d))return reply({ok:true,job:null,reason:'LICENSE_INACTIVE'},200,true);
-  if((await stateRow(env))?.value!=='true')return reply({ok:true,job:null,reason:'AUTO_DISABLED'},200,true);
-  if(!autoVersionReady(d))return reply({ok:true,job:null,reason:'UPGRADE_REQUIRED_1_0_4'},200,true);
+  if(!licenseValid(d)){await auditJobPoll(env,d,'LICENSE_INACTIVE');return reply({ok:true,job:null,reason:'LICENSE_INACTIVE'},200,true);}
+  if((await stateRow(env))?.value!=='true'){await auditJobPoll(env,d,'AUTO_DISABLED');return reply({ok:true,job:null,reason:'AUTO_DISABLED'},200,true);}
+  if(!autoVersionReady(d)){await auditJobPoll(env,d,'UPGRADE_REQUIRED');return reply({ok:true,job:null,reason:'UPGRADE_REQUIRED_1_0_4'},200,true);}
   const raw=(await env.DB.prepare("SELECT a.event_id,a.fixture,a.triggered_utc,a.minute,a.home_score,a.away_score,a.gh,a.ga,a.dgh10,a.dga10,a.px FROM ghost_equal_alerts a WHERE a.stage='BET_NOW' AND a.source='SB_RADAR_GOLDEN_V2' AND a.signal_family='GOLDEN_TICKET' AND a.model_version='SB_GOLDEN_ACTIVE_3_TIERS_M57_V2' AND a.minute=57 AND a.home_score=0 AND a.away_score=0 AND a.gh>=0.28 AND a.gh<0.30 AND a.ga>=0 AND a.ga<0.30 AND a.dgh10<=-0.009999 AND a.dga10<=-0.009999 AND a.px>1 AND datetime(a.triggered_utc)>=datetime('now','-100 seconds') AND NOT EXISTS(SELECT 1 FROM ghost_equal_red_exclusions e WHERE e.event_id=a.event_id) ORDER BY a.triggered_utc DESC LIMIT 12").all()).results||[];
   for(const a of raw){
    const eventId=String(a.event_id),purple=Number(a.px)>=2.05&&Number(a.px)<2.15;
@@ -241,7 +258,7 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   // Per-event reservation, live validation and no-repeat after submitting still apply.
   const leaseRows=(await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET device_id=?,state='leased',lease_expires_utc=datetime('now','+90 seconds'),updated_utc=? WHERE rowid=(SELECT rowid FROM sb_radar_chrome_execution_claims_v1 WHERE owner_username=? AND ((state='pending') OR (state IN ('leased','preparing') AND datetime(lease_expires_utc)<datetime('now'))) AND signal_category IN ('strong','strong-silver') AND datetime(signal_utc)>=datetime('now','-150 seconds') ORDER BY created_utc ASC LIMIT 1) RETURNING event_id,fixture,signal_category,stake_lei,odd_x,lease_expires_utc,client_ref,bookmaker_url").bind(d.device_id,now(),d.owner_username).all()).results||[];
   const leased=leaseRows[0]||null;
-  if(!leased)return reply({ok:true,job:null,reason:'QUEUE_EMPTY'},200,true);
+  if(!leased){await auditJobPoll(env,d,'QUEUE_EMPTY');return reply({ok:true,job:null,reason:'QUEUE_EMPTY'},200,true);}
   const key='event:'+leased.event_id;
   let ref=leased.client_ref;
   if(!ref){ref=crypto.randomUUID();await env.DB.prepare("UPDATE sb_radar_chrome_execution_claims_v1 SET client_ref=? WHERE owner_username=? AND event_id=? AND device_id=? AND state='leased' AND client_ref IS NULL").bind(ref,d.owner_username,leased.event_id,d.device_id).run();}
