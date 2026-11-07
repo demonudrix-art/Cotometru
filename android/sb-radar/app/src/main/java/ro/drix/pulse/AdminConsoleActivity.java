@@ -46,12 +46,13 @@ public final class AdminConsoleActivity extends Activity {
         MUTED=0xFFB6A9C3, STROKE=0xFF51415F, PURPLE=0xFFA75BE0, PURPLE_LIGHT=0xFFD8B1FF,
         RED=0xFFFA5878, GREEN=0xFF66E5B3, AMBER=0xFFFFD18A, TILE=0xFF171321;
     LinearLayout root, loginPanel, dashboard, pcList, phoneList, betsList, dialogsList, tabsRow, sectionPC, sectionPhones, sectionBets, sectionDialogs;
-    TextView feedback, serverStatus, ownerLicense, ownerExpiry, pcCount, phoneCount, betCount;
+    TextView feedback, serverStatus, ownerLicense, ownerExpiry, pcCount, phoneCount, betCount, pulseSummary, pulseDetails;
     TextView[] tabs=new TextView[4];
     EditText username, password;
     final Handler timer=new Handler(Looper.getMainLooper());
     boolean running=false, busy=false, logged=false;
     int selectedTab=0;
+    boolean pulseExpanded=false;
     String expandedPc="", expandedPhone="";
     final Runnable ticker=new Runnable(){
         @Override public void run(){if(running&&logged&&!busy)refresh();if(running)timer.postDelayed(this,15000);}
@@ -220,6 +221,22 @@ public final class AdminConsoleActivity extends Activity {
         space(info,8);
         add(info,label("Niciun tarif separat pentru extensii. Fiecare calculator nou se aprobă securizat cu un cod.",12,MUTED,false));
 
+        LinearLayout pulseCard=panel(dashboard,false);
+        TextView pulseHeader=label("◉  SYSTEM PULSE   ▾",14,PURPLE_LIGHT,true);
+        add(pulseCard,pulseHeader);
+        space(pulseCard,5);
+        pulseSummary=label("Se verifică telemetria...",12,MUTED,false);
+        add(pulseCard,pulseSummary);
+        pulseDetails=label("",12,MUTED,false);
+        pulseDetails.setVisibility(View.GONE);
+        space(pulseCard,4);
+        add(pulseCard,pulseDetails);
+        pulseCard.setOnClickListener(v->{
+            pulseExpanded=!pulseExpanded;
+            pulseDetails.setVisibility(pulseExpanded?View.VISIBLE:View.GONE);
+            pulseHeader.setText(pulseExpanded?"◉  SYSTEM PULSE   ▴":"◉  SYSTEM PULSE   ▾");
+        });
+
         LinearLayout stats=horizontal();padding(stats,0,7,0,9);
         pcCount=addCount(stats,"Calculatoare");phoneCount=addCount(stats,"Telefoane");betCount=addCount(stats,"Bilete");add(dashboard,stats);
 
@@ -289,8 +306,52 @@ public final class AdminConsoleActivity extends Activity {
             data.put("android",api("/api/admin/devices",null));
             data.put("bets",api("/api/chrome/admin/claims",null));
             data.put("dialogs",api("/api/chrome/admin/dialogs",null));
+            try{data.put("pulse",SystemPulse.snapshot(this));}
+            catch(Exception e){data.put("pulse_error",e.getClass().getSimpleName());}
             return data;
         },this::render);
+    }
+    void renderPulse(JSONObject pulse,String error){
+        if(pulse==null){
+            pulseSummary.setText("Telemetrie indisponibilă · Worker separat încă neactivat sau fără conexiune");
+            pulseSummary.setTextColor(AMBER);
+            pulseDetails.setText("Endpoint System Pulse: "+(error.isEmpty()?"fără răspuns":error)+"\nNu afectează scannerul sau biletele.");
+            return;
+        }
+        JSONArray parts=pulse.optJSONArray("components");
+        int green=0,amber=0,red=0;
+        StringBuilder details=new StringBuilder();
+        String[][] labels={{"cloudflare","Cloudflare"},{"feed","Superbet Live"},{"scanner","Scanner 57′"},{"chrome","Chrome Slaves"},{"notifications","FCM"},{"database","D1"},{"android","APK"},{"pipeline","Pipeline"}};
+        for(String[] pair:labels){
+            JSONObject x=null;
+            if(parts!=null)for(int i=0;i<parts.length();i++){
+                JSONObject p=parts.optJSONObject(i);
+                if(p!=null&&pair[0].equals(p.optString("component"))){x=p;break;}
+            }
+            String status=x==null?"unknown":x.optString("status","unknown");
+            String icon="ok".equals(status)?"●":"down".equals(status)?"✕":"◐";
+            if("ok".equals(status))green++;
+            else if("down".equals(status))red++;
+            else amber++;
+            details.append(icon).append("  ").append(pair[1]).append(" — ");
+            details.append(x==null?"Fără date":x.optString("detail","Fără date")).append("\n");
+        }
+        int age=pulse.optInt("age_sec",-1);
+        boolean stale=pulse.optBoolean("stale",true);
+        pulseSummary.setText((red>0?"● INCIDENT":amber>0?"● DEGRADAT":"● FUNCȚIONAL")+"   ·   "
+            +green+" OK   "+amber+" atenționări   "+red+" erori"
+            +(age>=0?"   ·   "+age+"s":"")
+            +(stale?"   ·   ÎNVECHIT":""));
+        pulseSummary.setTextColor(red>0?RED:amber>0||stale?AMBER:GREEN);
+        JSONArray incidents=pulse.optJSONArray("incidents");
+        if(incidents!=null&&incidents.length()>0){
+            JSONObject recent=incidents.optJSONObject(0);
+            if(recent!=null)details.append("\nUltima schimbare: ")
+                .append(recent.optString("component")).append(" → ")
+                .append(recent.optString("new_status")).append("\n")
+                .append(recent.optString("observed_utc"));
+        }
+        pulseDetails.setText(details.toString().trim());
     }
     void render(JSONObject response){
         JSONObject chrome=response.optJSONObject("chrome"),android=response.optJSONObject("android"),bets=response.optJSONObject("bets"),dialogs=response.optJSONObject("dialogs");
@@ -309,6 +370,7 @@ public final class AdminConsoleActivity extends Activity {
         tabs[0].setText("PC "+total);tabs[1].setText("Tel. "+(phones==null?0:phones.length()));tabs[2].setText("Bilete "+placed);
         int waiting=0;if(approvals!=null)for(int i=0;i<approvals.length();i++){JSONObject r=approvals.optJSONObject(i);if(r!=null&&"pending".equals(r.optString("status"))&&!r.optBoolean("expired"))waiting++;}
         tabs[3].setText("Ferestre "+waiting);
+        renderPulse(response.optJSONObject("pulse"),response.optString("pulse_error",""));
         pcList.removeAllViews();
         if(pcs==null||pcs.length()==0){
             LinearLayout card=panel(pcList,false);add(card,label("Niciun calculator asociat",15,WHITE,true));
