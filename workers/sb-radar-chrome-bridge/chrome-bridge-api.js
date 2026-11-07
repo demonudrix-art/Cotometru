@@ -50,7 +50,11 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   const forbidden=/(depunere|retrage|pariaza|plaseaza|verificare identitate|verifica identitatea|autentific|parola|parol[aă]|2fa|otp|captcha|limita de|autoexclud|auto.exclud|restric|confirmarea pariului|politica|termeni si conditii|blocare cont|verificarea varstei)/;
   const informational=/(durat[a ]+sesiun|conectat de \d+ minut|castigat|pierdut|pierderi)/.test(normalized);
   const safeButton=/^(ok|continu[aă]|continua)$/i.test(label);
-  const clickable=informational&&safeButton&&!forbidden.test(normalized)?1:0;
+  // Keep the new two-option session dialog separate from informational alerts.
+  // Every action still requires an authenticated, single-use phone approval.
+  const normalizedLabel=label.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const sessionChoice=kind==='SESSION_CHOICE'&&normalizedLabel==='continua sesiunea'&&normalized.includes('continua sesiunea')&&normalized.includes('iesire din cont');
+  const clickable=!forbidden.test(normalized)&&((informational&&safeButton)||sessionChoice)?1:0;
   const duplicate=await env.DB.prepare("SELECT request_id,status FROM sb_radar_chrome_dialog_requests_v1 WHERE device_id=? AND fingerprint=? AND datetime(created_utc)>=datetime('now','-3 minutes') ORDER BY created_utc DESC LIMIT 1").bind(d.device_id,fingerprint).first();
   if(duplicate)return reply({ok:true,request_id:duplicate.request_id,status:duplicate.status,clickable:!!clickable,duplicate:true},200,true);
   const expires=new Date(Date.now()+180000).toISOString();
