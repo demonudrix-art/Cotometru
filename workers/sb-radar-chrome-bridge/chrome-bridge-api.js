@@ -61,6 +61,15 @@ export async function chromeBridgeApi(req,env,path,authenticated){
   const ins=await env.DB.prepare("INSERT OR IGNORE INTO sb_radar_chrome_dialog_requests_v1(request_id,device_id,owner_username,tab_url,fingerprint,dialog_text,button_label,kind,clickable,expires_utc) VALUES(?,?,?,?,?,?,?,?,?,?)")
     .bind(id,d.device_id,d.owner_username,url,fingerprint,message,label,kind,clickable,expires).run();
   if(Number(ins.meta?.changes||0)===1){
+   // Exact Android action "Aprobă OK": auto-authorize only the existing
+   // server-approved, single-use Chrome dialog. Other actions stay manual.
+   if(label==='OK'&&clickable===1){
+    const auto=await env.DB.prepare("UPDATE sb_radar_chrome_dialog_requests_v1 SET status='approved',approved_utc=strftime('%Y-%m-%dT%H:%M:%fZ','now'),push_status='auto_approved' WHERE request_id=? AND device_id=? AND clickable=1 AND status='pending' AND datetime(expires_utc)>datetime('now')").bind(id,d.device_id).run();
+    if(Number(auto.meta?.changes||0)===1){
+     await event(env,'CHROME_DIALOG_AUTO_APPROVED',d.device_id,null,'OK '+id);
+     return reply({ok:true,request_id:id,status:'approved',clickable:true,auto_approved:true,expires_utc:expires},200,true);
+    }
+   }
    await event(env,'CHROME_DIALOG_DETECTED',d.device_id,null,kind+' · '+label);
    try{
     const push=await env.FCM_DISPATCHER.sendChromeDialog({request_id:id,owner_username:d.owner_username,device_name:d.display_name,dialog_text:message,button_label:label,clickable:!!clickable});
