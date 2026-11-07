@@ -148,6 +148,20 @@ public class MainActivity extends Activity implements SensorEventListener {
           view.postDelayed(()->{
             if(!isFinishing()&&web==view)view.evaluateJavascript(NATIVE_NAV_SCRIPT,null);
           },1150);
+          // If native navigation arrived from Admin, the destination document is
+          // new. Its tab handler must select the requested screen after load.
+          String requested=null;
+          try{requested=Uri.parse(url).getQueryParameter("tab");}catch(Exception ignored){}
+          String destination=null;
+          for(String option:NATIVE_ROUTES)if(option.equals(requested)){destination=option;break;}
+          if(destination!=null){
+            final String selected=destination;
+            view.postDelayed(()->{
+              if(!isFinishing()&&web==view&&isAppWebPage(view.getUrl())){
+                view.evaluateJavascript("try{if(typeof tab==='function')tab('"+selected+"')}catch(e){}",null);
+              }
+            },450);
+          }
         }
         hideNativeSplash();
       }
@@ -371,7 +385,13 @@ public class MainActivity extends Activity implements SensorEventListener {
     else AlertService.silence(this);
   }
   @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);acknowledgeAlert(i);if(web!=null)openIntent(i);}
-  @Override public void onBackPressed(){if(web!=null&&web.canGoBack())web.goBack();else super.onBackPressed();}
+  @Override public void onBackPressed(){
+    if(web!=null&&web.getUrl()!=null&&web.getUrl().startsWith(BASE)&&!isAppWebPage(web.getUrl())){
+      // Android back from Chrome/Admin returns to the profile in the SB Radar app.
+      selectNativeTab("profile");
+    }else if(web!=null&&web.canGoBack())web.goBack();
+    else super.onBackPressed();
+  }
   @Override protected void onResume(){
     super.onResume();
     tiltCalSamples=0;tiltSumP=0;tiltSumW=0;
