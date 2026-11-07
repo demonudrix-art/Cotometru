@@ -1,60 +1,98 @@
 // SB Radar Home System Pulse v1. Independent UI only; no signal/bet control.
 const CSS = String.raw`
 <style id="sb-home-pulse-style">
-/* Retire the obsolete five-bar GPS widget from Home while preserving its existing
-   data pipeline and all scanner logic. */
+/* SB Radar v2 native dashboard palette: integrated compact telemetry strip.
+   Retire only the legacy Home GPS widget, not its scanner/alert pipeline. */
 #live #sbSignalPipeline{display:none!important;visibility:hidden!important}
-#live #sbPulseHome{margin:8px 2px 12px;border:1px solid #43354f;
- background:linear-gradient(130deg,#1d1826 0%,#171923 100%);border-radius:14px;
- box-shadow:0 5px 18px #00000020;overflow:hidden;color:#f5edf8;max-width:100%;
- font-family:Inter,system-ui,sans-serif}
-#sbPulseHome summary{list-style:none;cursor:pointer;display:block;padding:10px 12px 8px;
- -webkit-tap-highlight-color:transparent;touch-action:manipulation}
+#live #sbPulseHome{
+ --sp-line:#36516a;--sp-ink:#e4edf5;--sp-dim:#9cb3c5;
+ margin:7px 1px 13px;border:1px solid var(--sp-line);
+ background:linear-gradient(128deg,#1a2939 0%,#172536 53%,#14212f 100%);
+ border-radius:15px;box-shadow:0 4px 18px #0000001b;
+ color:var(--sp-ink);max-width:100%;overflow:hidden;
+ font-family:Inter,system-ui,sans-serif
+}
+#sbPulseHome summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 #sbPulseHome summary::-webkit-details-marker{display:none}
-#sbPulseHome .sbr-pulse-title{display:flex;gap:7px;align-items:center;min-width:0}
-#sbPulseHome .sbr-pulse-symbol{font-size:14px;color:#e18db0;line-height:1}
-#sbPulseHome .sbr-pulse-name{font-size:11px;letter-spacing:.08em;font-weight:850;color:#e8cafa;white-space:nowrap}
-#sbPulseHome .sbr-pulse-state{margin-left:auto;font-size:10px;white-space:nowrap;
- font-variant-numeric:tabular-nums;color:#b5a9c0;max-width:46%;text-align:right;overflow:hidden;text-overflow:ellipsis}
-#sbPulseHome .sbr-pulse-toggle{font-size:11px;margin-left:2px;color:#b99cca;transition:transform .2s}
+#sbPulseHome>summary{display:block;padding:9px 11px 8px}
+#sbPulseHome .sbr-pulse-title{display:flex;gap:7px;align-items:center;min-width:0;height:17px}
+#sbPulseHome .sbr-pulse-symbol{font-size:12px;color:#60cbb3;line-height:1;opacity:.9}
+#sbPulseHome .sbr-pulse-name{font-size:10.5px;letter-spacing:.11em;font-weight:850;color:#b8cedd;white-space:nowrap}
+#sbPulseHome .sbr-pulse-state{margin-left:auto;font-size:10px;white-space:nowrap;font-weight:700;
+ font-variant-numeric:tabular-nums;max-width:48%;text-align:right;overflow:hidden;text-overflow:ellipsis}
+#sbPulseHome .sbr-pulse-toggle{font-size:12px;margin-left:1px;color:#abc1d2;transition:transform .2s}
 #sbPulseHome[open] .sbr-pulse-toggle{transform:rotate(180deg)}
-#sbPulseHome .sbr-pulse-lanes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-top:5px}
-#sbPulseHome .sbr-pulse-lane{display:grid;grid-template-columns:16px minmax(0,1fr);
- grid-template-rows:15px 12px;column-gap:3px;align-items:center;min-width:0;padding:5px 3px;
- background:#ffffff05;border-radius:9px;border:1px solid #ffffff0a}
-#sbPulseHome .sbr-pulse-heart{grid-row:1 / 3;grid-column:1;display:inline-grid;place-items:center;
- font-size:15px;line-height:1;color:#746b7d;transform-origin:center center}
-#sbPulseHome .sbr-pulse-lane[data-state="ok"] .sbr-pulse-heart{
- color:#eb628e;text-shadow:0 0 8px #eb628e6b;animation:sbr-home-heartbeat 2.7s ease-in-out infinite}
-#sbPulseHome .sbr-pulse-lane[data-state="warn"] .sbr-pulse-heart{color:#ffb963}
-#sbPulseHome .sbr-pulse-lane[data-state="down"] .sbr-pulse-heart{color:#ff5b69}
-#sbPulseHome .sbr-pulse-lane[data-state="unknown"] .sbr-pulse-heart{color:#8c8392}
-#sbPulseHome .sbr-pulse-label{grid-column:2;grid-row:1;font-size:9px;font-weight:750;
- color:#ebe3ef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#sbPulseHome .sbr-pulse-age{grid-column:2;grid-row:2;font-size:9px;color:#a99caf;
- white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-#sbPulseHome .sbr-pulse-details{border-top:1px solid #5c476c66;padding:8px 12px 11px}
-#sbPulseHome .sbr-pulse-summary{font-size:10px;line-height:1.45;color:#c7b9cc;margin-bottom:6px}
-#sbPulseHome .sbr-pulse-list{display:grid;gap:5px}
-#sbPulseHome .sbr-pulse-row{display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid #ffffff09}
-#sbPulseHome .sbr-pulse-indicator{font-size:12px;line-height:1.4;color:#a6a0aa}
-#sbPulseHome .sbr-pulse-row[data-state="ok"] .sbr-pulse-indicator{color:#68dfab}
-#sbPulseHome .sbr-pulse-row[data-state="warn"] .sbr-pulse-indicator{color:#ffc16a}
-#sbPulseHome .sbr-pulse-row[data-state="down"] .sbr-pulse-indicator{color:#ff6680}
-#sbPulseHome .sbr-pulse-body{min-width:0;flex:1;font-size:10px;line-height:1.45;color:#c2b8c8;overflow-wrap:anywhere}
-#sbPulseHome .sbr-pulse-body b{color:#f1e7f4;font-size:10px}
-#sbPulseHome .sbr-pulse-incident{margin-top:7px;padding-top:7px;border-top:1px solid #55425e;
- font-size:10px;line-height:1.45;color:#cbb8d3;overflow-wrap:anywhere}
-@keyframes sbr-home-heartbeat {
-  0%,20%,31%,47%,100%{transform:scale(1);filter:none}
-  23%{transform:scale(1.24)}
-  40%{transform:scale(1.15)}
+#sbPulseHome .sbr-pulse-lanes{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;
+ border-top:1px solid #51708747;margin-top:6px;padding-top:5px
+}
+#sbPulseHome .sbr-pulse-lane{
+ display:grid;grid-template-columns:13px minmax(0,1fr);grid-template-rows:14px 12px;
+ align-items:center;column-gap:3px;min-width:0;padding:3px 5px 2px;
+ border-right:1px solid #56708654;background:transparent;box-sizing:border-box
+}
+#sbPulseHome .sbr-pulse-lane:last-child{border-right:0}
+#sbPulseHome .sbr-pulse-heart{
+ grid-row:1/3;grid-column:1;display:inline-grid;place-items:center;
+ font-size:12px;line-height:1;color:#738ba0;transform-origin:center center
+}
+#sbPulseHome .sbr-pulse-lane[data-state="ok"] .sbr-pulse-heart{color:#69d9b0}
+#sbPulseHome .sbr-pulse-lane[data-state="ok"][data-fresh="1"] .sbr-pulse-heart{
+ animation:sbr-home-heartbeat 2.8s ease-in-out infinite
+}
+#sbPulseHome .sbr-pulse-lane[data-state="warn"] .sbr-pulse-heart{color:#f0be6c}
+#sbPulseHome .sbr-pulse-lane[data-state="down"] .sbr-pulse-heart{color:#ff7c87}
+#sbPulseHome .sbr-pulse-lane[data-state="unknown"] .sbr-pulse-heart{color:#6b8293}
+#sbPulseHome .sbr-pulse-label{
+ grid-column:2;grid-row:1;font-size:9.5px;font-weight:750;color:#dce8f2;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+#sbPulseHome .sbr-pulse-age{
+ grid-column:2;grid-row:2;font-size:9px;color:#98adbf;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums
+}
+#sbPulseHome .sbr-pulse-details{border-top:1px solid #3b5369;padding:9px 11px 10px}
+#sbPulseHome .sbr-pulse-summary{font-size:10px;line-height:1.45;color:#aabfd0;margin-bottom:8px}
+#sbPulseHome .sbr-pulse-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+#sbPulseHome .sbr-pulse-row{
+ display:block;min-width:0;margin:0;border:1px solid #3a5368;
+ border-radius:10px;background:#203044b5;overflow:hidden
+}
+#sbPulseHome .sbr-pulse-row[open]{grid-column:1/-1;background:#24374b}
+#sbPulseHome .sbr-pulse-row>summary{
+ min-height:41px;padding:7px 8px;display:flex;align-items:center;gap:6px;box-sizing:border-box
+}
+#sbPulseHome .sbr-pulse-indicator{font-size:11px;line-height:1;color:#8699aa}
+#sbPulseHome .sbr-pulse-row[data-state="ok"] .sbr-pulse-indicator{color:#62d5aa}
+#sbPulseHome .sbr-pulse-row[data-state="warn"] .sbr-pulse-indicator{color:#f2c275}
+#sbPulseHome .sbr-pulse-row[data-state="down"] .sbr-pulse-indicator{color:#ff7b88}
+#sbPulseHome .sbr-pulse-body{min-width:0;flex:1;font-size:10px;line-height:1.25;color:#b8c9d7}
+#sbPulseHome .sbr-pulse-body b{
+ color:#dce8f2;font-size:10px;font-weight:750;display:block;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis
+}
+#sbPulseHome .sbr-pulse-status{font-size:9px;font-weight:850;color:#75ddb7;margin-left:auto}
+#sbPulseHome .sbr-pulse-row[data-state="warn"] .sbr-pulse-status{color:#f1c17b}
+#sbPulseHome .sbr-pulse-row[data-state="down"] .sbr-pulse-status{color:#ff8a96}
+#sbPulseHome .sbr-pulse-row[data-state="unknown"] .sbr-pulse-status{color:#a4b1bd}
+#sbPulseHome .sbr-pulse-row .sbr-pulse-detail{
+ color:#b8cbd8;font-size:10.5px;line-height:1.55;
+ padding:0 9px 9px;overflow-wrap:anywhere
+}
+#sbPulseHome .sbr-pulse-incident{
+ font-size:9.5px;color:#9db3c5;line-height:1.5;margin-top:8px;
+ border-top:1px solid #40586a;padding-top:7px;overflow-wrap:anywhere
+}
+@keyframes sbr-home-heartbeat{
+ 0%,19%,33%,48%,100%{transform:scale(1)}
+ 23%{transform:scale(1.18)}
+ 40%{transform:scale(1.10)}
 }
 @media(prefers-reduced-motion:reduce){#sbPulseHome .sbr-pulse-heart{animation:none!important}}
 @media(max-width:370px){
- #sbPulseHome .sbr-pulse-lane{grid-template-columns:14px minmax(0,1fr);column-gap:2px}
- #sbPulseHome .sbr-pulse-heart{font-size:13px}
- #sbPulseHome .sbr-pulse-label,#sbPulseHome .sbr-pulse-age{font-size:8px}
+ #sbPulseHome .sbr-pulse-lane{grid-template-columns:11px minmax(0,1fr);column-gap:2px;padding-left:3px;padding-right:3px}
+ #sbPulseHome .sbr-pulse-heart{font-size:11px}
+ #sbPulseHome .sbr-pulse-label,#sbPulseHome .sbr-pulse-age{font-size:8.5px}
 }
 </style>
 `;
@@ -97,6 +135,7 @@ function stateOf(p,stale){
  return ['ok','warn','down'].includes(p.status)?p.status:'unknown';
 }
 function ageText(sec){
+ if(sec===null||sec===undefined||sec==='')return '—';
  var n=Number(sec);
  if(!Number.isFinite(n)||n<0)return '—';
  if(n<60)return Math.floor(n)+'s';
@@ -113,8 +152,8 @@ function show(data){
   if(st==='ok')ok++;else if(st==='warn'||st==='unknown')warn++;else down++;
  });
  var header=document.getElementById('sbPulseHomeState');
- header.textContent=stale?'Date învechite':down?down+' incident'+(down===1?'':'e'):warn?ok+'/9 OK • '+warn+' atenții':ok+'/9 OK';
- header.style.color=stale||down?'#ff8c9d':warn?'#ffc16a':'#9fe9c5';
+ header.textContent=stale?'Date învechite':down?down+' incident'+(down===1?'':'e'):warn?ok+'/9 OK · '+warn+(warn===1?' atenție':' atenții'):ok+'/9 OK';
+ header.style.color=stale||down?'#ff8995':warn?'#f2c275':'#78ddb3';
  heartMap.forEach(function(pair){
   var root=card.querySelector('[data-pulse-component="'+pair[0]+'"]');
   var obj=map[pair[0]],state=stateOf(obj,stale);
@@ -123,6 +162,8 @@ function show(data){
   var a=root.querySelector('.sbr-pulse-age'),m=obj&&obj.metrics||{};
   var age=pair[0]==='feed'?m.sample_age_sec:
     pair[0]==='scanner'?m.age_sec:pair[0]==='chrome'?m.poll_age_sec:m.age_sec;
+  var maxFresh=pair[0]==='android'?90:pair[0]==='chrome'?65:80;
+  root.dataset.fresh=(state==='ok'&&age!=null&&Number.isFinite(Number(age))&&Number(age)<=maxFresh)?'1':'0';
   if(pair[0]==='chrome'&&m.ready!=null)a.textContent=String(m.ready)+'/'+String(m.enabled||0);
   else a.textContent=(state==='unknown'?'—':ageText(age));
   root.setAttribute('aria-label',pair[1]+' · '+state+' · '+(obj?obj.detail:'fără date'));
@@ -136,13 +177,19 @@ function show(data){
    list.replaceChildren();
    order.forEach(function(name){
     var p=map[name],s=stateOf(p,stale);
-    var row=document.createElement('div');row.className='sbr-pulse-row';row.dataset.state=s;
+    var row=document.createElement('details');row.className='sbr-pulse-row';row.dataset.state=s;
+    var head=document.createElement('summary');
     var mark=document.createElement('span');mark.className='sbr-pulse-indicator';
     mark.textContent=s==='ok'?'●':s==='warn'?'◐':s==='down'?'×':'○';
-    var text=document.createElement('div');text.className='sbr-pulse-body';
+    var title=document.createElement('span');title.className='sbr-pulse-body';
     var bold=document.createElement('b');bold.textContent=allNames[name]||name;
-    text.append(bold,document.createTextNode(' — '+(p?p.detail:'Nu există date confirmate')));
-    row.append(mark,text);list.appendChild(row);
+    title.appendChild(bold);
+    var short=document.createElement('span');short.className='sbr-pulse-status';
+    short.textContent=s==='ok'?'OK':s==='warn'?'ATENȚIE':s==='down'?'EROARE':'—';
+    head.append(mark,title,short);
+    var detail=document.createElement('div');detail.className='sbr-pulse-detail';
+    detail.textContent=p?p.detail:'Nu există date confirmate';
+    row.append(head,detail);list.appendChild(row);
    });
    priorGeneration=generation;
  }
@@ -160,8 +207,8 @@ async function refresh(){
   show(data);lastGood=Date.now();
  }catch(e){
   var state=document.getElementById('sbPulseHomeState');
-  if(state){state.textContent='Telemetrie indisponibilă';state.style.color='#ff8c9d';}
-  heartMap.forEach(function(x){var node=card.querySelector('[data-pulse-component="'+x[0]+'"]');if(node){node.dataset.state='unknown';node.querySelector('.sbr-pulse-age').textContent='—';}});
+  if(state){state.textContent='Telemetrie indisponibilă';state.style.color='#ff8995';}
+  heartMap.forEach(function(x){var node=card.querySelector('[data-pulse-component="'+x[0]+'"]');if(node){node.dataset.state='unknown';node.dataset.fresh='0';node.querySelector('.sbr-pulse-age').textContent='—';}});
   document.getElementById('sbPulseHomeSummary').textContent='Nu se poate verifica System Pulse; ultimul răspuns valid '+(lastGood?ageText((Date.now()-lastGood)/1000)+' în urmă':'necunoscut')+'.';
  }
  finally{loading=false;}
