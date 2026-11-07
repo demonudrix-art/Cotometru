@@ -16,7 +16,7 @@ import java.time.ZonedDateTime;
  */
 public final class ChromeDialogNotifier {
   private ChromeDialogNotifier(){}
-  public static void post(Context context,String id,String device,String body,boolean canApprove){
+  public static void post(Context context,String id,String device,String body,String buttonLabel,boolean canApprove){
     if(id==null||!id.matches("[a-zA-Z0-9-]{32,64}"))return;
     NotificationManager manager=(NotificationManager)context.getSystemService(Context.NOTIFICATION_SERVICE);
     if(manager==null)return;
@@ -34,7 +34,8 @@ public final class ChromeDialogNotifier {
     String text=(body==null?"":body.trim());
     if(text.length()>400)text=text.substring(0,400);
     String title="⚠️ Superbet · "+(device==null?"PC":device);
-    String message=text+(canApprove?"\nDeschide pentru a aproba OK în Chrome.":"\nNecesită verificare pe calculator.");
+    String label=buttonLabel!=null&&buttonLabel.matches("(?i)^(OK|Continu[aă])$")?buttonLabel:"OK";
+    String message=text+(canApprove?"\nAprobă „"+label+"” direct din notificare.":"\nNecesită verificare pe calculator.");
     Intent open=new Intent(context,AdminConsoleActivity.class)
       .putExtra("SBR_OPEN_DIALOGS",true)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -48,6 +49,22 @@ public final class ChromeDialogNotifier {
       .setAutoCancel(true).setContentIntent(intent)
       .setCategory(Notification.CATEGORY_REMINDER)
       .setPriority(Notification.PRIORITY_HIGH);
+    // The action is a deliberate tap by the owner. The private receiver performs
+    // an authenticated one-time approval; Chrome independently verifies the popup.
+    if(canApprove){
+      Intent approve=new Intent(context,ChromeDialogApprovalReceiver.class)
+        .setAction("ro.drix.pulse.CHROME_DIALOG_APPROVE")
+        .putExtra("request_id",id).putExtra("operation","approve");
+      Intent reject=new Intent(context,ChromeDialogApprovalReceiver.class)
+        .setAction("ro.drix.pulse.CHROME_DIALOG_REJECT")
+        .putExtra("request_id",id).putExtra("operation","reject");
+      PendingIntent approvePi=PendingIntent.getBroadcast(context,(id+"approve").hashCode()&0x7fffffff,approve,
+        PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+      PendingIntent rejectPi=PendingIntent.getBroadcast(context,(id+"reject").hashCode()&0x7fffffff,reject,
+        PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+      builder.addAction(new Notification.Action.Builder(android.R.drawable.ic_menu_send,"✓ Aprobă "+label,approvePi).build());
+      builder.addAction(new Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel,"Respinge",rejectPi).build());
+    }
     try{manager.notify(id.hashCode()&0x7fffffff,builder.build());}
     catch(SecurityException e){android.util.Log.w("SBR_Dialog","Notification permission denied",e);}
   }
