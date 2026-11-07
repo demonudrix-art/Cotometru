@@ -54,4 +54,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/build-info/sb-radar.json
           git commit -m "chore(ci): record SB Radar APK artifact [skip ci]" || exit 0
-          git push origin HEAD:"$GITHUB_REF_NAME"
+          # Concurrent repository updates must not turn a successful APK build into a failed CI run.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:"$GITHUB_REF_NAME"; then exit 0; fi
+            git fetch origin "$GITHUB_REF_NAME"
+            if ! git rebase "origin/$GITHUB_REF_NAME"; then
+              git rebase --abort || true
+              echo "::warning::APK built and uploaded; artifact pointer update conflicted"
+              exit 0
+            fi
+          done
+          echo "::warning::APK built and uploaded; artifact pointer push will be retried next build"
