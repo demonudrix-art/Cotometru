@@ -42,7 +42,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         id: apk_upload
         with:
-          name: SB-Radar-v2.3.29-Background-Heartbeat-APK
+          name: SB-Radar-v2.3.30-Notification-Icons-APK
           path: android/sb-radar/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
       - name: Save build artifact pointer
