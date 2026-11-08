@@ -128,8 +128,8 @@ public class AlertService extends Service {
     String action=intent==null?"START":intent.getAction();
     if(SILENCE.equals(action)){stopRinging();return START_STICKY;}
     if("STOP".equals(action)){stopSelf();return START_NOT_STICKY;}
-    Notification foreground=builder(this,CH_MONITOR).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle("SB Radar • Monitor activ").setContentText("Urmărește Strong + Silver și Golden Strong")
+    Notification foreground=builder(this,CH_MONITOR).setSmallIcon(R.drawable.sbr_status_idle)
+      .setContentTitle("SB Radar • Monitor activ").setContentText("Urmărește Strong + Silver și Golden Strong").setColor(0xff90a4ae)
       .setContentIntent(open(this,FOREGROUND_ID,"/app?tab=live")).setOngoing(true).build();
     startForeground(FOREGROUND_ID,foreground);
     if("TEST_GOLD".equals(action)||"TEST_RUSH".equals(action)){
@@ -171,7 +171,7 @@ public class AlertService extends Service {
     Intent dismiss=new Intent(this,AlertDismissReceiver.class).setAction("ro.drix.pulse.SILENCE");
     dismiss.putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(this,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-    Notification.Builder b=builder(this,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
+    Notification.Builder b=builder(this,channel).setSmallIcon(purple?R.drawable.sbr_status_purple:R.drawable.sbr_status_red)
       .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(this,id,path)).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
@@ -212,7 +212,7 @@ public class AlertService extends Service {
       String path=win?"/app?tab=slip&bet_id="+row.optLong("bet_id",0):"/app?tab=live&event_id="+event;
       int id=(int)(Math.abs(event)%100000)+3000+(win?100000:0);
       if(win){
-        Notification n=builder(this,CH_WINS).setSmallIcon(android.R.drawable.ic_dialog_info).setAutoCancel(true)
+        Notification n=builder(this,CH_WINS).setSmallIcon(R.drawable.sbr_status_win).setColor(0xff31bd82).setAutoCancel(true)
           .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
@@ -248,10 +248,11 @@ public class AlertService extends Service {
     PendingIntent full=PendingIntent.getActivity(ctx,id+400000,fs,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Intent dismiss=new Intent(ctx,AlertDismissReceiver.class).setAction("ro.drix.pulse.SILENCE").putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(ctx,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-    Notification.Builder b=builder(ctx,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
+    Notification.Builder b=builder(ctx,channel).setSmallIcon(purple?R.drawable.sbr_status_purple:R.drawable.sbr_status_red)
       .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_ALARM)
       .setVisibility(Notification.VISIBILITY_PUBLIC).setPriority(Notification.PRIORITY_MAX)
+      .setColor(purple?0xffa879ff:0xfff54d61)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(!quiet&&(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
