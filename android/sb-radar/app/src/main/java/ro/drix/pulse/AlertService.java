@@ -142,6 +142,9 @@ public class AlertService extends Service {
     running=true;
     thread=new Thread(()->{
       while(running){
+        // Keep System Pulse fresh even when MainActivity is paused/backgrounded.
+        // Uses the EXISTING foreground monitor; no new Android service or permission.
+        SystemPulse.heartbeat(this,MainActivity.isAppForeground());
         try{checkAlerts();}catch(Exception e){android.util.Log.w("SB_Radar","Monitor temporarily unavailable");}
         try{Thread.sleep(25000);}catch(InterruptedException ignored){break;}
       }

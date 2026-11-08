@@ -13,6 +13,12 @@ import java.nio.charset.StandardCharsets;
 final class SystemPulse {
   private static final String BASE="https://sb-radar-system-pulse-v1.drix-beast-xray.workers.dev";
   private SystemPulse(){}
+  // Serialize native UI and foreground monitor writes to prevent old onPause
+  // requests arriving after a newer onResume heartbeat.
+  private static final java.util.concurrent.ExecutorService HEARTBEATS =
+    java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+      Thread t=new Thread(r,"SB-Radar-Pulse");t.setDaemon(true);return t;
+    });
 
   private static JSONObject sendRequest(Context context,String path,String body) throws Exception {
     final String token=MainActivity.token(context);
@@ -49,7 +55,7 @@ final class SystemPulse {
   static void heartbeat(Context context,boolean foreground){
     Context app=context.getApplicationContext();
     if(MainActivity.token(app).isEmpty())return;
-    new Thread(()->{
+    HEARTBEATS.execute(()->{
       try{
         JSONObject payload=new JSONObject();
         payload.put("foreground",foreground);
@@ -58,6 +64,6 @@ final class SystemPulse {
       }catch(Exception e){
         android.util.Log.d("SB_SystemPulse","Heartbeat unavailable: "+e.getClass().getSimpleName());
       }
-    },"SB-Radar-Pulse").start();
+    });
   }
 }
