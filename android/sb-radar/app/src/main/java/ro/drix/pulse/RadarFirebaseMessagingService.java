@@ -22,6 +22,12 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       ChromeDialogNotifier.post(this,d.getOrDefault("request_id",""),d.getOrDefault("device_name","Calculator"),d.getOrDefault("body",""),d.getOrDefault("button_label","OK"),"true".equalsIgnoreCase(d.getOrDefault("clickable","false")));
       return;
     }
+    if("OVER05_WATCH".equals(d.get("stage"))){
+      // Separate Over 0.5 information only; never enters BET_NOW or automatic betting.
+      try{GoalWatchNotifier.post(this,d);}
+      catch(Exception e){android.util.Log.w("SB_Radar_GoalWatch","Native alert unavailable",e);}
+      return;
+    }
     if("AUTO_TICKET_PLACED".equals(d.get("stage"))){
       try{
         String ticket=d.getOrDefault("ticket_id","");
