@@ -65,7 +65,7 @@ final class GoalWatchNotifier {
       "\nOver 0.5 până la final · informativ, fără pariu automat";
     int notificationId=780000+(int)(eventId%160000L);
     Notification notification=new Notification.Builder(ctx,channel)
-      .setSmallIcon(R.drawable.sb_radar_icon)
+      .setSmallIcon(R.drawable.sbr_status_goalwatch)
       .setContentTitle("⚡ GOAL WATCH · OVER 0.5")
       .setContentText(fixture+" · Risc "+risk+"%")
       .setStyle(new Notification.BigTextStyle().bigText(body))
