@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.29";
+  static final String APP_VERSION="2.3.31";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -96,7 +96,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     "var previous=tab;window.tab=function(){var value=previous.apply(this,arguments);sync();return value;};"+
     "new MutationObserver(sync).observe(nav,{attributes:true,attributeFilter:['class']});sync();"+
     "}catch(e){}})();";
-  static final String NATIVE_ADMIN_ENTRY_SCRIPT="(function(){try{if(!window.DrixNative||typeof DrixNative.openAdminConsole!=='function')return;var profile=document.getElementById('profile');if(!profile||document.getElementById('sbNativeAdminEntry'))return;var b=document.createElement('button');b.id='sbNativeAdminEntry';b.textContent='🛡 ADMIN · LICENȚE & CHROME BRIDGE';b.style.cssText='display:block;width:100%;margin:5px 0 15px;padding:14px;border:1px solid #87354d;border-radius:13px;background:#4b1830;color:white;font-weight:800;font-size:13px';b.addEventListener('click',function(){DrixNative.openAdminConsole()});profile.insertBefore(b,profile.firstChild);}catch(e){}})();";
+  static final String NATIVE_ADMIN_ENTRY_SCRIPT="(function(){try{if(!window.DrixNative||typeof DrixNative.openAdminConsole!=='function')return;var profile=document.getElementById('profile');if(!profile||document.getElementById('sbNativeAdminEntry'))return;var b=document.createElement('button');b.id='sbNativeAdminEntry';b.textContent='🛡 ADMIN · LICENȚE & SISTEM';b.style.cssText='display:block;width:100%;margin:5px 0 15px;padding:14px;border:1px solid #87354d;border-radius:13px;background:#4b1830;color:white;font-weight:800;font-size:13px';b.addEventListener('click',function(){DrixNative.openAdminConsole()});profile.insertBefore(b,profile.firstChild);}catch(e){}})();";
   static float tiltClamp(float v,float min,float max){return Math.max(min,Math.min(max,v));}
   static float tiltDeadZone(float v,float zone){
     return Math.abs(v)<=zone?0f:Math.copySign(Math.abs(v)-zone,v);
@@ -282,7 +282,12 @@ public class MainActivity extends Activity implements SensorEventListener {
     nativeBottomTabs.setOrientation(LinearLayout.HORIZONTAL);
     nativeBottomTabs.setGravity(Gravity.CENTER_VERTICAL);
     nativeBottomTabs.setPadding(dp(8),dp(5),dp(8),dp(5));
-    nativeBottomTabs.setBackgroundColor(0xff17121c);
+    // Cinematic native glass-style navigation: one lightweight gradient layer.
+    GradientDrawable navGlass=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+      new int[]{0xef221b2d,0xff11141e});
+    navGlass.setStroke(dp(1),0x664d6271);
+    nativeBottomTabs.setBackground(navGlass);
+    nativeBottomTabs.setElevation(dp(10));
     for(int i=0;i<NATIVE_ROUTES.length;i++){
       final int n=i;
       LinearLayout cell=new LinearLayout(this);
@@ -318,8 +323,10 @@ public class MainActivity extends Activity implements SensorEventListener {
     for(int i=0;i<NATIVE_ROUTES.length;i++){
       boolean active=NATIVE_ROUTES[i].equals(nativeActiveRoute);
       if(nativeTabCells[i]==null)continue;
-      nativeTabCells[i].setBackground(nativeBackground(active?0xff65172f:0xff19141f,
-          active?0xff8b2747:0,14));
+      boolean changed=nativeTabCells[i].isSelected()!=active;
+      nativeTabCells[i].setBackground(nativeBackground(active?0xff5b233f:0xff1d1c2a,
+          active?0xffa44b75:0x55445564,14));
+      if(changed)nativeTabCells[i].animate().scaleX(active?1.025f:1f).scaleY(active?1.025f:1f).setDuration(180).start();
       int tint=active?0xfff9f2f5:0xffb6a6b7;
       nativeTabGlyphs[i].setTextColor(tint);
       nativeTabLabels[i].setTextColor(tint);
