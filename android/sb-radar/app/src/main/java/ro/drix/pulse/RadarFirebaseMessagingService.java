@@ -22,6 +22,12 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       ChromeDialogNotifier.post(this,d.getOrDefault("request_id",""),d.getOrDefault("device_name","Calculator"),d.getOrDefault("body",""),d.getOrDefault("button_label","OK"),"true".equalsIgnoreCase(d.getOrDefault("clickable","false")));
       return;
     }
+    if("KLOPP_BET_NOW".equals(d.get("stage"))){
+      // Dedicated 2 lei X57 research alerts, separate from Radio/Goal Watch.
+      try{KloppWaveNotifier.post(this,d);}
+      catch(Exception e){android.util.Log.w("SB_Radar_KLOPP","KLOPP native alert unavailable",e);}
+      return;
+    }
     if("OVER05_WATCH".equals(d.get("stage"))){
       // Separate Over 0.5 information only; never enters BET_NOW or automatic betting.
       try{GoalWatchNotifier.post(this,d);}
