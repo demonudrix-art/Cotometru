@@ -34,7 +34,7 @@ public final class AutoTicketNotifier{
   open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP|Intent.FLAG_ACTIVITY_CLEAR_TOP);
   PendingIntent click=PendingIntent.getActivity(context,(ticketId.hashCode()&0x7fffffff),open,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
   Notification.Builder n=Build.VERSION.SDK_INT>=26?new Notification.Builder(context,channelId):new Notification.Builder(context);
-  n.setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(title).setContentText(message).setStyle(new Notification.BigTextStyle().bigText(message)).setAutoCancel(true).setContentIntent(click).setCategory(Notification.CATEGORY_STATUS);
+  n.setSmallIcon(R.drawable.sbr_status_ticket).setColor(0xff32bfa8).setContentTitle(title).setContentText(message).setStyle(new Notification.BigTextStyle().bigText(message)).setAutoCancel(true).setContentIntent(click).setCategory(Notification.CATEGORY_STATUS);
   try{manager.notify(ticketId.hashCode()&0x7fffffff,n.build());prefs.edit().putBoolean(key,true).apply();}catch(Exception ignored){}
  }
 }
