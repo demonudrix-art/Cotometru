@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.31";
+  static final String APP_VERSION="2.3.32";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -35,12 +35,12 @@ public class MainActivity extends Activity implements SensorEventListener {
   FrameLayout nativeSurface;
   LinearLayout nativeSplash;
   LinearLayout nativeBottomTabs;
-  final LinearLayout[] nativeTabCells=new LinearLayout[4];
-  final TextView[] nativeTabGlyphs=new TextView[4];
-  final TextView[] nativeTabLabels=new TextView[4];
-  static final String[] NATIVE_ROUTES={"live","slip","roi","profile"};
-  static final String[] NATIVE_LABELS={"RADAR","SLIP","ROI","PROFIL"};
-  static final String[] NATIVE_GLYPHS={"◎","▤","⌁","♙"};
+  final LinearLayout[] nativeTabCells=new LinearLayout[5];
+  final TextView[] nativeTabGlyphs=new TextView[5];
+  final TextView[] nativeTabLabels=new TextView[5];
+  static final String[] NATIVE_ROUTES={"live","klopp","slip","roi","profile"};
+  static final String[] NATIVE_LABELS={"RADAR","KLOPP","SLIP","ROI","PROFIL"};
+  static final String[] NATIVE_GLYPHS={"◎","◈","▤","⌁","♙"};
   boolean nativeTabsVisible=false;
   String nativeActiveRoute="live";
   // Native gravity sensor: 3D radar moves from launch, without a screen tap.
@@ -79,7 +79,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     "return camera.apply(this,arguments)};"+
     "}catch(e){}})();";
 
-  // The four-tab navigation is rendered by Android. The radar and account
+  // Five native tabs: RADAR / KLOPP / SLIP / ROI / PROFIL. The radar and account
   // forms stay backed by the existing licensed web app and API.
   // If injection cannot initialize, the original web navigation remains visible.
   static final String NATIVE_NAV_SCRIPT=
@@ -91,7 +91,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     "function sync(){var enabled=!nav.classList.contains('hidden');"+
     "document.documentElement.classList.toggle('sb-android-native-nav',enabled);"+
     "if(!window.DrixNative)return;DrixNative.setNativeTabsVisible(enabled);"+
-    "var which=['live','slip','roi','profile'].find(function(n){var e=document.getElementById('tab-'+n);return e&&e.classList.contains('active')});"+
+    "var which=['live','klopp','slip','roi','profile'].find(function(n){var e=document.getElementById('tab-'+n);return e&&e.classList.contains('active')});"+
     "if(which)DrixNative.setNativeTabActive(which)}"+
     "var previous=tab;window.tab=function(){var value=previous.apply(this,arguments);sync();return value;};"+
     "new MutationObserver(sync).observe(nav,{attributes:true,attributeFilter:['class']});sync();"+
