@@ -158,6 +158,22 @@ const CSS=[
  '.a57-audit-check{padding:7px 10px;background:#213146;border:1px solid #475777;border-radius:10px;margin:5px 0;font-size:12px;color:#d4deed}',
  '.a57-audit-check.ok{border-color:#38795f;color:#b6ecd7}',
  '.a57-audit-link{display:inline-block;margin-top:12px;padding:11px 13px;border-radius:12px;background:#5bcaf0;color:#062a3b;text-decoration:none;font-size:12px;font-weight:900}',
+ '#away57 .a57-outcome-summary{padding:15px 12px;border:1px solid #41677e;border-radius:16px;background:linear-gradient(145deg,#162b3f,#1b2032);margin:15px 0}',
+ '#away57 .a57-outcome-title{font-weight:900;font-size:14px;color:#d2f3ff;letter-spacing:.03em}',
+ '#away57 .a57-summary-note{font-size:10px;line-height:1.55;color:#a1c0d1;margin:9px 0}',
+ '#away57 .a57-outcome-table{margin:12px 0;border-radius:10px;overflow:hidden;border:1px solid #30546a}',
+ '#away57 .a57-outcome-head,#away57 .a57-outcome-row{display:grid;grid-template-columns:minmax(0,1.9fr) repeat(3,minmax(0,.7fr));align-items:center;gap:5px;padding:9px 6px;text-align:center}',
+ '#away57 .a57-outcome-head{background:#10283b;color:#91b9cf;font-size:9px;font-weight:900}',
+ '#away57 .a57-outcome-row{border-top:1px solid #385467;background:#1a2b3d;font-size:15px;color:#d1e3f1}',
+ '#away57 .a57-outcome-row:nth-child(2n){background:#18283a}',
+ '#away57 .a57-outcome-row strong{text-align:left;font-size:11px;color:#e4f7ff}',
+ '#away57 .a57-outcome-row small{display:block;color:#839fb5;font-size:9px;margin-top:3px;font-weight:500}',
+ '#away57 .a57-outcome-relevant{box-shadow:inset 3px 0 0 #60d9ff;background:#1a3447}',
+ '#away57 .a57-outcome-ml{box-shadow:inset 3px 0 0 #a78afa;background:#292843}',
+ '#away57 .a57-outcome-row .a57-w{color:#72e8b2}',
+ '#away57 .a57-outcome-row .a57-l{color:#ff929c}',
+ '#away57 .a57-observed-win{border-color:#3b8165!important}',
+ '#away57 .a57-observed-loss{border-color:#935562!important}',
  '@media(prefers-reduced-motion:reduce){#away57 .a57-progress i{transition:none}}'
 ].join('\n');
 function away57RadarClient(){
@@ -223,7 +239,8 @@ function away57RadarClient(){
   for(const [name,value] of data){const cell=elem('span');cell.append(elem('b','',value),elem('small','',name));cells.append(cell);}
   card.append(cells);
   if(kind==='archive'&&Number(x.verified)===1&&x.event_status==='FINISHED'){
-   addText(card,'div','Final verificat: '+x.final_home+'–'+x.final_away+' · nu presupune că a existat alertă Away 57','a57-final');
+   const won=Number(x.final_away)>Number(x.final_home);
+   addText(card,'div','Final verificat: '+x.final_home+'–'+x.final_away+' · '+(won?'WIN 2':'LOSS 2')+' (doar observație, NU semnal ML)',won?'a57-final a57-observed-win':'a57-final a57-observed-loss');
   }
   if(kind!=='archive'){const prog=elem('div','a57-progress'),bar=elem('i');bar.style.width=Math.min(100,Math.max(0,Number(x.minute||0)/57*100))+'%';prog.append(bar);card.append(prog);}
   const actions=elem('div','a57-actions');
@@ -268,6 +285,33 @@ function away57RadarClient(){
   const observe=[...(current?.candidates?.candidates||[])].sort((a,b)=>Date.parse(b.captured_utc)-Date.parse(a.captured_utc)||Number(b.event_id)-Number(a.event_id));
   const old=[...(current?.archive||[])].sort((a,b)=>Date.parse(b.captured_utc)-Date.parse(a.captured_utc)||Number(b.event_id)-Number(a.event_id));
   const signals=[...(current?.signals||[])].sort((a,b)=>Date.parse(b.signal_utc)-Date.parse(a.signal_utc)||Number(b.event_id)-Number(a.event_id));
+  // Outcome columns are about the final away-win outcome of observed matches.
+  // Scores 0-0 and 1-1 refer to the LAST OBSERVED capture, never an ML signal.
+  const groups={
+   '00':{n:0,w:0,l:0,u:0},'11':{n:0,w:0,l:0,u:0},'1157':{n:0,w:0,l:0,u:0}
+  };
+  const add=(key,x)=>{
+   const t=groups[key];t.n++;
+   if(Number(x.verified)!==1||x.event_status!=='FINISHED'||x.final_home==null||x.final_away==null)t.u++;
+   else if(Number(x.final_away)>Number(x.final_home))t.w++;
+   else t.l++;
+  };
+  for(const x of old){
+   if(Number(x.home_score)===0&&Number(x.away_score)===0)add('00',x);
+   if(Number(x.home_score)===1&&Number(x.away_score)===1){add('11',x);if(Number(x.minute)===57)add('1157',x);}
+  }
+  for(const [key,v] of Object.entries(groups)){
+   by('a57-n'+key).textContent=v.n+' meciuri';
+   by('a57-w'+key).textContent=String(v.w);
+   by('a57-l'+key).textContent=String(v.l);
+   by('a57-u'+key).textContent=String(v.u);
+  }
+  const ml=current?.stats||{};
+  const total=Number(ml.signals||0),win=Number(ml.wins||0),loss=Number(ml.losses||0);
+  by('a57-nml').textContent=total+' semnale (total)';
+  by('a57-wml').textContent=String(win);
+  by('a57-lml').textContent=String(loss);
+  by('a57-uml').textContent=String(Math.max(0,total-win-loss));
   by('a57-watch-badge').textContent=String(observe.length);
   by('a57-archive-badge').textContent=String(old.length);
   by('a57-signal-badge').textContent=String(signals.length);
@@ -361,7 +405,7 @@ function away57RadarClient(){
   const nav=by('nav'),slip=by('slip');if(!nav||!slip||typeof window.tab!=='function')return;
   by('a57-live-shortcut')?.remove();by('a57-tab-fab')?.remove();by('away57')?.remove();by('tab-away57')?.remove();
   page=elem('section','screen hidden');page.id='away57';
-  page.innerHTML="<div class=\"a57-hero\"><div class=\"a57-kicker\">SB RADAR · RADAR THEO · SISTEM INDEPENDENT</div><h1>✈ AWAY 57</h1><div class=\"a57-chips\"><span class=\"a57-chip\">1–1 → VICTORIE OASPEȚI (2)</span><span class=\"a57-chip\">ML + GENEROSITY H/A</span><span class=\"a57-chip\">BET NOW · TEST 2 LEI</span></div><p class=\"a57-muted\">Radar Theo original, cu meciuri proprii și aceeași navigare cinematografică. Semnalul ML se decide numai după verificarea de la 57′.</p><div class=\"a57-grid\"><div class=\"a57-kpi\"><strong id=\"a57-total\">0</strong><small>OBSERVARE</small></div><div class=\"a57-kpi\"><strong id=\"a57-near\">0</strong><small>APROAPE 57′</small></div><div class=\"a57-kpi\"><strong id=\"a57-bet\">0</strong><small>BET NOW EMIS</small></div></div><p id=\"a57-updated\" class=\"a57-muted\">Conectare la feed…</p></div>\n<div class=\"a57-radar-card\"><div class=\"a57-toolbar\"><div><strong>◉ RADAR THEO · AWAY 57</strong><small id=\"a57-radar-count\">0 meciuri</small></div><div><button id=\"a57-3d\" class=\"a57-mode active\">3D</button><button id=\"a57-2d\" class=\"a57-mode\">2D</button></div></div><div id=\"a57-theo\"></div><p class=\"a57-hint\">Meciurile se apropie de centru odată cu minutul real. Atinge un punct pentru detalii.</p></div>\n<section class=\"ticket-dock\" id=\"a57-ticket-dock\"><div class=\"ticket-dock-head\"><div><h2><span class=\"ticket-dock-icon\">▤</span> Biletele mele în curs <span id=\"a57-ticket-count\" class=\"ticket-number\">0</span></h2><p class=\"sub\">Doar bilete reale înregistrate pentru selecția 2 după un semnal Away 57. Simulările nu sunt pariuri plasate.</p></div><span class=\"ticket-live-mark\" id=\"a57-ticket-live\">↻ 0 ACTIVE</span></div><div id=\"a57-open-tickets\"></div><details class=\"recent-ticket-group\" id=\"a57-recent-tickets-group\"><summary>▦ Ultimele decontări <span id=\"a57-recent-ticket-count\">0</span></summary><div id=\"a57-recent-tickets\"></div></details></section>\n<details class=\"lifecycle-box\" id=\"a57-watch-details\" open><summary><span>◷ În observare <b id=\"a57-watch-badge\">0</b></span><small>Meciurile monitorizate · cele mai noi primele · apasă pentru detalii</small></summary><div class=\"lifecycle-scroll\" id=\"a57-watch-events\"></div></details>\n<details class=\"lifecycle-box archive-box\" id=\"a57-archive-details\"><summary><span>▣ Arhivă temporară <b id=\"a57-archive-badge\">0</b></span><small>Capturi în ultimele 48h, inclusiv fără alertă · cele mai noi primele</small></summary><div class=\"lifecycle-scroll\" id=\"a57-archive-events\"></div></details>\n<details class=\"lifecycle-box\" id=\"a57-signal-details\"><summary><span>⚡ Semnale BET NOW <b id=\"a57-signal-badge\">0</b></span><small>Selecții ML înregistrate separat, test 2 lei fără plasare automată</small></summary><div class=\"lifecycle-scroll\" id=\"a57-signal-events\"></div></details>\n<details class=\"lifecycle-box\" id=\"a57-filters-details\"><summary>⚙ Filtrele active Away 57 <small>Verificări și condiții ML</small></summary><div id=\"a57-conditions\" class=\"a57-conditions\"></div></details>\n<p class=\"a57-sub\">+90,94% a fost ROI virtual retrospectiv pe numai 18 selecții, nu o prognoză de câștig. Nu se execută pariuri automat.</p>\n<div class=\"a57-audit-overlay hidden\" id=\"a57-audit-overlay\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Audit meci Away 57\" aria-hidden=\"true\"><div class=\"a57-audit-panel\"><div class=\"a57-audit-header\"><strong>✦ AUDIT AWAY 57</strong><button id=\"a57-close-audit\" type=\"button\">✕ Închide</button></div><div id=\"a57-audit-body\"></div></div></div>";
+  page.innerHTML="<div class=\"a57-hero\"><div class=\"a57-kicker\">SB RADAR · RADAR THEO · SISTEM INDEPENDENT</div><h1>✈ AWAY 57</h1><div class=\"a57-chips\"><span class=\"a57-chip\">1–1 → VICTORIE OASPEȚI (2)</span><span class=\"a57-chip\">ML + GENEROSITY H/A</span><span class=\"a57-chip\">BET NOW · TEST 2 LEI</span></div><p class=\"a57-muted\">Radar Theo original, cu meciuri proprii și aceeași navigare cinematografică. Semnalul ML se decide numai după verificarea de la 57′.</p><div class=\"a57-grid\"><div class=\"a57-kpi\"><strong id=\"a57-total\">0</strong><small>OBSERVARE</small></div><div class=\"a57-kpi\"><strong id=\"a57-near\">0</strong><small>APROAPE 57′</small></div><div class=\"a57-kpi\"><strong id=\"a57-bet\">0</strong><small>BET NOW EMIS</small></div></div><p id=\"a57-updated\" class=\"a57-muted\">Conectare la feed…</p></div>\n<div class=\"a57-radar-card\"><div class=\"a57-toolbar\"><div><strong>◉ RADAR THEO · AWAY 57</strong><small id=\"a57-radar-count\">0 meciuri</small></div><div><button id=\"a57-3d\" class=\"a57-mode active\">3D</button><button id=\"a57-2d\" class=\"a57-mode\">2D</button></div></div><div id=\"a57-theo\"></div><p class=\"a57-hint\">Meciurile se apropie de centru odată cu minutul real. Atinge un punct pentru detalii.</p></div>\n<section class=\"ticket-dock\" id=\"a57-ticket-dock\"><div class=\"ticket-dock-head\"><div><h2><span class=\"ticket-dock-icon\">▤</span> Biletele mele în curs <span id=\"a57-ticket-count\" class=\"ticket-number\">0</span></h2><p class=\"sub\">Doar bilete reale înregistrate pentru selecția 2 după un semnal Away 57. Simulările nu sunt pariuri plasate.</p></div><span class=\"ticket-live-mark\" id=\"a57-ticket-live\">↻ 0 ACTIVE</span></div><div id=\"a57-open-tickets\"></div><details class=\"recent-ticket-group\" id=\"a57-recent-tickets-group\"><summary>▦ Ultimele decontări <span id=\"a57-recent-ticket-count\">0</span></summary><div id=\"a57-recent-tickets\"></div></details></section>\n<details class=\"lifecycle-box\" id=\"a57-watch-details\" open><summary><span>◷ În observare <b id=\"a57-watch-badge\">0</b></span><small>Meciurile monitorizate · cele mai noi primele · apasă pentru detalii</small></summary><div class=\"lifecycle-scroll\" id=\"a57-watch-events\"></div></details>\n<section class=\"a57-outcome-summary\" id=\"a57-outcome-summary\" aria-label=\"WIN LOSS separat pe scorul observat\"><div class=\"a57-outcome-title\">▤ REZULTATE ARHIVĂ · VICTORIE OASPEȚI (2)</div><p class=\"a57-summary-note\">WIN/LOSS arată numai rezultatul final al oaspeților, NU semnale ML sau bilete. Împărțire după scorul ultimei capturi observate, în ultimele 48h.</p><div class=\"a57-outcome-table\">\n<div class=\"a57-outcome-head\"><span>Grupă</span><span>WIN 2</span><span>LOSS 2</span><span>Fără final</span></div>\n<div class=\"a57-outcome-row\"><strong>0–0 observate <small id=\"a57-n00\">0 meciuri</small></strong><b class=\"a57-w\" id=\"a57-w00\">0</b><b class=\"a57-l\" id=\"a57-l00\">0</b><b id=\"a57-u00\">0</b></div>\n<div class=\"a57-outcome-row\"><strong>1–1 observate <small id=\"a57-n11\">0 meciuri</small></strong><b class=\"a57-w\" id=\"a57-w11\">0</b><b class=\"a57-l\" id=\"a57-l11\">0</b><b id=\"a57-u11\">0</b></div>\n<div class=\"a57-outcome-row a57-outcome-relevant\"><strong>1–1 exact la 57′ <small id=\"a57-n1157\">0 meciuri</small></strong><b class=\"a57-w\" id=\"a57-w1157\">0</b><b class=\"a57-l\" id=\"a57-l1157\">0</b><b id=\"a57-u1157\">0</b></div>\n<div class=\"a57-outcome-row a57-outcome-ml\"><strong>ML Away 57 <small id=\"a57-nml\">0 semnale</small></strong><b class=\"a57-w\" id=\"a57-wml\">0</b><b class=\"a57-l\" id=\"a57-lml\">0</b><b id=\"a57-uml\">0</b></div>\n</div><p class=\"a57-summary-note\"><strong>Regula activă:</strong> numai 1–1 la minutul 57 + cotă 2 între 1,85–4,00 + oaspeți favoriți + selecție ML. Meciurile 0–0 sunt exclusiv în observație.</p></section><details class=\"lifecycle-box archive-box\" id=\"a57-archive-details\"><summary><span>▣ Arhivă temporară <b id=\"a57-archive-badge\">0</b></span><small>Capturi în ultimele 48h, inclusiv fără alertă · cele mai noi primele</small></summary><div class=\"lifecycle-scroll\" id=\"a57-archive-events\"></div></details>\n<details class=\"lifecycle-box\" id=\"a57-signal-details\"><summary><span>⚡ Semnale BET NOW <b id=\"a57-signal-badge\">0</b></span><small>Selecții ML înregistrate separat, test 2 lei fără plasare automată</small></summary><div class=\"lifecycle-scroll\" id=\"a57-signal-events\"></div></details>\n<details class=\"lifecycle-box\" id=\"a57-filters-details\"><summary>⚙ Filtrele active Away 57 <small>Verificări și condiții ML</small></summary><div id=\"a57-conditions\" class=\"a57-conditions\"></div></details>\n<p class=\"a57-sub\">+90,94% a fost ROI virtual retrospectiv pe numai 18 selecții, nu o prognoză de câștig. Nu se execută pariuri automat.</p>\n<div class=\"a57-audit-overlay hidden\" id=\"a57-audit-overlay\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Audit meci Away 57\" aria-hidden=\"true\"><div class=\"a57-audit-panel\"><div class=\"a57-audit-header\"><strong>✦ AUDIT AWAY 57</strong><button id=\"a57-close-audit\" type=\"button\">✕ Închide</button></div><div id=\"a57-audit-body\"></div></div></div>";
   slip.parentNode.insertBefore(page,slip);
   const tabButton=elem('button','','✈ AWAY 57');tabButton.id='tab-away57';tabButton.type='button';tabButton.addEventListener('click',()=>window.tab('away57'));nav.insertBefore(tabButton,by('tab-slip'));
   // The installed native navigation has five fixed tabs; this dedicated sixth tab
