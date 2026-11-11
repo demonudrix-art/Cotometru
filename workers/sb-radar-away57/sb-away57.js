@@ -134,12 +134,15 @@ export async function away57Snapshot(env){
   historical_research:{selections:18,wins:13,losses:5,roi_virtual_pct:90.94,validated:false,scope:'1–1 at minute 57, away shorter than home, selected using older retrospective data'},
   signals:signals.map(s=>({...s,superbet_url:encodeFixture(s.fixture,s.event_id)}))};
 }
-export async function away57MobileAlerts(env){
+export async function away57MobileAlerts(env,appVersion=''){
+ // Legacy native notification path reused ONLY for v2.3.33+; older APKs must not see this alias.
+ const m=/^(\d+)\.(\d+)\.(\d+)/.exec(String(appVersion));
+ if(!m||(Number(m[1])*1000000+Number(m[2])*1000+Number(m[3]))<2003033)return [];
  const since=new Date(Date.now()-3*60000).toISOString();
  const rows=(await env.DB.prepare("SELECT event_id,fixture,signal_utc,minute,home_score,away_score,p1,px,p2,gh,ga,prob_away,expected_value,stake_lei,model_version FROM sb_away57_signals_v1 WHERE signal_utc>=? ORDER BY signal_utc DESC LIMIT 8").bind(since).all()).results||[];
  return rows.map(s=>({event_id:s.event_id,fixture:s.fixture,triggered_utc:s.signal_utc,stage:'BET_NOW',minute:57,home_score:1,away_score:1,
   p1:s.p1,px:s.px,p2:s.p2,gh:s.gh,ga:s.ga,model_probability:s.prob_away,expected_value:s.expected_value,
-  selection:'2',signal_label:'AWAY 57',signal_type:'AWAY_57',signal_theme:'away57',model_version:s.model_version,suggested_stake_lei:2,
+  selection:'2',signal_label:'GOLD RUSH',signal_type:'AWAY_57',signal_theme:'away57',model_version:'GOLD_RUSH_'+s.model_version,suggested_stake_lei:2,
   alert_type:'AWAY57_TEST_BETNOW',informational:true,auto_betting:false,full_screen:false,fullscreen:false,url:'/app?tab=away57&event_id='+s.event_id}));
 }
 const AWAY_CSS=[
