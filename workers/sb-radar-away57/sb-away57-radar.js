@@ -1,13 +1,13 @@
 // Away57 second Radar Theo scene, owner-only and independent of Golden/KLOPP.
 export async function away57RadarCandidates(env){
  const since=new Date(Date.now()-5*60000).toISOString();
- const rows=(await env.DB.prepare("SELECT event_id,fixture,captured_utc,minute,home_score,away_score,gh,ga,p1,px,p2 FROM ghost_equal_samples WHERE captured_utc>=? AND minute BETWEEN 6 AND 57 ORDER BY captured_utc DESC LIMIT 500").bind(since).all()).results||[];
+ const rows=(await env.DB.prepare("SELECT event_id,fixture,captured_utc,minute,home_score,away_score,gh,ga,p1,px,p2 FROM ghost_equal_samples WHERE captured_utc>=? AND minute BETWEEN 6 AND 120 ORDER BY captured_utc DESC LIMIT 500").bind(since).all()).results||[];
  const latest=new Map();
  for(const r of rows)if(!latest.has(Number(r.event_id)))latest.set(Number(r.event_id),r);
  const candidates=[];
  for(const r of latest.values()){
   const id=Number(r.event_id),m=Number(r.minute),h=Number(r.home_score),a=Number(r.away_score),p1=Number(r.p1),px=Number(r.px),p2=Number(r.p2);
-  if(!Number.isSafeInteger(id)||id<1||!Number.isFinite(m)||!Number.isFinite(h)||!Number.isFinite(a)||!Number.isFinite(p1)||!Number.isFinite(px)||!Number.isFinite(p2)||Math.min(p1,px,p2)<=1)continue;
+  if(!Number.isSafeInteger(id)||id<1||m>57||!Number.isFinite(m)||!Number.isFinite(h)||!Number.isFinite(a)||!Number.isFinite(p1)||!Number.isFinite(px)||!Number.isFinite(p2)||Math.min(p1,px,p2)<=1)continue;
   const fav=p2<p1,score11=h===1&&a===1,score00=h===0&&a===0;
   if(!fav||!(score11||score00))continue;
   const inRange=p2>=1.85&&p2<=4;
