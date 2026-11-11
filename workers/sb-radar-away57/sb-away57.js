@@ -110,6 +110,19 @@ export async function scanAway57(env){
  }
  return {ok:true,scanned:rows.length,checked,matched,inserted,model:AWAY57_VERSION,at:new Date().toISOString()};
 }
+export async function away57Replay(env,eventId){
+ const id=Number(eventId);if(!Number.isSafeInteger(id)||id<=0)return {ok:false,error:'Invalid event id'};
+ const s=await env.DB.prepare("SELECT event_id,fixture,captured_utc,home_score,away_score,p1,px,p2,gh,ga FROM sb_radar_df57_archive_v2 WHERE event_id=? AND home_score=1 AND away_score=1 ORDER BY captured_utc DESC LIMIT 1").bind(id).first();
+ if(!s)return {ok:false,error:'No 1–1 minute 57 snapshot for event'};
+ const d=await inputsFor(env,s);if(!d)return {ok:false,error:'Missing valid historical prematch/live data'};
+ const p=d.predicted,odds=[Number(s.p1),Number(s.px),Number(s.p2)],probs=[p.home,p.draw,p.away];
+ let ev=-Infinity,choice=-1;for(let c=0;c<3;c++){const z=probs[c]*odds[c]-1;if(odds[c]>=1.85&&odds[c]<=4&&z>ev){ev=z;choice=c}}
+ const isSignal=(choice===2&&ev>=.05&&Number(s.p2)<Number(s.p1));
+ const final=await env.DB.prepare("SELECT home_score,away_score,verified FROM match_results WHERE event_id=?").bind(id).first();
+ return {ok:true,mode:'REPLAY_READ_ONLY',model:AWAY57_VERSION,event_id:id,fixture:s.fixture,captured_utc:s.captured_utc,selection:['1','X','2'][choice]||null,away57_selected:isSignal,expected_value:ev,
+  p_model:p,p_market:fair(odds),odds,gh:s.gh,ga:s.ga,trace_bins:d.trace_bins,features:d.features,
+  final:final&&Number(final.verified)===1?{home:final.home_score,away:final.away_score}:null};
+}
 export async function away57Snapshot(env){
  const signals=(await env.DB.prepare("SELECT event_id,fixture,captured_utc,signal_utc,minute,home_score,away_score,p1,px,p2,gh,ga,prob_home,prob_draw,prob_away,market_away,expected_value,stake_lei,model_version,trace_bins,data_quality,final_home,final_away,outcome,settled_utc FROM sb_away57_signals_v1 ORDER BY signal_utc DESC LIMIT 30").all()).results||[];
  const totals=await env.DB.prepare("SELECT COUNT(*) AS signals,COALESCE(SUM(CASE WHEN outcome='WIN' THEN 1 ELSE 0 END),0) AS wins,COALESCE(SUM(CASE WHEN outcome='LOSS' THEN 1 ELSE 0 END),0) AS losses FROM sb_away57_signals_v1").first();
