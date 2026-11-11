@@ -1,0 +1,41 @@
+{
+  "format": "safe_coefficients_only",
+  "model": "Chaste20/EPL-Pulse_v1",
+  "source": "User-uploaded home_goals_model(1).pkl, away_goals_model(1).pkl, feature_list(1).pkl",
+  "type": "statsmodels GLM Poisson, log link",
+  "inference": "exp(dot([1,EloDiff,Home_GF,Home_GA,Away_GF,Away_GA],coef))",
+  "feature_order": [
+    "const",
+    "EloDiff",
+    "Home_GF",
+    "Home_GA",
+    "Away_GF",
+    "Away_GA"
+  ],
+  "home_coef": [
+    0.2338013694871308,
+    0.0018652694572331436,
+    0.06195435916880972,
+    0.013494682237010846,
+    0.00645985472133854,
+    0.02093595950809463
+  ],
+  "away_coef": [
+    -0.08102754008002411,
+    -0.0019719126270980976,
+    0.0235491230800741,
+    0.05769557966483417,
+    0.056437186274383516,
+    0.004689756350863565
+  ],
+  "sha256": {
+    "home": "cf8e230a6deb26cef26dba1556adf110e36ced6644e13a856b3fa3b4e239c67c",
+    "away": "ac3be0754c88bc5175634eb71e2343557e94ba630782d6fe44b2bbaa2a3f0e15",
+    "features": "a7def04c671863cc9a5ce41d56783290e683f46c40c68cfbe0fbe14e6216b045"
+  },
+  "extraction": "Coefficients extracted as six little-endian f64 values from NumpyArrayWrapper in joblib arrays, after 14-byte alignment padding at offset 352; original binary never deserialized or executed.",
+  "validation": "exog_names within original joblib match feature order; feature_list parsed using built-in-only restricted Unpickler",
+  "original_team_state": "MISSING_NOT_PROVIDED",
+  "scope": "EPL pre-match, not minute-57",
+  "is_production": false
+}
