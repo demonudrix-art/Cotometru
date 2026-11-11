@@ -183,7 +183,8 @@ public class AlertService extends Service {
     dismiss.putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(this,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Notification.Builder b=builder(this,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
+      .setSmallIcon(purple?R.drawable.sbr_status_purple:R.drawable.sbr_status_red)
+       .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(this,id,path)).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
       .setCategory(Notification.CATEGORY_ALARM).setColor(purple?0xffa879ff:0xfff54d61)

@@ -22,7 +22,13 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       ChromeDialogNotifier.post(this,d.getOrDefault("request_id",""),d.getOrDefault("device_name","Calculator"),d.getOrDefault("body",""),d.getOrDefault("button_label","OK"),"true".equalsIgnoreCase(d.getOrDefault("clickable","false")));
       return;
     }
-    if("AUTO_TICKET_PLACED".equals(d.get("stage"))){
+    if("KLOPP_BET_NOW".equals(d.get("stage"))){
+       KloppWaveNotifier.post(this,d);return;
+     }
+     if("OVER05_WATCH".equals(d.get("stage"))){
+       GoalWatchNotifier.post(this,d);return;
+     }
+     if("AUTO_TICKET_PLACED".equals(d.get("stage"))){
       try{
         String ticket=d.getOrDefault("ticket_id","");
         double stake=Double.parseDouble(d.getOrDefault("stake_lei","0"));

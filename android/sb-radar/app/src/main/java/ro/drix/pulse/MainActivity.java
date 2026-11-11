@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.35";
+  static final String APP_VERSION="2.3.36";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -35,12 +35,12 @@ public class MainActivity extends Activity implements SensorEventListener {
   FrameLayout nativeSurface;
   LinearLayout nativeSplash;
   LinearLayout nativeBottomTabs;
-  final LinearLayout[] nativeTabCells=new LinearLayout[4];
-  final TextView[] nativeTabGlyphs=new TextView[4];
-  final TextView[] nativeTabLabels=new TextView[4];
-  static final String[] NATIVE_ROUTES={"live","slip","roi","profile"};
-  static final String[] NATIVE_LABELS={"RADAR","SLIP","ROI","PROFIL"};
-  static final String[] NATIVE_GLYPHS={"◎","▤","⌁","♙"};
+  final LinearLayout[] nativeTabCells=new LinearLayout[5];
+  final TextView[] nativeTabGlyphs=new TextView[5];
+  final TextView[] nativeTabLabels=new TextView[5];
+  static final String[] NATIVE_ROUTES={"live","klopp","slip","roi","profile"};
+  static final String[] NATIVE_LABELS={"RADAR","KLOPP","SLIP","ROI","PROFIL"};
+  static final String[] NATIVE_GLYPHS={"◎","◇","▤","⌁","♙"};
   boolean nativeTabsVisible=false;
   String nativeActiveRoute="live";
   // Native gravity sensor: 3D radar moves from launch, without a screen tap.
@@ -91,12 +91,12 @@ public class MainActivity extends Activity implements SensorEventListener {
     "function sync(){var enabled=!nav.classList.contains('hidden');"+
     "document.documentElement.classList.toggle('sb-android-native-nav',enabled);"+
     "if(!window.DrixNative)return;DrixNative.setNativeTabsVisible(enabled);"+
-    "var which=['live','slip','roi','profile'].find(function(n){var e=document.getElementById('tab-'+n);return e&&e.classList.contains('active')});"+
+    "var which=['live','klopp','slip','roi','profile'].find(function(n){var e=document.getElementById('tab-'+n);return e&&e.classList.contains('active')});"+
     "if(which)DrixNative.setNativeTabActive(which)}"+
     "var previous=tab;window.tab=function(){var value=previous.apply(this,arguments);sync();return value;};"+
     "new MutationObserver(sync).observe(nav,{attributes:true,attributeFilter:['class']});sync();"+
     "}catch(e){}})();";
-  static final String NATIVE_ADMIN_ENTRY_SCRIPT="(function(){try{if(!window.DrixNative||typeof DrixNative.openAdminConsole!=='function')return;var profile=document.getElementById('profile');if(!profile||document.getElementById('sbNativeAdminEntry'))return;var b=document.createElement('button');b.id='sbNativeAdminEntry';b.textContent='🛡 ADMIN · LICENȚE & CHROME BRIDGE';b.style.cssText='display:block;width:100%;margin:5px 0 15px;padding:14px;border:1px solid #87354d;border-radius:13px;background:#4b1830;color:white;font-weight:800;font-size:13px';b.addEventListener('click',function(){DrixNative.openAdminConsole()});profile.insertBefore(b,profile.firstChild);}catch(e){}})();";
+  static final String NATIVE_ADMIN_ENTRY_SCRIPT="(function(){try{if(!window.DrixNative||typeof DrixNative.openAdminConsole!=='function')return;var profile=document.getElementById('profile');if(!profile||document.getElementById('sbNativeAdminEntry'))return;var b=document.createElement('button');b.id='sbNativeAdminEntry';b.textContent='🛡 ADMIN · LICENȚE';b.style.cssText='display:block;width:100%;margin:5px 0 15px;padding:14px;border:1px solid #87354d;border-radius:13px;background:#4b1830;color:white;font-weight:800;font-size:13px';b.addEventListener('click',function(){DrixNative.openAdminConsole()});profile.insertBefore(b,profile.firstChild);}catch(e){}})();";
   static float tiltClamp(float v,float min,float max){return Math.max(min,Math.min(max,v));}
   static float tiltDeadZone(float v,float zone){
     return Math.abs(v)<=zone?0f:Math.copySign(Math.abs(v)-zone,v);
