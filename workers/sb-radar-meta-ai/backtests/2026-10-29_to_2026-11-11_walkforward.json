@@ -1,0 +1,307 @@
+{
+  "checkedAt": "2026-11-11T07:28:33.750Z",
+  "dataSource": "Cloudflare D1 beast-xray-history",
+  "datasetSQL": "SELECT a.event_id,a.captured_utc,a.home_score h,a.away_score a,a.p1 p1,a.px px,a.p2 p2,a.gh gh,a.ga ga,a.prior_gh pg_h,a.prior_ga pg_a,a.prior_minute pm,r.home_score fh,r.away_score fa FROM sb_radar_df57_archive_v2 a JOIN match_results r ON r.event_id=a.event_id WHERE a.captured_utc>='2026-10-29' AND a.captured_utc<'2026-11-12' AND r.verified=1 AND r.event_status='FINISHED' AND a.p1>1.01 AND a.px>1.01 AND a.p2>1.01 AND a.gh BETWEEN 0 AND 1 AND a.ga BETWEEN 0 AND 1 AND ((a.home_score=0 AND a.away_score=0) OR (a.home_score=1 AND a.away_score=1)) ORDER BY a.captured_utc ASC",
+  "codeRepositoryPath": "workers/sb-radar-meta-ai/walkforward-14d.js",
+  "model_version": "META_BACKTEST_OOS_V1",
+  "scope": "first-minute-57 snapshots, 0-0 and 1-1, final verified only",
+  "data_total": 1642,
+  "coverage": {
+    "trainMin": null,
+    "test": 821,
+    "trainUnique": 1621,
+    "testUnique": 0,
+    "score_11": 328,
+    "score_00": 493,
+    "eligible": 114
+  },
+  "algorithms_trained": [
+    "L2_LOGISTIC_MARKET_OFFSET",
+    "BAGGED_CART_28_TREES_DEPTH_3"
+  ],
+  "test_period": "2026-11-05 to 2026-11-11",
+  "validation": "4 expanding forward folds, 6-hour embargo",
+  "evaluation": {
+    "market": {
+      "n": 821,
+      "brier": 0.175715,
+      "logloss": 0.529991
+    },
+    "logistic": {
+      "n": 821,
+      "brier": 0.177654,
+      "logloss": 0.535779
+    },
+    "forest": {
+      "n": 821,
+      "brier": 0.176884,
+      "logloss": 0.532754
+    },
+    "ensemble": {
+      "n": 821,
+      "brier": 0.176909,
+      "logloss": 0.533131
+    }
+  },
+  "betting": {
+    "rule": {
+      "bets": 114,
+      "wins": 41,
+      "losses": 73,
+      "stake_units": 114,
+      "profit_units": -13.55,
+      "mean_odds": 2.494,
+      "roi_pct": -11.89
+    },
+    "logistic": {
+      "bets": 7,
+      "wins": 1,
+      "losses": 6,
+      "stake_units": 7,
+      "profit_units": -4.05,
+      "mean_odds": 2.839,
+      "roi_pct": -57.86
+    },
+    "forest": {
+      "bets": 1,
+      "wins": 0,
+      "losses": 1,
+      "stake_units": 1,
+      "profit_units": -1,
+      "mean_odds": 2.5,
+      "roi_pct": -100
+    },
+    "consensus": {
+      "bets": 0,
+      "wins": 0,
+      "losses": 0,
+      "stake_units": 0,
+      "profit_units": 0,
+      "mean_odds": null,
+      "roi_pct": null
+    }
+  },
+  "foldResults": [
+    {
+      "fold": 1,
+      "train_from": "2026-10-29",
+      "train_through_utc": "2026-11-04T18:00:00.000Z",
+      "test_from": "2026-11-05",
+      "test_until": "2026-11-07",
+      "train_n": 800,
+      "test_n": 173,
+      "eligible": 26,
+      "brier": {
+        "market": 0.15801,
+        "logistic": 0.16349,
+        "forest": 0.16109,
+        "ensemble": 0.1615
+      },
+      "stakes": {
+        "rule": {
+          "bets": 26,
+          "wins": 5,
+          "losses": 21,
+          "stake_units": 26,
+          "profit_units": -14.3,
+          "mean_odds": 2.42,
+          "roi_pct": -55
+        },
+        "logistic": {
+          "bets": 3,
+          "wins": 0,
+          "losses": 3,
+          "stake_units": 3,
+          "profit_units": -3,
+          "mean_odds": 2.673,
+          "roi_pct": -100
+        },
+        "forest": {
+          "bets": 1,
+          "wins": 0,
+          "losses": 1,
+          "stake_units": 1,
+          "profit_units": -1,
+          "mean_odds": 2.5,
+          "roi_pct": -100
+        },
+        "consensus": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        }
+      }
+    },
+    {
+      "fold": 2,
+      "train_from": "2026-10-29",
+      "train_through_utc": "2026-11-06T18:00:00.000Z",
+      "test_from": "2026-11-07",
+      "test_until": "2026-11-09",
+      "train_n": 940,
+      "test_n": 569,
+      "eligible": 78,
+      "brier": {
+        "market": 0.17854,
+        "logistic": 0.18,
+        "forest": 0.17916,
+        "ensemble": 0.17934
+      },
+      "stakes": {
+        "rule": {
+          "bets": 78,
+          "wins": 30,
+          "losses": 48,
+          "stake_units": 78,
+          "profit_units": -4.44,
+          "mean_odds": 2.531,
+          "roi_pct": -5.69
+        },
+        "logistic": {
+          "bets": 3,
+          "wins": 0,
+          "losses": 3,
+          "stake_units": 3,
+          "profit_units": -3,
+          "mean_odds": 2.967,
+          "roi_pct": -100
+        },
+        "forest": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        },
+        "consensus": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        }
+      }
+    },
+    {
+      "fold": 3,
+      "train_from": "2026-10-29",
+      "train_through_utc": "2026-11-08T18:00:00.000Z",
+      "test_from": "2026-11-09",
+      "test_until": "2026-11-11",
+      "train_n": 1522,
+      "test_n": 75,
+      "eligible": 10,
+      "brier": {
+        "market": 0.20089,
+        "logistic": 0.19887,
+        "forest": 0.20192,
+        "ensemble": 0.20008
+      },
+      "stakes": {
+        "rule": {
+          "bets": 10,
+          "wins": 6,
+          "losses": 4,
+          "stake_units": 10,
+          "profit_units": 5.19,
+          "mean_odds": 2.396,
+          "roi_pct": 51.9
+        },
+        "logistic": {
+          "bets": 1,
+          "wins": 1,
+          "losses": 0,
+          "stake_units": 1,
+          "profit_units": 1.95,
+          "mean_odds": 2.95,
+          "roi_pct": 195
+        },
+        "forest": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        },
+        "consensus": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        }
+      }
+    },
+    {
+      "fold": 4,
+      "train_from": "2026-10-29",
+      "train_through_utc": "2026-11-10T18:00:00.000Z",
+      "test_from": "2026-11-11",
+      "test_until": "2026-11-12",
+      "train_n": 1621,
+      "test_n": 4,
+      "eligible": 0,
+      "brier": {
+        "market": 0.06784,
+        "logistic": 0.05847,
+        "forest": 0.06675,
+        "ensemble": 0.06246
+      },
+      "stakes": {
+        "rule": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        },
+        "logistic": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        },
+        "forest": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        },
+        "consensus": {
+          "bets": 0,
+          "wins": 0,
+          "losses": 0,
+          "stake_units": 0,
+          "profit_units": 0,
+          "mean_odds": null,
+          "roi_pct": null
+        }
+      }
+    }
+  ],
+  "disclaimers": [
+    "research only, no transaction costs, virtual odds are capture-time quotes",
+    "selection thresholds fixed at 5% expected edge on 1-1 away favorite with 1.85-4 odds",
+    "this is retrospective out-of-sample simulation, not live prospective evidence"
+  ]
+}
