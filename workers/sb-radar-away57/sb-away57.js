@@ -74,16 +74,24 @@ async function settleAway57(env){
    .bind(result,Number(m.home_score),Number(m.away_score),new Date().toISOString(),row.event_id).run();
  }
 }
-export async function scanAway57(env){
+export async function scanAway57(env,options={}){
  const db=env.DB; if(!db)return {ok:false,reason:'DB_MISSING'};
+ const reused=Array.isArray(options.frames);
+ // Reuse the primary scanner's existing minute-57 frames when available.
+ // Otherwise consume the one FIRST57 D1 archive shared by primary and backup.
+ // Neither mode fetches Superbet or starts a separate provider scanner.
  const started=new Date().toISOString();
  // Isolated from Golden and KLOPP; no slips or stake policy writes.
- await settleAway57(env);
+ if(options.settle!==false)await settleAway57(env);
  const since=new Date(Date.now()-150000).toISOString();
- const rows=(await db.prepare("SELECT event_id,fixture,captured_utc,home_score,away_score,p1,px,p2,gh,ga FROM sb_radar_df57_archive_v2 WHERE captured_utc>=? AND home_score=1 AND away_score=1 AND p1>1.01 AND px>1.01 AND p2 BETWEEN 1.85 AND 4 AND gh BETWEEN 0 AND 1 AND ga BETWEEN 0 AND 1 ORDER BY captured_utc DESC LIMIT 35").bind(since).all()).results||[];
+ const rows=reused?options.frames:(await db.prepare("SELECT event_id,fixture,captured_utc,home_score,away_score,p1,px,p2,gh,ga FROM sb_radar_df57_archive_v2 WHERE captured_utc>=? AND home_score=1 AND away_score=1 AND p1>1.01 AND px>1.01 AND p2 BETWEEN 1.85 AND 4 AND gh BETWEEN 0 AND 1 AND ga BETWEEN 0 AND 1 ORDER BY captured_utc DESC LIMIT 35").bind(since).all()).results||[];
  let checked=0,matched=0,inserted=0;
  for(const s of rows){
   if(!Number.isSafeInteger(Number(s.event_id))||Date.now()-Date.parse(s.captured_utc)>150000)continue;
+  if(s.minute!==undefined&&Number(s.minute)!==57)continue;
+  if(Number(s.home_score)!==1||Number(s.away_score)!==1)continue;
+  if(![s.p1,s.px,s.p2].every(v=>Number.isFinite(Number(v))&&Number(v)>1.01)||!(Number(s.p2)>=1.85&&Number(s.p2)<=4))continue;
+  if(![s.gh,s.ga].every(v=>v!==null&&v!==undefined&&Number(v)>=0&&Number(v)<=1))continue;
   if(!(Number(s.p2)<Number(s.p1)))continue;
   const exists=await db.prepare("SELECT 1 AS found FROM sb_away57_signals_v1 WHERE event_id=?").bind(s.event_id).first();
   if(exists)continue;
@@ -101,7 +109,8 @@ export async function scanAway57(env){
   matched++;
   const market=row.market[2],now=new Date().toISOString();
   const audit={features:row.features,model_training_utc:'2026-11-05T23:59:59Z',prematch_utc:row.prematch_utc,trace_gen_bins:row.trace_gen_bins,
-   check:'1-1@57, p2<p1, selected maximum 1X2 EV>=0.05, odds [1.85,4], test only'};
+   check:'1-1@57, p2<p1, selected maximum 1X2 EV>=0.05, odds [1.85,4], test only',
+   shared_scanner_source:reused?'PRIMARY_IN_MEMORY_57':'PRIMARY_SECONDARY_FIRST57_D1'};
   const res=await db.prepare("INSERT OR IGNORE INTO sb_away57_signals_v1(event_id,fixture,captured_utc,signal_utc,minute,home_score,away_score,p1,px,p2,gh,ga,prob_home,prob_draw,prob_away,market_away,expected_value,stake_lei,model_version,trace_bins,data_quality,audit_json) VALUES(?,?,?,?,57,1,1,?,?,?,?,?,?,?,?,?,?,2,?,?,?,?)").bind(
    Number(s.event_id),String(s.fixture||''),String(s.captured_utc),now,
    Number(s.p1),Number(s.px),Number(s.p2),Number(s.gh),Number(s.ga),p.home,p.draw,p.away,market,best,
@@ -110,8 +119,8 @@ export async function scanAway57(env){
   if(Number(res.meta?.changes||0)===1)inserted++;
  }
  const finished=new Date().toISOString();
- await db.prepare("INSERT INTO sb_away57_scan_runs_v1(started_utc,finished_utc,scanned,checked,matched,inserted,error) VALUES(?,?,?,?,?,?,NULL)").bind(started,finished,rows.length,checked,matched,inserted).run();
- return {ok:true,scanned:rows.length,checked,matched,inserted,model:AWAY57_VERSION,at:finished};
+ if(options.recordRun!==false)await db.prepare("INSERT INTO sb_away57_scan_runs_v1(started_utc,finished_utc,scanned,checked,matched,inserted,error) VALUES(?,?,?,?,?,?,NULL)").bind(started,finished,rows.length,checked,matched,inserted).run();
+ return {ok:true,scanned:rows.length,checked,matched,inserted,model:AWAY57_VERSION,at:finished,shared_scanner_source:reused?'PRIMARY_IN_MEMORY_57':'PRIMARY_SECONDARY_FIRST57_D1',external_provider_requests:0};
 }
 export async function away57Replay(env,eventId){
  const id=Number(eventId);if(!Number.isSafeInteger(id)||id<=0)return {ok:false,error:'Invalid event id'};
