@@ -34,6 +34,28 @@
       "notes": "Never load pickle/joblib in production; verify audit and compatible feature vector first."
     },
     {
+      "name": "eman_wc",
+      "repository": "EmanKhaliq49/FIFA-2026-HUB",
+      "license": "MIT (LICENSE)",
+      "type": "World Cup pretrained specialists: a Logistic Regression match predictor and XGBoost xG estimator",
+      "bundled": true,
+      "files": [
+        {
+          "path": "eman_wc/model.pkl.b64",
+          "source_path": "models/model.pkl",
+          "git_blob_sha": "ff2dac231a54b66ca6c610c91ae24220ce474190",
+          "encoding": "base64"
+        },
+        {
+          "path": "eman_wc/wc_xg_model.pkl.b64",
+          "source_path": "models/wc_xg_model.pkl",
+          "git_blob_sha": "176d0c348dd448db8ca8da717e78a230fbc5e993",
+          "encoding": "base64"
+        }
+      ],
+      "notes": "The xG model is NOT a live 1X2 model. Requires its own original feature schema. National-team domain is distinct from SB Radar lower-league club domain."
+    },
+    {
       "name": "epl_pulse_poisson",
       "repository": "Chaste20/EPL-Pulse_v1",
       "platform": "huggingface",
