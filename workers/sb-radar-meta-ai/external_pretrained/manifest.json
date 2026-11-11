@@ -83,6 +83,32 @@
         "football/latest/metrics.json"
       ],
       "notes": "Download requires network; may be retrained daily; snapshot and verify versions before comparison."
+    },
+    {
+      "name": "epl_pulse_user_upload_safe",
+      "repository": "Chaste20/EPL-Pulse_v1",
+      "platform": "huggingface",
+      "license": "MIT according to model card",
+      "type": "Two pretrained statsmodels Poisson GLMs for EPL home/away goals; converted to pure JSON safe coefficients",
+      "bundled": true,
+      "safe_coefficient_path": "epl_pulse_poisson/coefficients_safe_v1.json",
+      "original_source_files": [
+        "home_goals_model(1).pkl",
+        "away_goals_model(1).pkl",
+        "feature_list(1).pkl"
+      ],
+      "model_files_uploaded_by_user": true,
+      "original_pickle_not_executed": true,
+      "feature_schema": [
+        "EloDiff",
+        "Home_GF",
+        "Home_GA",
+        "Away_GF",
+        "Away_GA"
+      ],
+      "missing": "team_state.pkl (original per-team Elo and rolling-form state)",
+      "validation": "Exploratory 20 EPL match retrospective test using reconstructed Elo/form proxy, do not conflate with faithful model evaluation",
+      "production": false
     }
   ],
   "warnings": [
