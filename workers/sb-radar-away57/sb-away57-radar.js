@@ -13,8 +13,9 @@ export async function away57RadarCandidates(env){
   const inRange=p2>=1.85&&p2<=4;
   let status=score11?(m===57?'VERIFY_57':m>=50?'NEAR_57':'TRACK_11'):'WATCH_00';
   if(!inRange)status='PRICE_OUT';
+  const names=String(r.fixture||'').split(/[·•|]/);const slug=z=>z.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,90);const deep=names.length===2?'https://superbet.ro/cote/fotbal/'+slug(names[0])+'-vs-'+slug(names[1])+'-'+id:'https://superbet.ro/pariuri-sportive/fotbal/live';
   const gValid=[r.gh,r.ga].every(x=>x!==null&&x!==undefined&&Number.isFinite(Number(x))&&Number(x)>=0&&Number(x)<=1);
-  candidates.push({event_id:id,fixture:String(r.fixture||'Meci'),captured_utc:r.captured_utc,minute:m,home_score:h,away_score:a,p1,px,p2,gh:gValid?Number(r.gh):null,ga:gValid?Number(r.ga):null,status,price_in_range:inRange,away_favorite:true,is_signal:false,remaining_min:57-m});
+  candidates.push({event_id:id,fixture:String(r.fixture||'Meci'),captured_utc:r.captured_utc,minute:m,home_score:h,away_score:a,p1,px,p2,gh:gValid?Number(r.gh):null,ga:gValid?Number(r.ga):null,status,superbet_url:deep,price_in_range:inRange,away_favorite:true,is_signal:false,remaining_min:57-m});
  }
  const rank={VERIFY_57:5,NEAR_57:4,TRACK_11:3,WATCH_00:2,PRICE_OUT:1};
  candidates.sort((a,b)=>(rank[b.status]||0)-(rank[a.status]||0)||b.minute-a.minute||Date.parse(b.captured_utc)-Date.parse(a.captured_utc));
