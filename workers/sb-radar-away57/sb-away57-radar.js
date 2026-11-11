@@ -75,6 +75,13 @@ const CSS=[
  '#away57 .a57-actions a.primary{background:#7cddfb;color:#092b39}',
  '#away57 .a57-empty{padding:22px 12px;text-align:center;border:1px dashed #38647e;border-radius:13px;font-size:12px;color:#9fbece}',
  '#away57 .a57-sub{font-size:10px;color:#8daebf;margin-top:10px}',
+ 'html.a57-web-native #nav.bottom{display:flex!important;position:fixed!important;bottom:0!important;left:0!important;right:0!important;z-index:990!important;gap:4px!important;padding:8px 5px max(9px,env(safe-area-inset-bottom))!important;background:#101923f7!important;border-top:1px solid #34516d!important;backdrop-filter:blur(16px)}',
+'html.a57-web-native #nav.bottom button{display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;flex:1 1 0!important;min-width:0!important;min-height:66px!important;border-radius:13px!important;background:#1a2233!important;border:1px solid #354258!important;color:#adc2d0!important;font:850 10px var(--sb-display,Arial)!important;letter-spacing:0!important;padding:6px 2px!important;line-height:1.25!important}',
+'html.a57-web-native #nav.bottom button.active{background:linear-gradient(140deg,#343051,#312438)!important;color:white!important;border-color:#7a5d91!important}',
+'html.a57-web-native #nav.bottom #tab-away57{color:#87deff!important;border-color:#396f8d!important}',
+'html.a57-web-native #nav.bottom #tab-away57.active{background:linear-gradient(140deg,#12567a,#19344c)!important;color:white!important;border-color:#68d6ff!important}',
+'html.a57-web-native #nav.bottom #tab-profile svg{width:20px!important;height:20px!important}',
+'html.a57-web-native body{padding-bottom:83px!important}',
  '@media(prefers-reduced-motion:reduce){#away57 .a57-progress i{transition:none}}'
 ].join('\n');
 function away57RadarClient(){
@@ -162,6 +169,23 @@ function away57RadarClient(){
   catch(e){if(!current)by('a57-cards').replaceChildren(elem('div','a57-empty','Nu pot încărca Away 57: '+String(e.message||e)));}
   finally{updating=false}
  }
+ function enableSixWebTabs(nav){
+  if(!window.DrixNative||typeof window.DrixNative.setNativeTabsVisible!=='function')return false;
+  const enforce=()=>{
+   try{
+    if(!nav.isConnected)return;
+    window.DrixNative.setNativeTabsVisible(false);
+    if(!nav.classList.contains('hidden')){
+     document.documentElement.classList.remove('sb-android-native-nav');
+     document.documentElement.classList.add('a57-web-native');
+    }
+   }catch(e){}
+  };
+  enforce();setTimeout(enforce,500);setTimeout(enforce,1600);
+  new MutationObserver(()=>{if(document.documentElement.classList.contains('sb-android-native-nav'))enforce()}).observe(document.documentElement,{attributes:true,attributeFilter:['class']});
+  setInterval(enforce,8000);
+  return true;
+ }
  function install(){
   const nav=by('nav'),slip=by('slip');if(!nav||!slip||typeof window.tab!=='function')return;
   by('a57-live-shortcut')?.remove();by('a57-tab-fab')?.remove();by('away57')?.remove();by('tab-away57')?.remove();
@@ -171,7 +195,7 @@ function away57RadarClient(){
   const tabButton=elem('button','','✈ AWAY 57');tabButton.id='tab-away57';tabButton.type='button';tabButton.addEventListener('click',()=>window.tab('away57'));nav.insertBefore(tabButton,by('tab-slip'));
   // The installed native navigation has five fixed tabs; this dedicated sixth tab
   // remains visible just ABOVE the native navigation, not in RADAR Home content.
-  if(window.DrixNative){const fab=elem('button','','✈ AWAY 57');fab.id='a57-tab-fab';fab.type='button';fab.append(elem('span','','0'));fab.addEventListener('click',()=>window.tab('away57'));document.body.append(fab);}
+  if(window.DrixNative&&!enableSixWebTabs(nav)){const fab=elem('button','','✈ AWAY 57');fab.id='a57-tab-fab';fab.type='button';fab.append(elem('span','','0'));fab.addEventListener('click',()=>window.tab('away57'));document.body.append(fab);}
   by('a57-tabs').addEventListener('click',e=>{const b=e.target.closest('button[data-mode]');if(!b)return;filter=b.dataset.mode;renderButtons();cards()});
   by('a57-3d').addEventListener('click',()=>{shadow?.querySelector('.radar3d-stage')?.classList.remove('radar-mode-flat');by('a57-3d').classList.add('active');by('a57-2d').classList.remove('active')});
   by('a57-2d').addEventListener('click',()=>{shadow?.querySelector('.radar3d-stage')?.classList.add('radar-mode-flat');by('a57-2d').classList.add('active');by('a57-3d').classList.remove('active')});
