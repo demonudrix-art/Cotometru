@@ -76,6 +76,7 @@ async function settleAway57(env){
 }
 export async function scanAway57(env){
  const db=env.DB; if(!db)return {ok:false,reason:'DB_MISSING'};
+ const started=new Date().toISOString();
  // Isolated from Golden and KLOPP; no slips or stake policy writes.
  await settleAway57(env);
  const since=new Date(Date.now()-150000).toISOString();
@@ -108,7 +109,9 @@ export async function scanAway57(env){
   ).run();
   if(Number(res.meta?.changes||0)===1)inserted++;
  }
- return {ok:true,scanned:rows.length,checked,matched,inserted,model:AWAY57_VERSION,at:new Date().toISOString()};
+ const finished=new Date().toISOString();
+ await db.prepare("INSERT INTO sb_away57_scan_runs_v1(started_utc,finished_utc,scanned,checked,matched,inserted,error) VALUES(?,?,?,?,?,?,NULL)").bind(started,finished,rows.length,checked,matched,inserted).run();
+ return {ok:true,scanned:rows.length,checked,matched,inserted,model:AWAY57_VERSION,at:finished};
 }
 export async function away57Replay(env,eventId){
  const id=Number(eventId);if(!Number.isSafeInteger(id)||id<=0)return {ok:false,error:'Invalid event id'};
@@ -126,7 +129,8 @@ export async function away57Replay(env,eventId){
 export async function away57Snapshot(env){
  const signals=(await env.DB.prepare("SELECT event_id,fixture,captured_utc,signal_utc,minute,home_score,away_score,p1,px,p2,gh,ga,prob_home,prob_draw,prob_away,market_away,expected_value,stake_lei,model_version,trace_bins,data_quality,final_home,final_away,outcome,settled_utc FROM sb_away57_signals_v1 ORDER BY signal_utc DESC LIMIT 30").all()).results||[];
  const totals=await env.DB.prepare("SELECT COUNT(*) AS signals,COALESCE(SUM(CASE WHEN outcome='WIN' THEN 1 ELSE 0 END),0) AS wins,COALESCE(SUM(CASE WHEN outcome='LOSS' THEN 1 ELSE 0 END),0) AS losses FROM sb_away57_signals_v1").first();
- return {ok:true,name:'AWAY 57',model:AWAY57_VERSION,mode:'PROSPECTIVE_TEST_ONLY',selection:'2',suggested_stake_lei:2,auto_betting:false,updated_utc:new Date().toISOString(),stats:totals,
+ const latest_scan=await env.DB.prepare("SELECT finished_utc,scanned,checked,matched,inserted,error FROM sb_away57_scan_runs_v1 ORDER BY id DESC LIMIT 1").first();
+ return {ok:true,name:'AWAY 57',model:AWAY57_VERSION,mode:'PROSPECTIVE_TEST_ONLY',selection:'2',suggested_stake_lei:2,auto_betting:false,updated_utc:new Date().toISOString(),stats:totals,last_scan:latest_scan,
   historical_research:{selections:18,wins:13,losses:5,roi_virtual_pct:90.94,validated:false,scope:'1–1 at minute 57, away shorter than home, selected using older retrospective data'},
   signals:signals.map(s=>({...s,superbet_url:encodeFixture(s.fixture,s.event_id)}))};
 }
@@ -173,6 +177,8 @@ function away57Client(){
    const data=await api('/api/mobile/away57');
    if(!data||!data.ok)throw Error(data?.error||'Răspuns invalid');
    const stats=data.stats||{};
+   const scan=data.last_scan;
+   if($('a57-scan'))$('a57-scan').textContent=scan?'Ultima scanare: '+timestamp(scan.finished_utc)+' · '+scan.scanned+' capturi verificate':'Scanarea automată nu a fost încă confirmată';
    $('a57-total').textContent=String(stats.signals||0);
    $('a57-wins').textContent=String(stats.wins||0);
    $('a57-losses').textContent=String(stats.losses||0);
@@ -209,7 +215,7 @@ function away57Client(){
   const nav=$('nav');if(!nav||typeof window.tab!=='function')return;
   if(!$('away57')){
    const p=element('section','hidden');p.id='away57';
-   p.innerHTML='<div class="a57-head"><div class="a57-kicker">SB RADAR · LABORATOR PROSPECTIV</div><h1>✈ AWAY 57</h1><p>1–1 la minutul 57 • ML L2 cu evoluția cotelor 1/X/2 și Generosity Home/Away • recomandare de test: 2 lei • fără pariuri automate.</p><p><strong>Reper istoric, NEVALIDAT:</strong> 13 WIN / 18 selecții favoriți · ROI virtual +90,94%. Aceasta NU este o estimare a profitului viitor.</p><div class="a57-grid"><div class="a57-kpi"><strong id="a57-total">0</strong><span>Semnale noi</span></div><div class="a57-kpi"><strong id="a57-wins">0</strong><span>WIN confirmate</span></div><div class="a57-kpi"><strong id="a57-losses">0</strong><span>LOSS confirmate</span></div></div><button id="a57-refresh" type="button">↻ Actualizează</button></div><div id="a57-feed" style="margin-top:12px"></div>';
+   p.innerHTML='<div class="a57-head"><div class="a57-kicker">SB RADAR · LABORATOR PROSPECTIV</div><h1>✈ AWAY 57</h1><p>1–1 la minutul 57 • ML L2 cu evoluția cotelor 1/X/2 și Generosity Home/Away • recomandare de test: 2 lei • fără pariuri automate.</p><p><strong>Reper istoric, NEVALIDAT:</strong> 13 WIN / 18 selecții favoriți · ROI virtual +90,94%. Aceasta NU este o estimare a profitului viitor.</p><div class="a57-grid"><div class="a57-kpi"><strong id="a57-total">0</strong><span>Semnale noi</span></div><div class="a57-kpi"><strong id="a57-wins">0</strong><span>WIN confirmate</span></div><div class="a57-kpi"><strong id="a57-losses">0</strong><span>LOSS confirmate</span></div></div><div id="a57-scan" class="a57-sub">Scanarea automată nu a fost încă confirmată</div><button id="a57-refresh" type="button">↻ Actualizează</button></div><div id="a57-feed" style="margin-top:12px"></div>';
    nav.parentNode.insertBefore(p,nav);currentPage=p;
    $('a57-refresh').addEventListener('click',load);
   }else currentPage=$('away57');
