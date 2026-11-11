@@ -19,6 +19,14 @@ export async function away57RadarCandidates(env){
  }
  const rank={VERIFY_57:5,NEAR_57:4,TRACK_11:3,WATCH_00:2,PRICE_OUT:1};
  candidates.sort((a,b)=>(rank[b.status]||0)-(rank[a.status]||0)||b.minute-a.minute||Date.parse(b.captured_utc)-Date.parse(a.captured_utc));
+ // Authentic PREMATCH availability only. No backfilling with in-play odds.
+ const near=candidates.filter(x=>x.minute>=50).slice(0,30);
+ if(near.length){
+  const ids=near.map(x=>x.event_id),ph=ids.map(()=>'?').join(',');
+  const pre=(await env.DB.prepare("SELECT DISTINCT event_id FROM quote_snapshots WHERE event_id IN ("+ph+") AND kickoff_utc IS NOT NULL AND captured_utc<=kickoff_utc AND p1>1.01 AND px>1.01 AND p2>1.01 AND generosity_home BETWEEN 0 AND 1 AND generosity_away BETWEEN 0 AND 1").bind(...ids).all()).results||[];
+  const known=new Set(pre.map(x=>Number(x.event_id)));
+  for(const x of near){x.prematch_available=known.has(x.event_id);x.ml_data_status=x.prematch_available?'READY':'PREMATCH_MISSING';if(x.minute>=57&&!x.prematch_available)x.status='MISSING_PREMATCH';}
+ }
  return {updated_utc:new Date().toISOString(),observed_since_utc:since,candidate_count:candidates.length,candidates:candidates.slice(0,30),filters:[
   {key:'score',name:'1–1 la 57′',description:'Verificăm scorul la minutul 57'},
   {key:'favorite',name:'Favorit oaspeți',description:'Cota 2 mai mică decât cota 1'},
@@ -174,7 +182,18 @@ const CSS=[
  '#away57 .a57-outcome-row .a57-l{color:#ff929c}',
  '#away57 .a57-observed-win{border-color:#3b8165!important}',
  '#away57 .a57-observed-loss{border-color:#935562!important}',
- '@media(prefers-reduced-motion:reduce){#away57 .a57-progress i{transition:none}}'
+ '#away57 #a57-filters-details{margin:9px 0!important;border-radius:16px;background:linear-gradient(130deg,#14293e,#242239);border:1px solid #4983a2}',
+  '#away57 #a57-filters-details summary{padding:12px 14px;color:#c7ecfa;font-size:13px;font-weight:850;cursor:pointer}',
+  '#away57 #a57-conditions{padding:0 12px 12px;margin:0;gap:7px}',
+  '#away57 #a57-conditions span{font-size:10px;line-height:1.3}',
+  '#away57 .a57-diagnostic{background:#173b4a;border:1px solid #44899e;border-radius:12px;padding:10px;font-size:12px;font-weight:800;color:#d8eff6;margin:9px 0}',
+  '#away57 .a57-diagnostic.blocked{background:#372b29!important;color:#ffe3bd!important;border:1px solid #ab8260!important}',
+  '.a57-audit-overlay{align-items:flex-start!important;padding:5vh 12px 90px!important;overflow-y:auto!important}',
+  '.a57-audit-panel{max-height:calc(95dvh - 95px)!important;overscroll-behavior:contain;padding:14px!important;margin:0 auto!important}',
+  '#a57-audit-body h3{font-size:17px;line-height:1.3;margin:12px 0}',
+  '#a57-audit-body h4{margin:14px 0 7px;font-size:13px;color:#a6e8fa}',
+  '#a57-audit-body .a57-audit-check{padding:8px 10px;margin:6px 0;font-size:11px}',
+  '@media(prefers-reduced-motion:reduce){#away57 .a57-progress i{transition:none}}'
 ].join('\n');
 function away57RadarClient(){
  const by=id=>document.getElementById(id),elem=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=String(text);return n};
@@ -182,7 +201,7 @@ function away57RadarClient(){
  const fmt=(x,d=2)=>x!=null&&Number.isFinite(Number(x))?Number(x).toFixed(d):'—';
  const when=x=>{const d=new Date(x);return !isNaN(d)?d.toLocaleTimeString('ro-RO',{timeZone:'Europe/Bucharest',hour:'2-digit',minute:'2-digit'}):'—'};
  const sc=x=>String(x.home_score)+'–'+String(x.away_score);
- const state=x=>x.is_signal?'BET NOW · TEST 2 LEI':x.status==='VERIFY_57'?'VERIFICARE ML 57′':x.status==='NEAR_57'?'APROAPE 57′':x.status==='TRACK_11'?'1–1 ÎN OBSERVARE':x.status==='PRICE_OUT'?'COTĂ ÎN AFARA INTERVALULUI':'0–0 · AȘTEPTĂM 1–1';
+ const state=x=>x.is_signal?'BET NOW · TEST 2 LEI':x.status==='MISSING_PREMATCH'?'ML BLOCAT · PRE-MECI LIPSĂ':x.status==='VERIFY_57'?'VERIFICARE ML 57′':x.status==='NEAR_57'?'APROAPE 57′':x.status==='TRACK_11'?'1–1 ÎN OBSERVARE':x.status==='PRICE_OUT'?'COTĂ ÎN AFARA INTERVALULUI':'0–0 · AȘTEPTĂM 1–1';
  function buildTheo(){
   const host=by('a57-theo');if(!host||host.shadowRoot)return;
   const original=document.querySelector('#live .radar-card .radar3d-stage');
@@ -242,7 +261,8 @@ function away57RadarClient(){
    const won=Number(x.final_away)>Number(x.final_home);
    addText(card,'div','Final verificat: '+x.final_home+'–'+x.final_away+' · '+(won?'WIN 2':'LOSS 2')+' (doar observație, NU semnal ML)',won?'a57-final a57-observed-win':'a57-final a57-observed-loss');
   }
-  if(kind!=='archive'){const prog=elem('div','a57-progress'),bar=elem('i');bar.style.width=Math.min(100,Math.max(0,Number(x.minute||0)/57*100))+'%';prog.append(bar);card.append(prog);}
+  if(kind==='watch'&&x.status==='MISSING_PREMATCH')addText(card,'div','Lipsesc cote și Generosity pre-meci. Nu este respingere ML; vezi Audit.','a57-diagnostic blocked');
+   if(kind!=='archive'){const prog=elem('div','a57-progress'),bar=elem('i');bar.style.width=Math.min(100,Math.max(0,Number(x.minute||0)/57*100))+'%';prog.append(bar);card.append(prog);}
   const actions=elem('div','a57-actions');
   const audit=elem('button','','✦ Audit meci');audit.type='button';audit.addEventListener('click',()=>openAudit(Number(x.event_id)));actions.append(audit);
   const superbet=elem('a','primary','Meci Superbet');superbet.href=x.superbet_url||'https://superbet.ro/pariuri-sportive/fotbal/live';superbet.target='_blank';superbet.rel='noopener noreferrer';actions.append(superbet);
@@ -343,18 +363,20 @@ function away57RadarClient(){
    body.replaceChildren();
    addText(body,'h3',String(d.fixture||'Meci')+' · #'+eventId);
    if(d.league?.league_name)addText(body,'div',(d.league.country||'')+' · '+d.league.league_name,'a57-sub');
-   const first=d.first57||null,pre=d.prematch||null,signal=d.signal||null;
+   const first=d.first57||null,pre=d.prematch||null,signal=d.signal||null,obs=first||d.last_observation||null;
    const summary=elem('div','a57-data');
-   for(const [k,v] of [['LA 57′',first?first.home_score+'–'+first.away_score:'—'],
-    ['COTĂ 2',fmt(first?.p2)],['GH / GA',fmt((first?.gh??NaN)*100,1)+' / '+fmt((first?.ga??NaN)*100,1)],
+   for(const [k,v] of [['LA '+(first?'57':(obs?.minute??'—'))+'′',obs?obs.home_score+'–'+obs.away_score:'—'],
+    ['COTĂ 2',fmt(obs?.p2)],['GH / GA',fmt((obs?.gh??NaN)*100,1)+' / '+fmt((obs?.ga??NaN)*100,1)],
     ['ML 2',signal?fmt(Number(signal.prob_away)*100,1)+'%':'NESALVAT'],
     ['EV',signal?fmt(Number(signal.expected_value)*100,1)+'%':'—'],
     ['FINAL',d.result?d.result.home_score+'–'+d.result.away_score:'—']]){
     const c=elem('span');c.append(elem('b','',v),elem('small','',k));summary.append(c);
    }body.append(summary);
-   addText(body,'h4','Criterii de calificare');
+   if(d.diagnostic){const status=addText(body,'div',d.diagnostic.label,'a57-diagnostic');if(d.diagnostic.code==='NO_PREMATCH')status.classList.add('blocked');}
+    addText(body,'h4','Criterii de calificare');
    for(const ch of d.checks||[]){const line=elem('div','a57-audit-check',(ch.known?(ch.passed?'✓ ':'✕ '):'◌ ')+ch.label);line.classList.toggle('ok',!!ch.known&&!!ch.passed);body.append(line);}
-   addText(body,'div','Pre-meci 1/X/2: '+[pre?.p1,pre?.px,pre?.p2].map(x=>fmt(x)).join(' / ')+' · GH '+fmt((pre?.gh??NaN)*100,1)+'% · GA '+fmt((pre?.ga??NaN)*100,1)+'%','a57-sub');
+   if(d.diagnostic?.discovered_after_kickoff)addText(body,'div','Descoperit '+when(d.diagnostic.first_seen_utc)+' · start '+when(d.diagnostic.kickoff_utc)+'. Cotele LIVE nu sunt pre-meci.','a57-sub');
+    addText(body,'div','Pre-meci 1/X/2: '+[pre?.p1,pre?.px,pre?.p2].map(x=>fmt(x)).join(' / ')+' · GH '+fmt((pre?.gh??NaN)*100,1)+'% · GA '+fmt((pre?.ga??NaN)*100,1)+'%','a57-sub');
    addText(body,'h4','Evoluția Generosity Home / Away');
    const legend=elem('p','a57-sub','● Home (roz)   ● Away (albastru) · minute reale din arhivă');body.append(legend,miniGraph(d.trace));
    addText(body,'div',(d.sampled_minutes||0)+' minute distincte salvate; traseul poate avea capturi lipsă.','a57-sub');
@@ -406,7 +428,10 @@ function away57RadarClient(){
   by('a57-live-shortcut')?.remove();by('a57-tab-fab')?.remove();by('away57')?.remove();by('tab-away57')?.remove();
   page=elem('section','screen hidden');page.id='away57';
   page.innerHTML="<div class=\"a57-hero\"><div class=\"a57-kicker\">SB RADAR · RADAR THEO · SISTEM INDEPENDENT</div><h1>✈ AWAY 57</h1><div class=\"a57-chips\"><span class=\"a57-chip\">1–1 → VICTORIE OASPEȚI (2)</span><span class=\"a57-chip\">ML + GENEROSITY H/A</span><span class=\"a57-chip\">BET NOW · TEST 2 LEI</span></div><p class=\"a57-muted\">Radar Theo original, cu meciuri proprii și aceeași navigare cinematografică. Semnalul ML se decide numai după verificarea de la 57′.</p><div class=\"a57-grid\"><div class=\"a57-kpi\"><strong id=\"a57-total\">0</strong><small>OBSERVARE</small></div><div class=\"a57-kpi\"><strong id=\"a57-near\">0</strong><small>APROAPE 57′</small></div><div class=\"a57-kpi\"><strong id=\"a57-bet\">0</strong><small>BET NOW EMIS</small></div></div><p id=\"a57-updated\" class=\"a57-muted\">Conectare la feed…</p></div>\n<div class=\"a57-radar-card\"><div class=\"a57-toolbar\"><div><strong>◉ RADAR THEO · AWAY 57</strong><small id=\"a57-radar-count\">0 meciuri</small></div><div><button id=\"a57-3d\" class=\"a57-mode active\">3D</button><button id=\"a57-2d\" class=\"a57-mode\">2D</button></div></div><div id=\"a57-theo\"></div><p class=\"a57-hint\">Meciurile se apropie de centru odată cu minutul real. Atinge un punct pentru detalii.</p></div>\n<section class=\"ticket-dock\" id=\"a57-ticket-dock\"><div class=\"ticket-dock-head\"><div><h2><span class=\"ticket-dock-icon\">▤</span> Biletele mele în curs <span id=\"a57-ticket-count\" class=\"ticket-number\">0</span></h2><p class=\"sub\">Doar bilete reale înregistrate pentru selecția 2 după un semnal Away 57. Simulările nu sunt pariuri plasate.</p></div><span class=\"ticket-live-mark\" id=\"a57-ticket-live\">↻ 0 ACTIVE</span></div><div id=\"a57-open-tickets\"></div><details class=\"recent-ticket-group\" id=\"a57-recent-tickets-group\"><summary>▦ Ultimele decontări <span id=\"a57-recent-ticket-count\">0</span></summary><div id=\"a57-recent-tickets\"></div></details></section>\n<details class=\"lifecycle-box\" id=\"a57-watch-details\" open><summary><span>◷ În observare <b id=\"a57-watch-badge\">0</b></span><small>Meciurile monitorizate · cele mai noi primele · apasă pentru detalii</small></summary><div class=\"lifecycle-scroll\" id=\"a57-watch-events\"></div></details>\n<section class=\"a57-outcome-summary\" id=\"a57-outcome-summary\" aria-label=\"WIN LOSS separat pe scorul observat\"><div class=\"a57-outcome-title\">▤ REZULTATE ARHIVĂ · VICTORIE OASPEȚI (2)</div><p class=\"a57-summary-note\">WIN/LOSS arată numai rezultatul final al oaspeților, NU semnale ML sau bilete. Împărțire după scorul ultimei capturi observate, în ultimele 48h.</p><div class=\"a57-outcome-table\">\n<div class=\"a57-outcome-head\"><span>Grupă</span><span>WIN 2</span><span>LOSS 2</span><span>Fără final</span></div>\n<div class=\"a57-outcome-row\"><strong>0–0 observate <small id=\"a57-n00\">0 meciuri</small></strong><b class=\"a57-w\" id=\"a57-w00\">0</b><b class=\"a57-l\" id=\"a57-l00\">0</b><b id=\"a57-u00\">0</b></div>\n<div class=\"a57-outcome-row\"><strong>1–1 observate <small id=\"a57-n11\">0 meciuri</small></strong><b class=\"a57-w\" id=\"a57-w11\">0</b><b class=\"a57-l\" id=\"a57-l11\">0</b><b id=\"a57-u11\">0</b></div>\n<div class=\"a57-outcome-row a57-outcome-relevant\"><strong>1–1 exact la 57′ <small id=\"a57-n1157\">0 meciuri</small></strong><b class=\"a57-w\" id=\"a57-w1157\">0</b><b class=\"a57-l\" id=\"a57-l1157\">0</b><b id=\"a57-u1157\">0</b></div>\n<div class=\"a57-outcome-row a57-outcome-ml\"><strong>ML Away 57 <small id=\"a57-nml\">0 semnale</small></strong><b class=\"a57-w\" id=\"a57-wml\">0</b><b class=\"a57-l\" id=\"a57-lml\">0</b><b id=\"a57-uml\">0</b></div>\n</div><p class=\"a57-summary-note\"><strong>Regula activă:</strong> numai 1–1 la minutul 57 + cotă 2 între 1,85–4,00 + oaspeți favoriți + selecție ML. Meciurile 0–0 sunt exclusiv în observație.</p></section><details class=\"lifecycle-box archive-box\" id=\"a57-archive-details\"><summary><span>▣ Arhivă temporară <b id=\"a57-archive-badge\">0</b></span><small>Capturi în ultimele 48h, inclusiv fără alertă · cele mai noi primele</small></summary><div class=\"lifecycle-scroll\" id=\"a57-archive-events\"></div></details>\n<details class=\"lifecycle-box\" id=\"a57-signal-details\"><summary><span>⚡ Semnale BET NOW <b id=\"a57-signal-badge\">0</b></span><small>Selecții ML înregistrate separat, test 2 lei fără plasare automată</small></summary><div class=\"lifecycle-scroll\" id=\"a57-signal-events\"></div></details>\n<details class=\"lifecycle-box\" id=\"a57-filters-details\"><summary>⚙ Filtrele active Away 57 <small>Verificări și condiții ML</small></summary><div id=\"a57-conditions\" class=\"a57-conditions\"></div></details>\n<p class=\"a57-sub\">+90,94% a fost ROI virtual retrospectiv pe numai 18 selecții, nu o prognoză de câștig. Nu se execută pariuri automat.</p>\n<div class=\"a57-audit-overlay hidden\" id=\"a57-audit-overlay\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Audit meci Away 57\" aria-hidden=\"true\"><div class=\"a57-audit-panel\"><div class=\"a57-audit-header\"><strong>✦ AUDIT AWAY 57</strong><button id=\"a57-close-audit\" type=\"button\">✕ Închide</button></div><div id=\"a57-audit-body\"></div></div></div>";
-  slip.parentNode.insertBefore(page,slip);
+  // Same layout hierarchy as main Radar: visible active filters above the playing-field radar.
+   const filters=page.querySelector('#a57-filters-details');
+   if(filters){filters.open=true;page.querySelector('.a57-hero')?.insertAdjacentElement('afterend',filters);}
+   slip.parentNode.insertBefore(page,slip);
   const tabButton=elem('button','','✈ AWAY 57');tabButton.id='tab-away57';tabButton.type='button';tabButton.addEventListener('click',()=>window.tab('away57'));nav.insertBefore(tabButton,by('tab-slip'));
   // The installed native navigation has five fixed tabs; this dedicated sixth tab
   // remains visible just ABOVE the native navigation, not in RADAR Home content.
@@ -428,7 +453,7 @@ function away57RadarClient(){
  }
  const start=()=>{install();if(!page){setTimeout(install,400);setTimeout(install,1100)}};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
- setInterval(()=>{if(page&&!page.classList.contains('hidden'))refresh();},25000);
+ setInterval(()=>{if(page&&!page.classList.contains('hidden')&&document.visibilityState==='visible')refresh();},8000);
 }
 export function withAway57Radar(html){
  if(typeof html!=='string'||html.includes('id="a57-radar-css"'))return html;
