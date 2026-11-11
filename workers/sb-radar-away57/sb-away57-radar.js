@@ -26,6 +26,64 @@ export async function away57RadarCandidates(env){
   {key:'model',name:'ML L2 · EV ≥5%',description:'Modelul alege victoria oaspeților cu avantaj estimat de cel puțin 5%'},
   {key:'stake',name:'Miză test 2 lei',description:'Nu se plasează automat niciun pariu'}]};
 }
+
+const AWAY57_ARCHIVE_HOURS=48;
+function away57MatchUrl(id,fixture){
+ const parts=String(fixture||'').split(/[·•|]/);
+ const slug=x=>String(x||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,90);
+ return parts.length===2? 'https://superbet.ro/cote/fotbal/'+slug(parts[0])+'-vs-'+slug(parts[1])+'-'+Number(id):'https://superbet.ro/pariuri-sportive/fotbal/live';
+}
+export async function away57ArchiveAndTickets(env){
+ const since=new Date(Date.now()-AWAY57_ARCHIVE_HOURS*3600000).toISOString();
+ const [old,tickets]=await Promise.all([
+  env.DB.prepare("WITH recent AS (SELECT event_id,MAX(captured_utc) last_utc FROM ghost_equal_samples INDEXED BY idx_ghost_samples_scan_recent WHERE captured_utc >= ? AND minute BETWEEN 25 AND 57 AND p1 > p2 AND p2>1 AND ((home_score=1 AND away_score=1) OR (home_score=0 AND away_score=0)) GROUP BY event_id) SELECT g.event_id,g.fixture,g.captured_utc,g.minute,g.home_score,g.away_score,g.p1,g.px,g.p2,g.gh,g.ga,m.home_score final_home,m.away_score final_away,m.verified,m.event_status,ec.league_name,ec.country FROM recent r JOIN ghost_equal_samples g ON g.event_id=r.event_id AND g.captured_utc=r.last_utc LEFT JOIN match_results m ON m.event_id=g.event_id LEFT JOIN sb_radar_event_competition ec ON ec.event_id=g.event_id ORDER BY g.captured_utc DESC LIMIT 35").bind(since).all(),
+  // Only real manually recorded 2 selections connected to an actual Away57 signal.
+  // Don't turn ML candidate recommendations into fake placed tickets.
+  env.DB.prepare("SELECT b.id,b.event_id,b.fixture,b.selection,b.stake_lei,b.odds,b.placed_utc,b.status,b.returned_lei,b.settled_utc,b.potential_return_lei,s.signal_utc,s.prob_away FROM ghost_equal_bets b JOIN sb_away57_signals_v1 s ON s.event_id=b.event_id WHERE b.selection IN ('2','Victorie oaspeti','Victorie oaspeți','Oaspeți','Away') ORDER BY b.placed_utc DESC LIMIT 24").all()
+ ]);
+ const archive=(old.results||[]).map(x=>({...x,superbet_url:away57MatchUrl(x.event_id,x.fixture),
+  score_at_observation:String(x.home_score)+'-'+String(x.away_score),
+  status:(Number(x.verified)===1&&x.event_status==='FINISHED')?'FINAL':'HISTORIC_CAPTURA'}));
+ const registered=(tickets.results||[]).map(x=>({...x,source:'REAL_REGISTERED',superbet_url:away57MatchUrl(x.event_id,x.fixture)}));
+ return {archive_hours:AWAY57_ARCHIVE_HOURS,archive,registered_tickets:registered,
+   open_tickets:registered.filter(x=>['OPEN','PENDING','ACTIVE','LIVE'].includes(String(x.status||'').toUpperCase())),
+   recent_tickets:registered.filter(x=>!['OPEN','PENDING','ACTIVE','LIVE'].includes(String(x.status||'').toUpperCase())),
+   tickets_are_real_only:true};
+}
+export async function away57RadarAudit(env,eventId){
+ const id=Number(eventId);
+ if(!Number.isSafeInteger(id)||id<=0)return {ok:false,error:'Invalid event id'};
+ const [history,prematch,signal,first57,final,league]=await Promise.all([
+  env.DB.prepare("SELECT captured_utc,minute,home_score,away_score,p1,px,p2,gh,ga FROM ghost_equal_samples WHERE event_id=? ORDER BY minute DESC,captured_utc DESC LIMIT 140").bind(id).all(),
+  env.DB.prepare("SELECT q.captured_utc,q.kickoff_utc,q.p1,q.px,q.p2,q.generosity_home gh,q.generosity_away ga FROM quote_snapshots q WHERE q.event_id=? AND q.kickoff_utc IS NOT NULL AND q.captured_utc<=q.kickoff_utc AND q.p1>1 AND q.px>1 AND q.p2>1 ORDER BY q.captured_utc DESC LIMIT 1").bind(id).first(),
+  env.DB.prepare("SELECT event_id,fixture,captured_utc,signal_utc,minute,home_score,away_score,p1,px,p2,gh,ga,prob_home,prob_draw,prob_away,market_away,expected_value,stake_lei,model_version,trace_bins,data_quality,final_home,final_away,outcome,audit_json FROM sb_away57_signals_v1 WHERE event_id=?").bind(id).first(),
+  env.DB.prepare("SELECT event_id,fixture,captured_utc,home_score,away_score,p1,px,p2,gh,ga,prior_minute,prior_gh,prior_ga,sample_source FROM sb_radar_df57_archive_v2 WHERE event_id=? LIMIT 1").bind(id).first(),
+  env.DB.prepare("SELECT home_score,away_score,verified,event_status,checked_utc FROM match_results WHERE event_id=?").bind(id).first(),
+  env.DB.prepare("SELECT league_name,division,country,confidence FROM sb_radar_event_competition WHERE event_id=?").bind(id).first()
+ ]);
+ const samples=(history.results||[]).filter(s=>Number.isFinite(Number(s.minute)))
+  .sort((a,b)=>Number(a.minute)-Number(b.minute)||Date.parse(a.captured_utc)-Date.parse(b.captured_utc));
+ // Collapse repeated same-minute updates to last value, preserving chronological truth.
+ const uniq=new Map();for(const x of samples)uniq.set(Number(x.minute),x);
+ const trace=[...uniq.values()].sort((a,b)=>Number(a.minute)-Number(b.minute));
+ const a=first57||trace.find(x=>Number(x.minute)===57)||null;
+ const validated=!!a&&Number(a.home_score)===1&&Number(a.away_score)===1;
+ const odd2=a?.p2!==null&&a?.p2!==undefined?Number(a.p2):null;
+ const homeOdd=a?.p1!==null&&a?.p1!==undefined?Number(a.p1):null;
+ const checks=[
+  {key:'score',label:'Scor 1–1 la 57′',passed:validated,known:!!a},
+  {key:'fav',label:'Oaspeți favoriți (2 < 1)',passed:!!a&&Number.isFinite(odd2)&&Number.isFinite(homeOdd)&&odd2<homeOdd,known:!!a},
+  {key:'odd',label:'Cotă 2 între 1,85–4,00',passed:!!a&&odd2>=1.85&&odd2<=4,known:!!a},
+  {key:'gen',label:'Generosity H/A validă',passed:!!a&&[a.gh,a.ga].every(x=>x!==null&&x!==undefined&&Number.isFinite(Number(x))&&Number(x)>=0&&Number(x)<=1),known:!!a},
+  {key:'ml',label:'Model ML selectează 2 · EV ≥5%',passed:!!signal,known:!!signal}
+ ];
+ return {ok:true,event_id:id,fixture:String(signal?.fixture||first57?.fixture||''),league,first57:a,prematch,
+  checks,trace:trace.slice(-90),signal:signal?{...signal,audit_json:undefined}:null,
+  result:Number(final?.verified)===1?final:null,
+  note:signal?'Probabilitatea a fost salvată la momentul emiterii.':'Fără semnal ML înregistrat. Necalificarea nu înseamnă că un model a evaluat și respins acest meci; datele pot fi incomplete.',
+  sampled_minutes:trace.length,superbet_url:away57MatchUrl(id,signal?.fixture||first57?.fixture)};
+}
+
 const CSS=[
  '#away57{padding:12px 12px 115px;min-height:75vh;max-width:1000px;margin:auto;color:#eaf8ff;box-sizing:border-box}',
  '#away57.hidden{display:none!important}',
