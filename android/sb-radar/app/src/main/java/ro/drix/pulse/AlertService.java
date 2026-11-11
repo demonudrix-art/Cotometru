@@ -21,6 +21,7 @@ public class AlertService extends Service {
   static final String CH_ML="sb_radar_purple_alarm_v2316";
   static final String CH_NIGHT="sb_radar_vibration_night_v2315";
   static final String CH_WINS="sb_radar_wins_v232";
+  static final String CH_AWAY57="sb_radar_away57_lab_v1";
   static final int FOREGROUND_ID=1310;
   static final String SILENCE="SILENCE";
   private static volatile AlertService current;
@@ -70,6 +71,11 @@ public class AlertService extends Service {
     night.setVibrationPattern(new long[]{0,320,180,320,180,320});
     night.setSound(null,null);
     mgr.createNotificationChannel(night);
+    NotificationChannel away=new NotificationChannel(CH_AWAY57,"✈ AWAY 57 • BET NOW • TEST 2 LEI",NotificationManager.IMPORTANCE_HIGH);
+    away.setDescription("1–1 -> victorie oaspeți. Recomandare experimentală 2 lei, fără plasare automată.");
+    away.enableVibration(true);away.setVibrationPattern(new long[]{0,250,180,250});
+    away.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+    away.setSound(null,null);mgr.createNotificationChannel(away);
   }
 
   static PendingIntent open(Context ctx,int code,String path){
@@ -112,6 +118,8 @@ public class AlertService extends Service {
   }
   private static String signalTitle(boolean gold,String modelVersion){
     String normalized=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
+    if(normalized.contains("AWAY57")||normalized.contains("AWAY 57")||normalized.contains("AWAY_57"))
+      return "✈ AWAY 57 • BET NOW • TEST 2 LEI • SB Radar";
     if(normalized.contains("STRONG + SILVER")||normalized.contains("STRONG_SILVER")||normalized.contains("STRONG-SILVER"))
       return "🟣 GOLDEN STRONG + SILVER • 75 LEI • SB Radar";
     if(normalized.contains("STRONG"))return "🔴 GOLDEN STRONG • 50 LEI • SB Radar";
@@ -160,7 +168,8 @@ public class AlertService extends Service {
       (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER")));
     boolean gold="GOLDEN TICKET".equals(category)||"STRONG".equals(category);
     boolean quiet=nightQuiet();
-    String channel=purple?CH_ML:CH_GOLD;
+    boolean away="AWAY 57".equals(category)||"AWAY_57".equals(category);
+    String channel=away?CH_AWAY57:purple?CH_ML:CH_GOLD;
     String title=signalTitle(gold,(modelVersion==null?"":modelVersion)+" "+category);
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     int id=notificationId==0?(gold?23201:23202):notificationId;
@@ -172,16 +181,16 @@ public class AlertService extends Service {
     dismiss.putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(this,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Notification.Builder b=builder(this,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
+      .setContentTitle(title).setContentText(fixture+(away?" • VICTORIE OASPEȚI (2)":" • EGAL (X)")).setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(this,id,path)).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
-      .setCategory(Notification.CATEGORY_ALARM).setColor(purple?0xffa879ff:0xfff54d61)
+      .setCategory(away?Notification.CATEGORY_STATUS:Notification.CATEGORY_ALARM).setColor(away?0xff6fdaff:purple?0xffa879ff:0xfff54d61)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
-    if(!quiet&&(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
+    if(!away&&!quiet&&(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
     getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE).edit().remove("dismissed_alert_"+id).commit();
     manager.notify(id,b.build());
-    if(!quiet)AlertAttention.start(this); // Night vibration is handled solely by the silent channel.
+    if(!away&&!quiet)AlertAttention.start(this); // Away 57 uses vibration-only channel.
   }
   private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
@@ -200,26 +209,33 @@ public class AlertService extends Service {
       boolean purple="strong-silver".equals(code);
       boolean red="strong".equals(code);
       boolean gold="GOLDEN TICKET".equals(category);
+      boolean away="AWAY 57".equals(category)||"AWAY_57".equals(category)||"AWAY_57".equalsIgnoreCase(row.optString("signal_type",""));
       boolean power="GG POWER".equals(category)||row.optString("model_version","").contains("GG_POWER")||row.optBoolean("gg_power",false);
       boolean rush="GOLD RUSH".equals(category)||("ML".equals(category)&&row.optString("model_version","").contains("GOLD_RUSH"));
-      if(!win&&!gold&&!rush&&!power&&!purple&&!red)continue; // Silver-only and retired filters never ring.
+      if(!win&&!gold&&!rush&&!power&&!purple&&!red&&!away)continue; // Silver-only and retired filters never ring.
       String key="notified_"+event+"_"+(win?"win":"betnow");
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
       int min=row.optInt("minute",0);String score=row.optString("home_score","-")+"–"+row.optString("away_score","-");
       String category57=row.optString("gold_category_label","");
       String body=fixture+(win?" • Rezultat confirmat":"\nCATEGORIA GOLDEN X57: "+(category57.isEmpty()?"captură indisponibilă":category57)+"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU EGAL (X) • COTĂ "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+(power?"\n⚡ GG POWER • MIZĂ SUGERATĂ 50 LEI":rush?"\n💰 GOLD RUSH • MIZĂ SUGERATĂ 20 LEI":"")+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL");
-      String path=win?"/app?tab=slip&bet_id="+row.optLong("bet_id",0):"/app?tab=live&event_id="+event;
+      if(away)body=fixture+"\n✈ AWAY 57 • BET NOW • LABORATOR"+
+        "\n⏱ MINUTUL "+min+" • SCOR "+score+
+        "\n🎯 PARIU: VICTORIE OASPEȚI (2) • COTĂ "+String.format(Locale.US,"%.2f",row.optDouble("p2",0))+
+        "\n🧪 MIZĂ DE TEST: 2 LEI • FĂRĂ PLASARE AUTOMATĂ"+
+        "\nML estimat: "+String.format(Locale.US,"%.1f",100*row.optDouble("model_probability",0))+"%"+
+        "\nVerifică cota actuală în Superbet";
+      String path=win?"/app?tab=slip&bet_id="+row.optLong("bet_id",0):away?"/app?tab=away57&event_id="+event:"/app?tab=live&event_id="+event;
       int id=(int)(Math.abs(event)%100000)+3000+(win?100000:0);
       if(win){
         Notification n=builder(this,CH_WINS).setSmallIcon(android.R.drawable.ic_dialog_info).setAutoCancel(true)
           .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
-      }else showSignal(purple?"STRONG + SILVER":red?"STRONG":power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",
+      }else showSignal(away?"AWAY 57":purple?"STRONG + SILVER":red?"STRONG":power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",
         id,fixture,body,path,row.optString("model_version","")+" "+code,false);
       prefs.edit().putBoolean(key,true).apply();
-      if(!win){try{
+      if(!win&&!away){try{
         JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
         MainActivity.readHttp(MainActivity.BASE+"/api/mobile/ack",token,ack.toString());
       }catch(Exception ignored){}}
@@ -230,7 +246,7 @@ public class AlertService extends Service {
   // Shared deduplication key prevents duplicate notifications from FCM and the 25-second polling fallback.
   static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority,String modelVersion){
     boolean strong=category!=null&&category.toUpperCase(Locale.ROOT).contains("STRONG");
-    if(event<=0||!("GOLDEN TICKET".equals(category)||"GOLD RUSH".equals(category)||"GG POWER".equals(category)||"ML".equals(category)||strong))return;
+    if(event<=0||!("GOLDEN TICKET".equals(category)||"GOLD RUSH".equals(category)||"GG POWER".equals(category)||"ML".equals(category)||"AWAY 57".equals(category)||strong))return;
     SharedPreferences prefs=ctx.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE);
     String key="notified_"+event+"_betnow";
     if(prefs.getBoolean(key,false))return;
@@ -240,7 +256,8 @@ public class AlertService extends Service {
       (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER")));
     String title=signalTitle("GOLDEN TICKET".equals(category)||strong, (modelVersion==null?"":modelVersion)+" "+category);
     boolean quiet=nightQuiet();
-    String channel=purple?CH_ML:CH_GOLD;
+    boolean away="AWAY 57".equals(category);
+    String channel=away?CH_AWAY57:purple?CH_ML:CH_GOLD;
     ensureUrgentChannels(ctx); // Required when FCM wakes a process with no monitor service.
     NotificationManager mgr=(NotificationManager)ctx.getSystemService(NOTIFICATION_SERVICE);
     Intent fs=new Intent(ctx,AlertScreenActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -249,12 +266,12 @@ public class AlertService extends Service {
     Intent dismiss=new Intent(ctx,AlertDismissReceiver.class).setAction("ro.drix.pulse.SILENCE").putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(ctx,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Notification.Builder b=builder(ctx,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
+      .setContentTitle(title).setContentText(fixture+(away?" • VICTORIE OASPEȚI (2)":" • EGAL (X)")).setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_ALARM)
       .setVisibility(Notification.VISIBILITY_PUBLIC).setPriority(Notification.PRIORITY_MAX)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
-    if(!quiet&&(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
+    if(!away&&!quiet&&(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
     prefs.edit().remove("dismissed_alert_"+id).commit();
     mgr.notify(id,b.build());
     NotificationChannel activeChannel=mgr.getNotificationChannel(channel);
@@ -262,7 +279,7 @@ public class AlertService extends Service {
       .putInt("fcm_last_channel_importance",activeChannel==null?0:activeChannel.getImportance()).apply();
     // Start attention immediately after displaying the native notification;
     // getActiveNotifications() may lag by a frame on Samsung when FCM wakes the app.
-    if(!quiet)AlertAttention.start(ctx);
+    if(!away&&!quiet)AlertAttention.start(ctx);
     prefs.edit().putBoolean(key,true).apply();
     // High-priority FCM may start a foreground service while the screen is off.
     // It keeps the user-requested 45-second alarm alive beyond onMessageReceived().
