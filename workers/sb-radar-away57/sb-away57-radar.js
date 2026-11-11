@@ -198,7 +198,7 @@ function away57RadarClient(){
    dot.style.setProperty('--pulse',m>=55?'.6s':m>=50?'.95s':'1.7s');
    dot.style.setProperty('--spread',m>=50?'22px':'12px');
    dot.title=String(x.fixture||'')+' · '+m+'′ · '+sc(x)+' · '+state(x);
-   dot.addEventListener('click',e=>{e.preventDefault();filter='all';renderButtons();cards();setTimeout(()=>by('a57-match-'+x.event_id)?.scrollIntoView({behavior:'smooth',block:'center'}),40)});
+   dot.addEventListener('click',e=>{e.preventDefault();cards();if(x.is_signal&&by('a57-signal-details'))by('a57-signal-details').open=true;else if(by('a57-watch-details'))by('a57-watch-details').open=true;setTimeout(()=>{const node=by('a57-match-'+x.event_id)||by('a57-signal-match-'+x.event_id);node?.scrollIntoView({behavior:'smooth',block:'center'});},40)});
    points.append(dot);
   });
  }
@@ -208,7 +208,7 @@ function away57RadarClient(){
  }
  function makeMatchCard(x,kind){
   const card=elem('article','panel a57-card'+(x.is_signal?' is-bet':Number(x.minute)>=50?' is-near':''));
-  card.id='a57-match-'+x.event_id;
+  card.id=(kind==='watch'?'a57-match-':kind==='archive'?'a57-archive-match-':'a57-signal-match-')+x.event_id;
   const statusText=kind==='archive'?(Number(x.verified)===1&&x.event_status==='FINISHED'?'FINAL CONFIRMAT':'ULTIMA CAPTURĂ'):state(x);
   const top=elem('div','item-top');
   addText(top,'strong',String(x.fixture||'Meci').replace('·',' – '),'fixture');
