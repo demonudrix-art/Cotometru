@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "stage": "QUARANTINE_NOT_EXECUTABLE",
+  "purpose": "Pretrained external 1X2 baseline for research only; not a trained 57-minute model",
+  "created_utc": "2026-11-11",
+  "sources": [
+    {
+      "name": "bryson_epl_logistic",
+      "repository": "brysonhen/football_matchup_predictor",
+      "license_claim": "README states 'Code MIT'",
+      "type": "StandardScaler+LogisticRegression, club pre-match EPL 1X2",
+      "features": "12 rolling-form and rest features; no live Generosity",
+      "bundled": true,
+      "files": [
+        {
+          "path": "bryson_epl/model.joblib.b64",
+          "source_path": "models/model.joblib",
+          "git_blob_sha": "b1ec28285792c65454195c7738e9755c9b58f64e",
+          "encoding": "base64"
+        },
+        {
+          "path": "bryson_epl/team_snapshots.joblib.b64",
+          "source_path": "models/team_snapshots.joblib",
+          "git_blob_sha": "bbb536ec44188009dc0d16563dfd7aa5df6ca912",
+          "encoding": "base64"
+        },
+        {
+          "path": "bryson_epl/metadata.json",
+          "source_path": "models/metadata.json",
+          "git_blob_sha": "eb52ec65278aa84300cf02f886fcc9e7344f8e38",
+          "encoding": "utf-8"
+        }
+      ],
+      "notes": "Never load pickle/joblib in production; verify audit and compatible feature vector first."
+    },
+    {
+      "name": "epl_pulse_poisson",
+      "repository": "Chaste20/EPL-Pulse_v1",
+      "platform": "huggingface",
+      "license": "MIT",
+      "type": "Pretrained EPL Poisson home/away goals -> 1X2",
+      "bundled": false,
+      "remote_files": [
+        "home_goals_model.pkl",
+        "away_goals_model.pkl",
+        "feature_list.pkl",
+        "team_state.pkl"
+      ],
+      "notes": "Download requires network; no local model bytes obtained in this environment; no Generosity/live features."
+    },
+    {
+      "name": "sports_trends_hgb",
+      "repository": "ruslanmv/sports-trends-models",
+      "platform": "huggingface",
+      "license": "MIT",
+      "type": "Calibrated HistGradientBoosting pre-match 1X2",
+      "bundled": false,
+      "remote_files": [
+        "football/latest/model.pkl",
+        "football/latest/feature_schema.json",
+        "football/latest/metrics.json"
+      ],
+      "notes": "Download requires network; may be retrained daily; snapshot and verify versions before comparison."
+    }
+  ],
+  "warnings": [
+    "Untrusted pickle/joblib files are quarantined; downloading them is not authorization to execute or unpickle.",
+    "Model accuracy on EPL does not establish value on lower leagues or at minute 57.",
+    "No new ROI, Brier, WIN, LOSS yet; inference needs exact original input features."
+  ],
+  "production_integrations": false
+}
