@@ -1,0 +1,319 @@
+{
+  "checkedAt": "2026-11-11T07:46:33.008Z",
+  "sql": "SELECT a.event_id,a.captured_utc,a.home_score h,a.away_score a,a.p1 p1,a.px px,a.p2 p2,a.gh gh,a.ga ga,a.prior_gh pg_h,a.prior_ga pg_a,a.prior_minute pm,r.home_score fh,r.away_score fa FROM sb_radar_df57_archive_v2 a JOIN match_results r ON r.event_id=a.event_id WHERE a.captured_utc>='2026-10-29' AND a.captured_utc<'2026-11-12' AND r.verified=1 AND r.event_status='FINISHED' AND a.p1>1.01 AND a.px>1.01 AND a.p2>1.01 AND a.gh BETWEEN 0 AND 1 AND a.ga BETWEEN 0 AND 1 AND ((a.home_score=0 AND a.away_score=0) OR (a.home_score=1 AND a.away_score=1)) ORDER BY a.captured_utc ASC",
+  "version": "META_AI_CHALLENGERS_V2_1_20261111",
+  "dataN": 1642,
+  "testN": 821,
+  "modelFamilies": [
+    "PLATT",
+    "BAYES_BINS",
+    "KNN_RESIDUAL",
+    "BOOSTED_STUMPS"
+  ],
+  "training": "expanding rolling chronology with 6h embargo",
+  "fixedThreshold": "EV>=5% on away 2, only 1-1@57 away favorite odds 1.85-4",
+  "foldDetails": [
+    {
+      "from": "2026-11-05",
+      "to": "2026-11-07",
+      "trainN": 800,
+      "testN": 173,
+      "eligibleN": 26,
+      "results": {
+        "MARKET": {
+          "brier": 0.158011,
+          "bets": {
+            "bets": 26,
+            "wins": 5,
+            "losses": 21,
+            "profitUnits": -14.3,
+            "roiPct": -55
+          }
+        },
+        "PLATT": {
+          "brier": 0.155462,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "BAYES_BINS": {
+          "brier": 0.158688,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "KNN_RESIDUAL": {
+          "brier": 0.159121,
+          "bets": {
+            "bets": 4,
+            "wins": 1,
+            "losses": 3,
+            "profitUnits": -1.65,
+            "roiPct": -41.25
+          }
+        },
+        "BOOSTED_STUMPS": {
+          "brier": 0.162287,
+          "bets": {
+            "bets": 5,
+            "wins": 0,
+            "losses": 5,
+            "profitUnits": -5,
+            "roiPct": -100
+          }
+        }
+      }
+    },
+    {
+      "from": "2026-11-07",
+      "to": "2026-11-09",
+      "trainN": 940,
+      "testN": 569,
+      "eligibleN": 78,
+      "results": {
+        "MARKET": {
+          "brier": 0.178537,
+          "bets": {
+            "bets": 78,
+            "wins": 30,
+            "losses": 48,
+            "profitUnits": -4.44,
+            "roiPct": -5.69
+          }
+        },
+        "PLATT": {
+          "brier": 0.178542,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "BAYES_BINS": {
+          "brier": 0.180398,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "KNN_RESIDUAL": {
+          "brier": 0.181113,
+          "bets": {
+            "bets": 17,
+            "wins": 5,
+            "losses": 12,
+            "profitUnits": -3.9,
+            "roiPct": -22.94
+          }
+        },
+        "BOOSTED_STUMPS": {
+          "brier": 0.179898,
+          "bets": {
+            "bets": 11,
+            "wins": 5,
+            "losses": 6,
+            "profitUnits": 2.9,
+            "roiPct": 26.36
+          }
+        }
+      }
+    },
+    {
+      "from": "2026-11-09",
+      "to": "2026-11-11",
+      "trainN": 1522,
+      "testN": 75,
+      "eligibleN": 10,
+      "results": {
+        "MARKET": {
+          "brier": 0.200895,
+          "bets": {
+            "bets": 10,
+            "wins": 6,
+            "losses": 4,
+            "profitUnits": 5.19,
+            "roiPct": 51.9
+          }
+        },
+        "PLATT": {
+          "brier": 0.203263,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "BAYES_BINS": {
+          "brier": 0.203527,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "KNN_RESIDUAL": {
+          "brier": 0.207952,
+          "bets": {
+            "bets": 1,
+            "wins": 0,
+            "losses": 1,
+            "profitUnits": -1,
+            "roiPct": -100
+          }
+        },
+        "BOOSTED_STUMPS": {
+          "brier": 0.202757,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        }
+      }
+    },
+    {
+      "from": "2026-11-11",
+      "to": "2026-11-12",
+      "trainN": 1621,
+      "testN": 4,
+      "eligibleN": 0,
+      "results": {
+        "MARKET": {
+          "brier": 0.067842,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "PLATT": {
+          "brier": 0.057691,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "BAYES_BINS": {
+          "brier": 0.057952,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "KNN_RESIDUAL": {
+          "brier": 0.071861,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        },
+        "BOOSTED_STUMPS": {
+          "brier": 0.060727,
+          "bets": {
+            "bets": 0,
+            "wins": 0,
+            "losses": 0,
+            "profitUnits": 0,
+            "roiPct": null
+          }
+        }
+      }
+    }
+  ],
+  "rankings": {
+    "MARKET": {
+      "n": 821,
+      "brier": 0.175715,
+      "logloss": 0.529991,
+      "bets": {
+        "bets": 114,
+        "wins": 41,
+        "losses": 73,
+        "profitUnits": -13.55,
+        "roiPct": -11.89
+      }
+    },
+    "PLATT": {
+      "n": 821,
+      "brier": 0.175348,
+      "logloss": 0.528516,
+      "bets": {
+        "bets": 0,
+        "wins": 0,
+        "losses": 0,
+        "profitUnits": 0,
+        "roiPct": null
+      }
+    },
+    "BAYES_BINS": {
+      "n": 821,
+      "brier": 0.17734,
+      "logloss": 0.534023,
+      "bets": {
+        "bets": 0,
+        "wins": 0,
+        "losses": 0,
+        "profitUnits": 0,
+        "roiPct": null
+      }
+    },
+    "KNN_RESIDUAL": {
+      "n": 821,
+      "brier": 0.178399,
+      "logloss": 0.536989,
+      "bets": {
+        "bets": 22,
+        "wins": 6,
+        "losses": 16,
+        "profitUnits": -6.55,
+        "roiPct": -29.77
+      }
+    },
+    "BOOSTED_STUMPS": {
+      "n": 821,
+      "brier": 0.177695,
+      "logloss": 0.536083,
+      "bets": {
+        "bets": 16,
+        "wins": 5,
+        "losses": 11,
+        "profitUnits": -2.1,
+        "roiPct": -13.13
+      }
+    }
+  },
+  "brierBetterThanMarketBy2ppt": [],
+  "decision": "ABSTAIN_ALL_MODELS",
+  "productionChanges": false,
+  "caveat": "Research uses the same historical span as prior experiments; later dates are NOT a pristine unseen test."
+}
