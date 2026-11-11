@@ -135,6 +135,9 @@ export async function away57Snapshot(env){
   signals:signals.map(s=>({...s,superbet_url:encodeFixture(s.fixture,s.event_id)}))};
 }
 export async function away57MobileAlerts(env,appVersion=''){
+ // SAFETY: installed v2.3.32 native handler mislabels this market as X/Gold Rush.
+ // Keep in-app prospective signals only until a dedicated, tested Android 2-market notification parser ships.
+ return [];
  // Legacy native notification path reused ONLY for v2.3.33+; older APKs must not see this alias.
  const m=/^(\d+)\.(\d+)\.(\d+)/.exec(String(appVersion));
  if(!m||(Number(m[1])*1000000+Number(m[2])*1000+Number(m[3]))<2003033)return [];
