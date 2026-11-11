@@ -3,7 +3,7 @@
 // Two-week data Oct29-Nov11. Evaluated as expanding chronology, six-hour embargo.
 // Winner must beat market Brier on same events, not just virtual ROI.
 // Read-only: no DB writes, no alerts, no betting automation.
-export const VERSION = 'META_AI_CHALLENGERS_V2_20261111';
+export const VERSION = 'META_AI_CHALLENGERS_V2_1_20261111';
 const clamp=(x,a=.001,b=.999)=>Math.min(b,Math.max(a,x));
 const logit=p=>Math.log(clamp(p)/(1-clamp(p)));
 const sigmoid=x=>1/(1+Math.exp(-Math.min(24,Math.max(-24,x))));
@@ -60,7 +60,7 @@ function fitKnn(train){
 }
 function fitBoosting(train) {
  // Squared-error residual gradient boosting with shallow regression stumps.
- const rows=train.map(x=>({f:x.f,y:x.y,p:x.q}));
+ const rows=train.map(x=>({f:x.f,y:x.y,q:x.q}));
  const trees=[];
  const predict=x=>{
   let p=x.q;for(const t of trees)p+=.13*(x.f[t.j]<=t.t?t.left:t.right);
