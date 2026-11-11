@@ -76,6 +76,7 @@ const CSS=[
  '#away57 .a57-empty{padding:22px 12px;text-align:center;border:1px dashed #38647e;border-radius:13px;font-size:12px;color:#9fbece}',
  '#away57 .a57-sub{font-size:10px;color:#8daebf;margin-top:10px}',
  'html.a57-web-native #nav.bottom{display:flex!important;position:fixed!important;bottom:0!important;left:0!important;right:0!important;z-index:990!important;gap:4px!important;padding:8px 5px max(9px,env(safe-area-inset-bottom))!important;background:#101923f7!important;border-top:1px solid #34516d!important;backdrop-filter:blur(16px)}',
+ 'html.a57-web-native #nav.bottom.hidden{display:none!important}',
 'html.a57-web-native #nav.bottom button{display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;flex:1 1 0!important;min-width:0!important;min-height:66px!important;border-radius:13px!important;background:#1a2233!important;border:1px solid #354258!important;color:#adc2d0!important;font:850 10px var(--sb-display,Arial)!important;letter-spacing:0!important;padding:6px 2px!important;line-height:1.25!important}',
 'html.a57-web-native #nav.bottom button.active{background:linear-gradient(140deg,#343051,#312438)!important;color:white!important;border-color:#7a5d91!important}',
 'html.a57-web-native #nav.bottom #tab-away57{color:#87deff!important;border-color:#396f8d!important}',
