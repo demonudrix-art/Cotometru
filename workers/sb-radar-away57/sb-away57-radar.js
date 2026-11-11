@@ -62,7 +62,7 @@ export async function away57RadarAudit(env,eventId){
  const id=Number(eventId);
  if(!Number.isSafeInteger(id)||id<=0)return {ok:false,error:'Invalid event id'};
  const [history,prematch,signal,first57,final,league,catalog]=await Promise.all([
-  env.DB.prepare("SELECT captured_utc,minute,home_score,away_score,p1,px,p2,gh,ga FROM ghost_equal_samples WHERE event_id=? ORDER BY minute DESC,captured_utc DESC LIMIT 140").bind(id).all(),
+  env.DB.prepare("SELECT fixture,captured_utc,minute,home_score,away_score,p1,px,p2,gh,ga FROM ghost_equal_samples WHERE event_id=? ORDER BY minute DESC,captured_utc DESC LIMIT 140").bind(id).all(),
   env.DB.prepare("SELECT q.captured_utc,q.kickoff_utc,q.p1,q.px,q.p2,q.generosity_home gh,q.generosity_away ga FROM quote_snapshots q WHERE q.event_id=? AND q.kickoff_utc IS NOT NULL AND q.captured_utc<=q.kickoff_utc AND q.p1>1 AND q.px>1 AND q.p2>1 ORDER BY q.captured_utc DESC LIMIT 1").bind(id).first(),
   env.DB.prepare("SELECT event_id,fixture,captured_utc,signal_utc,minute,home_score,away_score,p1,px,p2,gh,ga,prob_home,prob_draw,prob_away,market_away,expected_value,stake_lei,model_version,trace_bins,data_quality,final_home,final_away,outcome,audit_json FROM sb_away57_signals_v1 WHERE event_id=?").bind(id).first(),
   env.DB.prepare("SELECT event_id,fixture,captured_utc,home_score,away_score,p1,px,p2,gh,ga,prior_minute,prior_gh,prior_ga,sample_source FROM sb_radar_df57_archive_v2 WHERE event_id=? LIMIT 1").bind(id).first(),
@@ -95,7 +95,7 @@ export async function away57RadarAudit(env,eventId){
  ];
  const code=signal?'SIGNAL':!hasPrematch?'NO_PREMATCH':!a?'WAIT_57':!hasTrace?'NO_TRACE':'NO_RECORDED_SIGNAL';
   const label=code==='SIGNAL'?'Semnal ML emis':code==='NO_PREMATCH'?(lateDiscovery?'ML blocat — meciul a fost descoperit după start':'ML blocat — lipsesc datele pre-meci autentice'):code==='WAIT_57'?'Așteptăm captura reală 57′':code==='NO_TRACE'?'ML blocat — istoric live insuficient':'Modelul nu are un semnal înregistrat';
-  return {ok:true,event_id:id,fixture:String(signal?.fixture||first57?.fixture||''),league,first57:a,last_observation,catalog,
+  return {ok:true,event_id:id,fixture:String(signal?.fixture||first57?.fixture||last_observation?.fixture||''),league,first57:a,last_observation,catalog,
   diagnostic:{code,label,prematch_available:hasPrematch,discovered_after_kickoff:lateDiscovery,kickoff_utc:catalog?.kickoff_utc||null,first_seen_utc:catalog?.first_seen_utc||null},prematch,
   checks,trace:trace.slice(-90),signal:signal?{...signal,audit_json:undefined}:null,
   result:Number(final?.verified)===1?final:null,
