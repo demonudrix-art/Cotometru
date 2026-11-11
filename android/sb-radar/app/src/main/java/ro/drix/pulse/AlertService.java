@@ -21,6 +21,8 @@ public class AlertService extends Service {
   static final String CH_ML="sb_radar_purple_alarm_v2316";
   static final String CH_NIGHT="sb_radar_vibration_night_v2315";
   static final String CH_WINS="sb_radar_wins_v232";
+   static final String CH_AWAY57="sb_radar_away57_day_v2335";
+   static final String CH_AWAY57_NIGHT="sb_radar_away57_night_v2335";
   static final int FOREGROUND_ID=1310;
   static final String SILENCE="SILENCE";
   private static volatile AlertService current;
@@ -70,6 +72,15 @@ public class AlertService extends Service {
     night.setVibrationPattern(new long[]{0,320,180,320,180,320});
     night.setSound(null,null);
     mgr.createNotificationChannel(night);
+     // Separate 2-market research alerts: never reuse Golden/Gold Rush X channels.
+     NotificationChannel away=new NotificationChannel(CH_AWAY57,"✈ AWAY 57 • Victorie oaspeți (2)",NotificationManager.IMPORTANCE_HIGH);
+     away.setDescription("Numai semnale Away 57, selecția 2, test; fără plasare automată");
+     away.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);away.enableVibration(true);
+     away.setVibrationPattern(new long[]{0,320,200,320});away.setSound(ring,soundAttrs);mgr.createNotificationChannel(away);
+     NotificationChannel awayNight=new NotificationChannel(CH_AWAY57_NIGHT,"✈ AWAY 57 • Vibrație 22–05",NotificationManager.IMPORTANCE_HIGH);
+     awayNight.setDescription("Notificări de test Away 57 numai cu vibrație între 22:00 și 05:00");
+     awayNight.enableVibration(true);awayNight.setVibrationPattern(new long[]{0,300,180,300});
+     awayNight.setSound(null,null);mgr.createNotificationChannel(awayNight);
   }
 
   static PendingIntent open(Context ctx,int code,String path){
@@ -183,7 +194,38 @@ public class AlertService extends Service {
     manager.notify(id,b.build());
     if(!quiet)AlertAttention.start(this); // Night vibration is handled solely by the silent channel.
   }
-  private void checkAlerts()throws Exception {
+  /**
+    * Dedicated informational test notification for victory AWAY (2).
+    * Never calls the legacy GOLD_RUSH / EGAL(X) notification path.
+    */
+   static synchronized boolean postAway57(Context ctx,long event,String fixture,String score,String odd){
+     if(event<=0)return false;
+     if(Build.VERSION.SDK_INT>=33&&ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return false;
+     SharedPreferences prefs=ctx.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE);
+     String key="notified_away57_"+event;
+     if(prefs.getBoolean(key,false))return false;
+     ensureUrgentChannels(ctx);
+     Calendar c=Calendar.getInstance();
+     int hour=c.get(Calendar.HOUR_OF_DAY);
+     boolean quiet=hour>=22||hour<5;
+     int id=(int)(Math.abs(event)%100000)+260000;
+     String path="/app?tab=away57&event_id="+event;
+     String title="✈ AWAY 57 · VICTORIE OASPEȚI (2)";
+     String details=fixture+"\n⏱ 57′ • Scor "+score+" • Cotă 2: "+odd+
+       "\nSEMNAL ML DE TEST • Miză orientativă 2 lei • Nu se plasează automat";
+     Notification n=new Notification.Builder(ctx,quiet?CH_AWAY57_NIGHT:CH_AWAY57)
+       .setSmallIcon(android.R.drawable.ic_dialog_info)
+       .setContentTitle(title).setContentText(fixture+" · cotă 2 "+odd)
+       .setStyle(new Notification.BigTextStyle().bigText(details))
+       .setContentIntent(open(ctx,id,path)).setAutoCancel(true)
+       .setOnlyAlertOnce(true).setCategory(Notification.CATEGORY_RECOMMENDATION)
+       .setPriority(Notification.PRIORITY_HIGH).setColor(0xff39bfe7)
+       .setVisibility(Notification.VISIBILITY_PUBLIC).build();
+     ((NotificationManager)ctx.getSystemService(Context.NOTIFICATION_SERVICE)).notify(id,n);
+     prefs.edit().putBoolean(key,true).apply();
+     return true;
+   }
+   private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
     String token=MainActivity.token(this);if(token.isEmpty())return;
     String json=MainActivity.readHttp(MainActivity.BASE+"/api/mobile/alerts",token,null);
@@ -194,6 +236,19 @@ public class AlertService extends Service {
       long event=row.optLong("event_id",0);String stage=row.optString("stage","");
       boolean win="WIN".equals(stage)||row.optBoolean("native_win_compat",false);
       if(event<=0||(!win&&!"BET_NOW".equals(stage)))continue;
+       // AWAY 57 must be handled before legacy X-only category gating and deduplication.
+       if(!win&&"AWAY_57".equalsIgnoreCase(row.optString("signal_type",""))){
+         String fixture57=row.optString("fixture","Meci");
+         String score57=row.optString("home_score","1")+"–"+row.optString("away_score","1");
+         String odd57=String.format(Locale.US,"%.2f",row.optDouble("p2",0));
+         if(postAway57(this,event,fixture57,score57,odd57)){
+           try{
+             JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
+             MainActivity.readHttp(MainActivity.BASE+"/api/mobile/ack",token,ack.toString());
+           }catch(Exception ignored){}
+         }
+         continue;
+       }
       String category=row.optString("signal_label",row.optString("signal_type","")).toUpperCase(Locale.ROOT).trim();
       JSONObject priority=row.optJSONObject("priority_category");
       String code=priority==null?"":priority.optString("code","");

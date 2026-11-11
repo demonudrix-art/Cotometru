@@ -36,7 +36,25 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
     String type=d.getOrDefault("signal_type","").toUpperCase(Locale.ROOT).trim();
     String priority=d.getOrDefault("priority_code","").toUpperCase(Locale.ROOT).trim();
     String model=d.getOrDefault("model_version","").toUpperCase(Locale.ROOT);
-    String combined=label+" "+type+" "+priority+" "+model;
+    if("AWAY_57".equals(type)){
+       try{
+         long event=Long.parseLong(d.getOrDefault("event_id","0"));
+         String score=d.getOrDefault("home_score","1")+"–"+d.getOrDefault("away_score","1");
+         if(AlertService.postAway57(this,event,d.getOrDefault("fixture","Meci"),score,d.getOrDefault("p2","—"))){
+           new Thread(()->{
+             try{
+               String token=MainActivity.token(getApplicationContext());
+               if(token.isEmpty())return;
+               org.json.JSONObject ack=new org.json.JSONObject();
+               ack.put("event_id",event);ack.put("stage","BET_NOW");
+               MainActivity.readHttp(MainActivity.BASE+"/api/mobile/ack",token,ack.toString());
+             }catch(Exception ignored){}
+           },"SB-Away57-receipt").start();
+         }
+       }catch(Exception e){android.util.Log.w("SB_Radar_FCM","Away57 alert invalid",e);}
+       return;
+     }
+     String combined=label+" "+type+" "+priority+" "+model;
     boolean purple=combined.contains("STRONG + SILVER")||combined.contains("STRONG_SILVER")||combined.contains("STRONG-SILVER");
     boolean red=!purple&&combined.contains("STRONG");
     String category=purple?"STRONG + SILVER":red?"STRONG":"GOLDEN TICKET".equals(label)?"GOLDEN TICKET":
