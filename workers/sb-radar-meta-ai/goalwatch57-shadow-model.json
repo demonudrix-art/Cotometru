@@ -1,0 +1,67 @@
+{
+  "version": "GOALWATCH57_PRICE_SHADOW_FROZEN_V1",
+  "fittedFrom": "2026-10-29",
+  "fittedBefore": "2026-11-05T00:00:00Z",
+  "label": "next goal after first minute-57 snapshot 0-0",
+  "featureVersion": "PRICE_NO_VIG_V1",
+  "features": [
+    "novig_draw",
+    "novig_home",
+    "novig_away",
+    "ln_odds_X",
+    "ln_overround"
+  ],
+  "parameters": {
+    "bias": -0.6926140351346187,
+    "weights": [
+      0.1424063383992918,
+      -0.0421928140950811,
+      -0.05100514806438517,
+      -0.19112297981282206,
+      0.04245527591253694
+    ],
+    "means": [
+      0.4004563616001257,
+      0.3330118290975822,
+      0.2665318093022917,
+      0.8136589351235272,
+      0.11032265514668889
+    ],
+    "scales": [
+      0.07,
+      0.11339522958393168,
+      0.10163640423713029,
+      0.13838681762391397,
+      0.07
+    ]
+  },
+  "thresholdForGoalCandidate": 0.2908125236491297,
+  "selectionRule": "P(final 0-0) <= 20th percentile on training predictions",
+  "train": {
+    "n": 513,
+    "picks": 103,
+    "scoredGoal": 79,
+    "stayed00": 24,
+    "hitRate": 76.7
+  },
+  "development": {
+    "n": 279,
+    "picks": 73,
+    "scoredGoal": 58,
+    "stayed00": 15,
+    "hitRate": 79.45
+  },
+  "later": {
+    "n": 210,
+    "picks": 52,
+    "scoredGoal": 44,
+    "stayed00": 8,
+    "hitRate": 84.62
+  },
+  "sourceRows": 1029,
+  "researchOnly": true,
+  "provenance": "D1 beast-xray-history first minute-57 0-0 archive, code research-goalless57.js",
+  "modelActivation": false,
+  "noBetting": true,
+  "note": "Research scores only. Needs actual Over 0.5 remaining-goals odds and prospectively recorded forecasts to establish ROI."
+}
