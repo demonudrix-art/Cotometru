@@ -18,7 +18,7 @@ export async function repair(env,batch,input,metrics,endpoint){
  if(!missing.length)return {events:[...frames.values()]};
  const urgency=f=>{const m=no(frames.get(Number(f.event_id))?.inplay_stats?.minutes);if(m>=53&&m<=59)return 0;const age=(Date.now()-Date.parse(f.kickoff_utc))/60000;return age>=45&&age<=95?1:2};
  missing.sort((a,b)=>urgency(a)-urgency(b));
- const singles=missing.slice(0,Math.max(0,Math.min(2,12-metrics.singleton_attempts)));
+ const singles=missing.slice(0,Math.max(0,Math.min(2,(metrics.retry_cap||12)-metrics.singleton_attempts)));
  metrics.singleton_attempts+=singles.length;
  await Promise.all(singles.map(async f=>{
   const id=Number(f.event_id),url=new URL(endpoint);
