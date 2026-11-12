@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.37";
+  static final String APP_VERSION="2.3.38";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
