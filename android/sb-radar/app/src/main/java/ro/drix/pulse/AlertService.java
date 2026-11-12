@@ -19,6 +19,7 @@ public class AlertService extends Service {
   static final String CH_MONITOR="sb_radar_monitor_v230";
   static final String CH_GOLD="sb_radar_strong_alarm_v2316";
   static final String CH_ML="sb_radar_purple_alarm_v2316";
+  static final String CH_OCT31_ML="sb_radar_ml_logreg_31oct_v1";
   static final String CH_NIGHT="sb_radar_vibration_night_v2315";
   static final String CH_WINS="sb_radar_wins_v232";
   static final int FOREGROUND_ID=1310;
@@ -63,6 +64,11 @@ public class AlertService extends Service {
     ml.setVibrationPattern(new long[]{0,420,250,420,250,420});
     ml.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(ml);
+    NotificationChannel octoberMl=new NotificationChannel(CH_OCT31_ML,"🧠 ML LogReg • 31 octombrie",NotificationManager.IMPORTANCE_HIGH);
+    octoberMl.setDescription("ML original din 31 octombrie: 0–0 la minutele 57–59, fără apel telefonic.");
+    octoberMl.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+    octoberMl.enableVibration(true);octoberMl.setVibrationPattern(new long[]{0,500,250,500,350,700});
+    octoberMl.setSound(ring,soundAttrs);mgr.createNotificationChannel(octoberMl);
     NotificationChannel night=new NotificationChannel(CH_NIGHT,"SB Radar • Vibrație nocturnă 22–05",NotificationManager.IMPORTANCE_HIGH);
     night.setDescription("Golden Ticket, Gold Rush, GG Power: numai vibrație noaptea, fără sunet sau apel.");
     night.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
@@ -113,8 +119,9 @@ public class AlertService extends Service {
   private static String signalTitle(boolean gold,String modelVersion){
     String normalized=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
     if(normalized.contains("STRONG + SILVER")||normalized.contains("STRONG_SILVER")||normalized.contains("STRONG-SILVER"))
-      return "🟣 GOLDEN STRONG + SILVER • 75 LEI • SB Radar";
-    if(normalized.contains("STRONG"))return "🔴 GOLDEN STRONG • 50 LEI • SB Radar";
+      return "🟣 RADIO MOV • 30 LEI • SB Radar";
+    if(normalized.contains("STRONG"))return "🔴 RADIO ROȘU • 25 LEI • SB Radar";
+    if(normalized.contains("SB_RADAR_ML_LOGREG_V1")||normalized.contains("ML_OCT31"))return "🧠 ML LOGREG • 31 OCT • SB Radar";
     if(modelVersion!=null&&modelVersion.toUpperCase(Locale.ROOT).contains("GG_POWER"))return "⚡ GG POWER • 50 LEI • SB Radar";
     if(gold)return "🏆 GOLDEN TICKET • SB Radar";
     String v=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
@@ -160,7 +167,7 @@ public class AlertService extends Service {
       (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER")));
     boolean gold="GOLDEN TICKET".equals(category)||"STRONG".equals(category);
     boolean quiet=nightQuiet();
-    String channel=purple?CH_ML:CH_GOLD;
+    String channel="ML".equals(category)?CH_OCT31_ML:purple?CH_ML:CH_GOLD;
     String title=signalTitle(gold,(modelVersion==null?"":modelVersion)+" "+category);
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     int id=notificationId==0?(gold?23201:23202):notificationId;
@@ -203,8 +210,9 @@ public class AlertService extends Service {
       boolean red="strong".equals(code);
       boolean gold="GOLDEN TICKET".equals(category);
       boolean power="GG POWER".equals(category)||row.optString("model_version","").contains("GG_POWER")||row.optBoolean("gg_power",false);
-      boolean rush="GOLD RUSH".equals(category)||("ML".equals(category)&&row.optString("model_version","").contains("GOLD_RUSH"));
-      if(!win&&!gold&&!rush&&!power&&!purple&&!red)continue; // Silver-only and retired filters never ring.
+      boolean ml="ML".equals(category)&&"SB_RADAR_ML_LOGREG_V1".equals(row.optString("model_version",""));
+      boolean rush="GOLD RUSH".equals(category);
+      if(!win&&!gold&&!ml&&!rush&&!power&&!purple&&!red)continue; // Silver-only and retired filters never ring.
       String key="notified_"+event+"_"+(win?"win":"betnow");
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
@@ -218,7 +226,7 @@ public class AlertService extends Service {
           .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
-      }else showSignal(purple?"STRONG + SILVER":red?"STRONG":power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",
+      }else showSignal(ml?"ML":purple?"STRONG + SILVER":red?"STRONG":power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",
         id,fixture,body,path,row.optString("model_version","")+" "+code,false);
       prefs.edit().putBoolean(key,true).apply();
       if(!win){try{
@@ -242,7 +250,7 @@ public class AlertService extends Service {
       (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER")));
     String title=signalTitle("GOLDEN TICKET".equals(category)||strong, (modelVersion==null?"":modelVersion)+" "+category);
     boolean quiet=nightQuiet();
-    String channel=purple?CH_ML:CH_GOLD;
+    String channel="ML".equals(category)?CH_OCT31_ML:purple?CH_ML:CH_GOLD;
     ensureUrgentChannels(ctx); // Required when FCM wakes a process with no monitor service.
     NotificationManager mgr=(NotificationManager)ctx.getSystemService(NOTIFICATION_SERVICE);
     Intent fs=new Intent(ctx,AlertScreenActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
