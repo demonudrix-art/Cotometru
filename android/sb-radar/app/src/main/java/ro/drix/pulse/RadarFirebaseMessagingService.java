@@ -43,9 +43,9 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
           String combined=label+" "+type+" "+priority+" "+model;
     boolean purple=combined.contains("STRONG + SILVER")||combined.contains("STRONG_SILVER")||combined.contains("STRONG-SILVER");
     boolean red=!purple&&combined.contains("STRONG");
-    String category=purple?"STRONG + SILVER":red?"STRONG":"GOLDEN TICKET".equals(label)?"GOLDEN TICKET":
-      isTest&&"ML".equals(label)?"ML":"";
-    if(category.isEmpty())return; // Removed ML, Gold Rush and Silver-only never raise active alerts.
+    boolean ml=(!isTest&&"SB_RADAR_ML_LOGREG_V1".equals(model))||"ML".equals(type)||"ML".equals(label);
+    String category=purple?"STRONG + SILVER":red?"STRONG":ml?"ML":"GOLDEN TICKET".equals(label)?"GOLDEN TICKET":"";
+    if(category.isEmpty())return; // Only historical Oct-31 ML + Golden Classic/Strong. Gold Rush and Silver-only stay retired.
     try{
       long event=Long.parseLong(d.getOrDefault("event_id","0"));
       if(event<=0)return;
@@ -54,8 +54,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       String px=d.getOrDefault("px","-");
       String score=d.getOrDefault("home_score","-")+"–"+d.getOrDefault("away_score","-");
       String tier57=d.getOrDefault("gold_category_label","");
-      String heading=purple?"🟣 STRONG + SILVER • 75 LEI":red?"🔴 STRONG • 50 LEI":
-        isTest?"TEST FCM • NU PARIA":"GOLDEN TICKET";
+      String heading=isTest?"TEST FCM • NU PARIA":purple?"🟣 RADIO MOV • 30 LEI":red?"🔴 RADIO ROȘU • 25 LEI":ml?"🧠 ML LOGREG V1 • 31 OCT":"GOLDEN TICKET";
       String body=fixture+"\n"+heading+
         (tier57.isEmpty()?"":"\nREPER X57: "+tier57)+
         "\n⏱ MINUTUL "+minute+" • SCOR "+score+
