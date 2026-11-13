@@ -39,6 +39,12 @@ function sbMlRiskStyles(){
 function sbMlRiskAuditPanel(d){
  const r=d?.ml_risk;if(!r||r.status==='NO_CATALOG')return null;
  sbMlRiskStyles();
+ if(r.status==='TEMPORARILY_UNAVAILABLE'){
+  const notice=text('section','','sb-risk-audit');
+  notice.append(text('strong','🧠 ANALIZĂ RISC ML'));
+  notice.append(text('div','⚠️ Datele analizei sunt temporar indisponibile. Harta de bază și Auditul rămân funcționale; nu afișăm cifre presupuse.','sb-risk-flag'));
+  return notice;
+ }
  const root=text('section','','sb-risk-audit');
  const header=text('div','','sb-risk-top');
  header.append(text('strong','🧠 ANALIZĂ RISC ML · LogReg V1'));
