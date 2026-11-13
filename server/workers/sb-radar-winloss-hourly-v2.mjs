@@ -82,6 +82,34 @@ const REAL=String.raw`WITH recent AS (
 INSERT INTO sb_radar_winloss_map_live_stats_v2(scope,country,league_key,match_type,signals,verified,w,l,pending,period_start,period_end,asof_utc)
 SELECT scope,country,league_key,match_type,signals,verified,w,l,pending,?,?,? FROM grouped WHERE signals>0`;
 
+
+/* Aggregated only after settlement, never on live scan or notification path.
+ * Hour groups use Bucharest local time; current period's DST offset is inferred
+ * from Intl, not hardcoded to UTC+2.
+ */
+function sbLocalOffset(now){
+ const label=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Bucharest',timeZoneName:'shortOffset'}).formatToParts(new Date(now)).find(x=>x.type==='timeZoneName')?.value||'GMT+2';
+ return Number(label.match(/GMT([+-]\d+)/)?.[1]||2);
+}
+function riskSqlOps(env,from,to,utc){
+ const offset=sbLocalOffset(utc),modifier=(offset>=0?'+':'')+offset+' hours';
+ const h="CAST(strftime('%H',signal_utc,'"+modifier+"') AS INTEGER)";
+ const hr="CASE WHEN "+h+"<6 THEN '00-06' WHEN "+h+"<12 THEN '06-12' WHEN "+h+"<15 THEN '12-15' WHEN "+h+"<18 THEN '15-18' ELSE '18-24' END";
+ const score="CASE WHEN ml_score>=0.60 THEN 'GE_0.60' ELSE 'LT_0.60' END";
+ const odds="CASE WHEN odds_x<2 THEN 'LT_2.00' WHEN odds_x<2.15 THEN '2.00_TO_2.14' ELSE 'GE_2.15' END";
+ const type="COALESCE(NULLIF(match_type,''),'OTHER_OR_UNKNOWN')";
+ const groups=[['HOUR_GROUP',hr],['ML_SCORE',score],['ODDS_X',odds],
+ ['HOUR_SCORE',hr+"||' | '||"+score],['SCORE_ODDS',score+"||' | '||"+odds],
+ ['HOUR_SCORE_ODDS',hr+"||' | '||"+score+"||' | '||"+odds],
+ ['TYPE',type],['HOUR_TYPE',hr+"||' | '||"+type]];
+ const ops=[env.DB.prepare('DELETE FROM sb_radar_ml_risk_segments_v1')];
+ for(const [dim,key] of groups){
+  const sql="INSERT INTO sb_radar_ml_risk_segments_v1(dimension,dimension_key,n,w,l,roi_pct,avg_odds,avg_ml,period_start_utc,period_end_utc,asof_utc,source) SELECT '"+dim+"',"+key+",COUNT(*),SUM(outcome='WIN'),SUM(outcome='LOSS'),ROUND(100*AVG(profit_1u),1),ROUND(AVG(odds_x),3),ROUND(AVG(ml_score),5),?,?,?,'ML_REPLAY_ROLLING_7D_HOURLY_V1' FROM sb_radar_winloss_ml_enriched_v1 WHERE signal_utc>=? AND signal_utc<=? GROUP BY 2";
+  ops.push(db(env,sql,from,to,utc,from,to));
+ }
+ return ops;
+}
+
 async function update(env){
  const started=Date.now(),now=iso(),owner=crypto.randomUUID(),report={run_utc:now,status:'RUNNING'};
  let acquired=false,runId=null;
@@ -117,10 +145,12 @@ async function update(env){
    env.DB.prepare('DELETE FROM sb_radar_winloss_map_stats_v1'),
    db(env,ROLLING,cutoff,now,dayStart,dayEnd,now),
    env.DB.prepare('DELETE FROM sb_radar_winloss_map_live_stats_v2'),
-   db(env,REAL,cutoff,now,dayStart,dayEnd,now)
+   db(env,REAL,cutoff,now,dayStart,dayEnd,now),
+   ...riskSqlOps(env,cutoff,now,now)
   ]);
   report.rolling_rows=Number(writes[1]?.meta?.changes||0);
   report.real_rows=Number(writes[3]?.meta?.changes||0);
+  report.risk_rows=writes.slice(5).reduce((a,r)=>a+Number(r?.meta?.changes||0),0);
   if(!report.rolling_rows)throw Error('rolling_aggregate_empty');
   const pending=await db(env,"SELECT COUNT(*) n FROM sb_radar_winloss_map_candidates_v2 c LEFT JOIN match_results r ON r.event_id=c.event_id WHERE c.route='ML' AND c.signal_utc>=? AND (r.event_id IS NULL OR r.verified!=1 OR r.winner_1x2 NOT IN ('1','2','X'))",cutoff).first();
   report.pending=Number(pending?.n||0);
