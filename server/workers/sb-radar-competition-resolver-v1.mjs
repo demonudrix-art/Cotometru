@@ -37,9 +37,12 @@ async function stamp(db,e,status,v){
 }
 async function cycle(env){
  const start=Date.now();let count=0,verified=0,unresolved=0,errors=[];
- const sql="SELECT e.event_id,e.fixture,e.kickoff_utc,e.tournament_id,e.category_id,NULLIF(c.country,'NECONFIRMATA') country FROM event_catalog e LEFT JOIN sb_radar_event_competition c ON c.event_id=e.event_id LEFT JOIN sb_radar_competition_resolution_v1 r ON r.event_id=e.event_id WHERE e.sport_id=5 AND e.tournament_id IS NOT NULL AND (c.league_name IS NULL OR c.league_name='NECONFIRMATA') AND (r.event_id IS NULL OR (r.status IN ('NOT_FOUND','COUNTRY_ONLY','ERROR') AND r.last_attempt_utc<strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 days'))) ORDER BY CASE WHEN EXISTS(SELECT 1 FROM sb_radar_ml_decisions m WHERE m.event_id=e.event_id) THEN 0 WHEN EXISTS(SELECT 1 FROM ghost_equal_samples s WHERE s.event_id=e.event_id AND s.minute BETWEEN 57 AND 59 AND s.home_score=0 AND s.away_score=0) THEN 1 WHEN e.kickoff_utc>=strftime('%Y-%m-%dT%H:%M:%SZ','now') THEN 2 ELSE 3 END,e.kickoff_utc DESC LIMIT 2";
+ const mlSql="SELECT e.event_id,e.fixture,e.kickoff_utc,e.tournament_id,e.category_id,NULLIF(c.country,'NECONFIRMATA') country FROM sb_radar_ml_decisions d JOIN event_catalog e ON e.event_id=d.event_id LEFT JOIN sb_radar_event_competition c ON c.event_id=e.event_id LEFT JOIN sb_radar_competition_resolution_v1 r ON r.event_id=e.event_id WHERE d.model_version='SB_RADAR_ML_LOGREG_V1' AND e.sport_id=5 AND e.tournament_id IS NOT NULL AND (c.league_name IS NULL OR c.league_name='NECONFIRMATA') AND (r.event_id IS NULL OR (r.status IN ('NOT_FOUND','COUNTRY_ONLY','ERROR') AND r.last_attempt_utc<strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 days'))) ORDER BY d.evaluated_utc DESC LIMIT 1";
+ const sql="SELECT e.event_id,e.fixture,e.kickoff_utc,e.tournament_id,e.category_id,NULLIF(c.country,'NECONFIRMATA') country FROM event_catalog e LEFT JOIN sb_radar_event_competition c ON c.event_id=e.event_id LEFT JOIN sb_radar_competition_resolution_v1 r ON r.event_id=e.event_id WHERE e.sport_id=5 AND e.tournament_id IS NOT NULL AND (c.league_name IS NULL OR c.league_name='NECONFIRMATA') AND (r.event_id IS NULL OR (r.status IN ('NOT_FOUND','COUNTRY_ONLY','ERROR') AND r.last_attempt_utc<strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 days'))) AND e.event_id<>? ORDER BY e.kickoff_utc DESC LIMIT 2";
  try{
- const rows=(await env.DB.prepare(sql).all()).results||[];
+ const first=(await env.DB.prepare(mlSql).all()).results||[];
+ const rest=(await env.DB.prepare(sql).bind(first[0]?.event_id||-1).all()).results||[];
+ const rows=[...first,...rest].slice(0,2);
  for(const e of rows){
   count++;
   try{
