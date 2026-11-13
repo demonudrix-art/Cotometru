@@ -170,14 +170,15 @@ export default {
  async scheduled(event,env,ctx){ctx.waitUntil(update(env))},
  async fetch(request,env){
   if(request.method!=='GET'||new URL(request.url).pathname!=='/health')return new Response('Not found',{status:404});
-  const [control,latest,replay,real,candidates]=await Promise.all([
+  const [control,latest,replay,real,candidates,risk]=await Promise.all([
    db(env,'SELECT latest_status,last_success_utc,last_cursor_utc,latest_error FROM sb_radar_winloss_map_control_v2 WHERE id=1').first(),
    db(env,'SELECT run_utc,status,candidates_inserted,ml_newly_settled,corrections,rolling_rows,live_rows,production_candidates_added,production_replay_added,elapsed_ms,error FROM sb_radar_winloss_map_runs_v2 ORDER BY id DESC LIMIT 1').first(),
    db(env,"SELECT n,w,l,roi_pct,period_start,period_end,asof_utc FROM sb_radar_winloss_map_stats_v1 WHERE scope='ALL'").first(),
    db(env,"SELECT signals,verified,w,l,pending,asof_utc FROM sb_radar_winloss_map_live_stats_v2 WHERE scope='ALL'").first(),
-   db(env,"SELECT COUNT(*) n FROM sb_radar_winloss_map_candidates_v2 WHERE route='ML'").first()
+   db(env,"SELECT COUNT(*) n FROM sb_radar_winloss_map_candidates_v2 WHERE route='ML'").first(),
+   db(env,"SELECT COUNT(*) buckets,MAX(asof_utc) asof_utc,SUM(dimension='HOUR_SCORE_ODDS') triple_buckets FROM sb_radar_ml_risk_segments_v1").first()
   ]);
   const fresh=control?.last_success_utc&&Date.now()-Date.parse(control.last_success_utc)<9000000;
-  return Response.json({service:'sb-radar-winloss-hourly-v2',cron:'0 * * * *',isolated:true,fresh:!!fresh,control,latest,rolling:replay,real_alerts:real,ml_candidates:candidates?.n,note:'Historical frequencies are not next-match probabilities or stake recommendations.'},{headers:{'cache-control':'no-store'}});
+  return Response.json({service:'sb-radar-winloss-hourly-v2',cron:'0 * * * *',isolated:true,fresh:!!fresh,control,latest,rolling:replay,real_alerts:real,ml_candidates:candidates?.n,risk_segments:{buckets:risk?.buckets||0,triple_buckets:risk?.triple_buckets||0,asof_utc:risk?.asof_utc,fresh:!!(risk?.asof_utc&&Date.now()-Date.parse(risk.asof_utc)<9000000)},note:'Historical frequencies are not next-match probabilities or stake recommendations.'},{headers:{'cache-control':'no-store'}});
  }
 };
