@@ -10,7 +10,8 @@ function accept(e,x){
  if(x.strSport!=='Soccer'||!x.strLeague||!x.idEvent||!x.strHomeTeam||!x.strAwayTeam)return null;
  const pair=parse(e);if(!pair)return null;
  const h=score(pair[0],x.strHomeTeam),a=score(pair[1],x.strAwayTeam);
- const ts=Date.parse((x.strTimestamp||x.dateEvent||'')+'Z'),ko=Date.parse(e.kickoff_utc),delta=Math.abs(ts-ko)/60000;
+ const rawTime=x.strTimestamp||((x.dateEvent&&x.strTime)?x.dateEvent+'T'+x.strTime:x.dateEvent+'T00:00:00');
+ const ts=Date.parse(/(?:Z|[+-]\d\d:?\d\d)$/.test(rawTime||'')?rawTime:rawTime+'Z'),ko=Date.parse(e.kickoff_utc),delta=Math.abs(ts-ko)/60000;
  if(h<.62||a<.62||(h+a)/2<.70||!Number.isFinite(delta)||delta>120)return null;
  return {country:x.strCountry||e.country,league:x.strLeague,source_url:'https://www.thesportsdb.com/event/'+x.idEvent,confidence:delta<=30&&h>=.7&&a>=.7?.98:.92,delta};
 }
@@ -20,7 +21,7 @@ async function search(e){
  const q=[pair.join(' vs '),pair.map(unprefix).join(' vs ')];
  for(const term of new Set(q)){
   try{
-   const r=await fetch(API+encodeURIComponent(term),{headers:{Accept:'application/json'},signal:AbortSignal.timeout(4500)});
+   const r=await fetch(API+encodeURIComponent(term),{headers:{Accept:'application/json'},signal:AbortSignal.timeout(4200)});
    if(!r.ok)continue;
    const v=(await r.json()).event||[];
    const candidates=v.map(x=>accept(e,x)).filter(Boolean).sort((a,b)=>b.confidence-a.confidence||a.delta-b.delta);
@@ -38,11 +39,11 @@ async function stamp(db,e,status,v){
 async function cycle(env){
  const start=Date.now();let count=0,verified=0,unresolved=0,errors=[];
  const mlSql="SELECT e.event_id,e.fixture,e.kickoff_utc,e.tournament_id,e.category_id,NULLIF(c.country,'NECONFIRMATA') country FROM sb_radar_ml_decisions d JOIN event_catalog e ON e.event_id=d.event_id LEFT JOIN sb_radar_event_competition c ON c.event_id=e.event_id LEFT JOIN sb_radar_competition_resolution_v1 r ON r.event_id=e.event_id WHERE d.model_version='SB_RADAR_ML_LOGREG_V1' AND e.sport_id=5 AND e.tournament_id IS NOT NULL AND (c.league_name IS NULL OR c.league_name='NECONFIRMATA') AND (r.event_id IS NULL OR (r.status IN ('NOT_FOUND','COUNTRY_ONLY','ERROR') AND r.last_attempt_utc<strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 days'))) ORDER BY d.evaluated_utc DESC LIMIT 1";
- const sql="SELECT e.event_id,e.fixture,e.kickoff_utc,e.tournament_id,e.category_id,NULLIF(c.country,'NECONFIRMATA') country FROM event_catalog e INDEXED BY ix_sb_catalog_kickoff_resolver LEFT JOIN sb_radar_event_competition c ON c.event_id=e.event_id LEFT JOIN sb_radar_competition_resolution_v1 r ON r.event_id=e.event_id WHERE e.sport_id=5 AND e.tournament_id IS NOT NULL AND (c.league_name IS NULL OR c.league_name='NECONFIRMATA') AND (r.event_id IS NULL OR (r.status IN ('NOT_FOUND','COUNTRY_ONLY','ERROR') AND r.last_attempt_utc<strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 days'))) AND e.event_id<>? ORDER BY e.kickoff_utc DESC LIMIT 2";
+ const sql="SELECT e.event_id,e.fixture,e.kickoff_utc,e.tournament_id,e.category_id,NULLIF(c.country,'NECONFIRMATA') country FROM event_catalog e INDEXED BY ix_sb_catalog_kickoff_resolver LEFT JOIN sb_radar_event_competition c ON c.event_id=e.event_id LEFT JOIN sb_radar_competition_resolution_v1 r ON r.event_id=e.event_id WHERE e.sport_id=5 AND e.tournament_id IS NOT NULL AND (c.league_name IS NULL OR c.league_name='NECONFIRMATA') AND (r.event_id IS NULL OR (r.status IN ('NOT_FOUND','COUNTRY_ONLY','ERROR') AND r.last_attempt_utc<strftime('%Y-%m-%dT%H:%M:%SZ','now','-3 days'))) AND e.event_id<>? ORDER BY e.kickoff_utc DESC LIMIT 6";
  try{
- const first=(await env.DB.prepare(mlSql).all()).results||[];
- const rest=(await env.DB.prepare(sql).bind(first[0]?.event_id||-1).all()).results||[];
- const rows=[...first,...rest].slice(0,2);
+ const hot=(await env.DB.prepare(mlSql).all()).results||[];
+ const rest=(await env.DB.prepare(sql).bind(hot[0]?.event_id||-1).all()).results||[];
+ const rows=[...hot,...rest].slice(0,6);
  for(const e of rows){
   count++;
   try{
@@ -52,6 +53,7 @@ async function cycle(env){
     const tm=now();
     await env.DB.prepare('INSERT OR IGNORE INTO sb_radar_tournament_labels(tournament_id,country,league_name,division,source,confidence,updated_utc) VALUES(?,?,?,?,?,?,?)').bind(e.tournament_id,v.country,v.league,division(v.league),'THESPORTSDB_EXACT_MATCH','RIDICATA',tm).run();
     await env.DB.prepare("UPDATE sb_radar_event_competition SET country=?,league_name=?,division=?,source='THESPORTSDB_EXACT_MATCH',confidence='RIDICATA',updated_utc=? WHERE tournament_id=? AND league_name='NECONFIRMATA'").bind(v.country,v.league,division(v.league),tm,e.tournament_id).run();
+    await env.DB.prepare("INSERT OR IGNORE INTO sb_radar_event_competition(event_id,kickoff_utc,fixture,tournament_id,category_id,country,league_name,division,source,confidence,updated_utc) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(e.event_id,e.kickoff_utc,e.fixture,e.tournament_id,e.category_id,v.country,v.league,division(v.league),'THESPORTSDB_EXACT_MATCH','RIDICATA',tm).run();
     await stamp(env.DB,e,'VERIFIED',v);verified++;
    }else{await stamp(env.DB,e,conflict?'REVIEW':e.country?'COUNTRY_ONLY':'NOT_FOUND',null);unresolved++}
   }catch(err){errors.push(String(err?.message||err).slice(0,160))}
@@ -62,7 +64,15 @@ async function cycle(env){
 export default {
  async scheduled(evt,env,ctx){ctx.waitUntil(cycle(env))},
  async fetch(req,env){
-  if(req.method!=='GET'||new URL(req.url).pathname!=='/health')return new Response('Not Found',{status:404});
+  if(req.method!=='GET')return new Response('Method Not Allowed',{status:405});
+  const url=new URL(req.url);
+  if(url.pathname==='/api/competition'){
+   const id=Number(url.searchParams.get('event_id'));
+   if(!Number.isSafeInteger(id)||id<=0)return Response.json({error:'invalid_event_id'},{status:400});
+   const row=await env.DB.prepare("SELECT e.event_id,e.fixture,e.kickoff_utc,e.tournament_id,e.category_id,COALESCE(CASE WHEN r.status='VERIFIED' THEN r.country END,NULLIF(c.country,'NECONFIRMATA'),tl.country,cc.country) country,COALESCE(CASE WHEN r.status='VERIFIED' THEN r.league_name END,NULLIF(c.league_name,'NECONFIRMATA'),tl.league_name) league_name,COALESCE(CASE WHEN r.status='VERIFIED' THEN r.division END,c.division,tl.division) division,CASE WHEN r.status='VERIFIED' THEN r.source ELSE COALESCE(c.source,tl.source,'CATEGORY_COUNTRY_ONLY') END source,CASE WHEN r.status='VERIFIED' THEN r.source_url ELSE NULL END source_url,CASE WHEN r.status='VERIFIED' THEN 'VERIFIED' WHEN c.league_name IS NOT NULL AND c.league_name!='NECONFIRMATA' THEN 'EXISTING' WHEN tl.league_name IS NOT NULL THEN 'TOURNAMENT_LABEL' ELSE 'COUNTRY_ONLY' END metadata_status FROM event_catalog e LEFT JOIN sb_radar_competition_resolution_v1 r ON r.event_id=e.event_id LEFT JOIN sb_radar_event_competition c ON c.event_id=e.event_id LEFT JOIN sb_radar_tournament_labels tl ON tl.tournament_id=e.tournament_id LEFT JOIN sb_radar_category_countries cc ON cc.category_id=e.category_id WHERE e.event_id=?").bind(id).first();
+   return Response.json(row||{error:'not_found'},{status:row?200:404,headers:{'access-control-allow-origin':'*','cache-control':'public,max-age=120'}});
+  }
+  if(url.pathname!=='/health')return new Response('Not Found',{status:404});
   const last=await env.DB.prepare('SELECT * FROM sb_radar_competition_resolver_runs_v1 ORDER BY id DESC LIMIT 1').first();
   const coverage=await env.DB.prepare("SELECT COUNT(*) total,SUM(country!='NECONFIRMATA') countries,SUM(league_name!='NECONFIRMATA') leagues FROM sb_radar_event_competition").first();
   return Response.json({service:'sb-radar-competition-resolver-v1',mode:'background-only',provider:'TheSportsDB',last,coverage},{headers:{'cache-control':'no-store'}});
