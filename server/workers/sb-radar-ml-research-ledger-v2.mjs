@@ -32,7 +32,7 @@ function scopeDims(offset){
  const band="CASE WHEN "+hr+"<6 THEN '00-06' WHEN "+hr+"<12 THEN '06-12' WHEN "+hr+"<15 THEN '12-15' WHEN "+hr+"<18 THEN '15-18' ELSE '18-24' END";
  const score="CASE WHEN ml_score>=0.60 THEN 'GE_0.60' ELSE 'LT_0.60' END";
  const odds="CASE WHEN odds_x<2 THEN 'LT_2.00' WHEN odds_x<2.15 THEN '2.00_TO_2.14' ELSE 'GE_2.15' END";
- return [['ALL',"'*'"],['COUNTRY',"country"],['LEAGUE',"country||' | '||league_key"],['TYPE',"match_type"],['HOUR_GROUP',band],['ML_SCORE',score],['HOUR_SCORE',band+"||' | '||"+score],['SCORE_ODDS',score+"||' | '||"+odds]];
+ return [['ALL',"'*'"],['COUNTRY',"country"],['LEAGUE',"country||' | '||league_key"],['TYPE',"COALESCE(NULLIF(match_type,''),'OTHER_OR_UNKNOWN')"],['HOUR_GROUP',band],['ML_SCORE',score],['HOUR_SCORE',band+"||' | '||"+score],['SCORE_ODDS',score+"||' | '||"+odds]];
 }
 async function forward(env,utc,offset){
  const parts=localParts(new Date(utc)),day=parts.map((x,i)=>i===0?String(x):String(x).padStart(2,'0')).join('-');
@@ -47,7 +47,7 @@ async function forward(env,utc,offset){
   const out=await stmt(env.DB,freeze(dims.slice(i,i+4)),begin,start,day,utc,begin,start,onTime,utc).run();
   added+=Number(out.meta?.changes||0);
  }
- const sample="SELECT q.event_id,q.signal_utc,q.odds_x,q.ml_score,COALESCE(NULLIF(c.country,'NECONFIRMATA'),t.country,'') country,COALESCE(NULLIF(c.league_name,'NECONFIRMATA'),t.league_name,'') league_key,COALESCE(c.match_type,'OTHER_OR_UNKNOWN') match_type,CASE WHEN r.verified=1 AND r.winner_1x2='X' THEN 'WIN' WHEN r.verified=1 AND r.winner_1x2 IN ('1','2') THEN 'LOSS' ELSE 'PENDING' END outcome,CASE WHEN r.verified=1 AND r.winner_1x2='X' THEN q.odds_x-1 WHEN r.verified=1 AND r.winner_1x2 IN ('1','2') THEN -1 ELSE NULL END profit_1u FROM sb_radar_winloss_map_candidates_v2 q LEFT JOIN match_results r ON r.event_id=q.event_id LEFT JOIN event_catalog e ON e.event_id=q.event_id LEFT JOIN sb_radar_event_competition c ON c.event_id=q.event_id LEFT JOIN sb_radar_tournament_labels t ON t.tournament_id=e.tournament_id WHERE q.route='ML' AND q.signal_utc>=? AND q.signal_utc<=?";
+ const sample="SELECT q.event_id,q.signal_utc,q.odds_x,q.ml_score,COALESCE(NULLIF(c.country,'NECONFIRMATA'),t.country,'') country,CASE WHEN lower(COALESCE(NULLIF(c.league_name,'NECONFIRMATA'),t.league_name,'')) LIKE 'tercera federacion%' THEN 'Tercera Federacion' WHEN lower(COALESCE(NULLIF(c.league_name,'NECONFIRMATA'),t.league_name,'')) LIKE 'serie d%' THEN 'Serie D' WHEN lower(COALESCE(NULLIF(c.league_name,'NECONFIRMATA'),t.league_name,'')) LIKE 'segunda federacion%' THEN 'Segunda Federacion' ELSE COALESCE(NULLIF(c.league_name,'NECONFIRMATA'),t.league_name,'') END league_key,COALESCE(c.match_type,'OTHER_OR_UNKNOWN') match_type,CASE WHEN r.verified=1 AND r.winner_1x2='X' THEN 'WIN' WHEN r.verified=1 AND r.winner_1x2 IN ('1','2') THEN 'LOSS' ELSE 'PENDING' END outcome,CASE WHEN r.verified=1 AND r.winner_1x2='X' THEN q.odds_x-1 WHEN r.verified=1 AND r.winner_1x2 IN ('1','2') THEN -1 ELSE NULL END profit_1u FROM sb_radar_winloss_map_candidates_v2 q LEFT JOIN match_results r ON r.event_id=q.event_id LEFT JOIN event_catalog e ON e.event_id=q.event_id LEFT JOIN sb_radar_event_competition c ON c.event_id=q.event_id LEFT JOIN sb_radar_tournament_labels t ON t.tournament_id=e.tournament_id WHERE q.route='ML' AND q.signal_utc>=? AND q.signal_utc<=?";
  const observe=(group)=>"WITH base AS ("+sample+"), dims AS ("+group.map(([kind,key])=>"SELECT event_id,signal_utc,'"+kind+"' scope,"+key+" scope_key,outcome,profit_1u FROM base").join(' UNION ALL ')+") INSERT INTO sb_radar_ml_forward_observations_v3(day_local,event_id,scope,scope_key,signal_utc,outcome,profit_1u,observed_utc) SELECT ?,event_id,scope,scope_key,signal_utc,outcome,profit_1u,? FROM dims WHERE scope_key<>'' ON CONFLICT(day_local,event_id,scope,scope_key) DO UPDATE SET outcome=excluded.outcome,profit_1u=excluded.profit_1u,observed_utc=excluded.observed_utc";
  for(let i=0;i<dims.length;i+=4){
   const r=await stmt(env.DB,observe(dims.slice(i,i+4)),start,utc,day,utc).run();events+=Number(r.meta?.changes||0);
@@ -84,7 +84,8 @@ export default {
    stmt(env.DB,"SELECT asof_day_local,n,w,l,roi_pct,metadata_unknown,archive_utc FROM sb_radar_ml_weekly_archives_v2 ORDER BY asof_day_local DESC LIMIT 3").all(),
    stmt(env.DB,"SELECT source_group,selection,status,COUNT(*) n FROM sb_radar_slip_intelligence_v2 WHERE placed_utc>='2026-11-06T00:00:00Z' GROUP BY source_group,selection,status ORDER BY n DESC LIMIT 25").all()
   ]);
+  const forward=await stmt(env.DB,"SELECT day_local,scope,scope_key,frozen_utc,train_n,train_w,train_l,min_sample_pass,valid_on_time,test_n,test_w,test_l,test_pending,last_checked_utc FROM sb_radar_ml_forward_frozen_v3 WHERE day_local=(SELECT MAX(day_local) FROM sb_radar_ml_forward_frozen_v3) AND (scope='ALL' OR (scope='COUNTRY' AND train_n>=10)) ORDER BY scope,train_n DESC LIMIT 12").all();
   const fresh=latest?.utc&&Date.now()-Date.parse(latest.utc)<9000000;
-  return Response.json({service:'sb-radar-ml-research-ledger-v2',cron:'25 * * * *',isolated:true,fresh:!!fresh,daily:days.results,archive:archives.results,slip_streams:slips.results},{headers:{'cache-control':'no-store'}});
+  return Response.json({service:'sb-radar-ml-research-ledger-v2',cron:'25 * * * *',isolated:true,fresh:!!fresh,daily:days.results,archive:archives.results,slip_streams:slips.results,prospective:forward.results},{headers:{'cache-control':'no-store'}});
  }
 };
