@@ -35,6 +35,8 @@ INSERT OR IGNORE INTO sb_radar_winloss_map_candidates_v2(
 event_id,signal_utc,minute,fixture,odds_x,ml_score,route,first_recorded_utc,updated_utc)
 SELECT event_id,ts,minute,fixture,px,ml,
  CASE WHEN golden=1 THEN 'GOLDEN' ELSE 'ML' END,?,? FROM ordered WHERE seq=1`;
+const LIVE_ML_CANDIDATES="INSERT OR IGNORE INTO sb_radar_winloss_map_candidates_v2(event_id,signal_utc,minute,fixture,odds_x,ml_score,route,first_recorded_utc,updated_utc) SELECT a.event_id,a.triggered_utc,a.minute,a.fixture,a.px,d.ml_score,'ML',?,? FROM ghost_equal_alerts a JOIN sb_radar_ml_decisions d ON d.event_id=a.event_id WHERE a.stage='BET_NOW' AND a.model_version='SB_RADAR_ML_LOGREG_V1' AND a.source='SB_RADAR_ML_LOGREG_V1' AND d.model_version='SB_RADAR_ML_LOGREG_V1' AND d.accepted=1 AND a.minute BETWEEN 57 AND 59 AND a.home_score=0 AND a.away_score=0 AND a.px>1 AND d.ml_score>=0.55172 AND a.triggered_utc>=?";
+const LIVE_ML_SETTLED="INSERT OR IGNORE INTO sb_radar_winloss_ml_replay_v1(event_id,signal_utc,minute,fixture,odds_x,ml_score,outcome,profit_1u,scope,updated_utc) SELECT a.event_id,a.triggered_utc,a.minute,a.fixture,a.px,d.ml_score,CASE WHEN r.winner_1x2='X' THEN 'WIN' ELSE 'LOSS' END,CASE WHEN r.winner_1x2='X' THEN a.px-1 ELSE -1 END,'PRODUCTION_ML_LOGREG_RECONCILED_V3',? FROM ghost_equal_alerts a JOIN sb_radar_ml_decisions d ON d.event_id=a.event_id JOIN match_results r ON r.event_id=a.event_id WHERE a.stage='BET_NOW' AND a.model_version='SB_RADAR_ML_LOGREG_V1' AND a.source='SB_RADAR_ML_LOGREG_V1' AND d.model_version='SB_RADAR_ML_LOGREG_V1' AND d.accepted=1 AND a.minute BETWEEN 57 AND 59 AND a.home_score=0 AND a.away_score=0 AND a.px>1 AND d.ml_score>=0.55172 AND r.verified=1 AND r.winner_1x2 IN ('1','X','2') AND a.triggered_utc>=?";
 const SETTLE=String.raw`INSERT OR IGNORE INTO sb_radar_winloss_ml_replay_v1(
 event_id,signal_utc,minute,fixture,odds_x,ml_score,outcome,profit_1u,scope,updated_utc)
 SELECT c.event_id,c.signal_utc,c.minute,c.fixture,c.odds_x,c.ml_score,
@@ -97,6 +99,13 @@ async function update(env){
   if(!runId)throw Error('run_id_missing');
   const cand=await db(env,CANDIDATES,from,now,now,now).run();
   report.candidates=Number(cand.meta?.changes||0);
+  // Actual accepted BET NOW ML decisions outrank approximate retrospective minute pairing.
+  // This correction runs only in the detached research worker; Golden Classic remains excluded.
+  const fromActual=ago(now,30*86400000);
+  const realCand=await db(env,LIVE_ML_CANDIDATES,now,now,fromActual).run();
+  report.production_candidates_added=Number(realCand.meta?.changes||0);
+  const realSettled=await db(env,LIVE_ML_SETTLED,now,fromActual).run();
+  report.production_replay_added=Number(realSettled.meta?.changes||0);
   const settled=await db(env,SETTLE,now).run();
   report.new_verified=Number(settled.meta?.changes||0);
   const corrections=await db(env,CORRECT,now).run();
@@ -118,7 +127,7 @@ async function update(env){
   report.duration_ms=Date.now()-started;
   await db(env,"UPDATE sb_radar_winloss_map_control_v2 SET last_success_utc=?,last_cursor_utc=?,latest_status='OK',latest_error=NULL,lock_owner=NULL,locked_until=NULL WHERE id=1 AND lock_owner=?",now,now,owner).run();
   acquired=false;
-  await db(env,"UPDATE sb_radar_winloss_map_runs_v2 SET status='OK',finished_utc=?,candidates_inserted=?,ml_newly_settled=?,corrections=?,rolling_rows=?,live_rows=?,elapsed_ms=? WHERE id=?",iso(),report.candidates,report.new_verified,report.corrected,report.rolling_rows,report.real_rows,report.duration_ms,runId).run();
+  await db(env,"UPDATE sb_radar_winloss_map_runs_v2 SET status='OK',finished_utc=?,candidates_inserted=?,ml_newly_settled=?,corrections=?,rolling_rows=?,live_rows=?,production_candidates_added=?,production_replay_added=?,elapsed_ms=? WHERE id=?",iso(),report.candidates,report.new_verified,report.corrected,report.rolling_rows,report.real_rows,report.production_candidates_added,report.production_replay_added,report.duration_ms,runId).run();
   report.status='OK';
  }catch(err){
   report.status='ERROR';report.error=String(err?.message||err).slice(0,500);report.duration_ms=Date.now()-started;
@@ -133,7 +142,7 @@ export default {
   if(request.method!=='GET'||new URL(request.url).pathname!=='/health')return new Response('Not found',{status:404});
   const [control,latest,replay,real,candidates]=await Promise.all([
    db(env,'SELECT latest_status,last_success_utc,last_cursor_utc,latest_error FROM sb_radar_winloss_map_control_v2 WHERE id=1').first(),
-   db(env,'SELECT run_utc,status,candidates_inserted,ml_newly_settled,corrections,rolling_rows,live_rows,elapsed_ms,error FROM sb_radar_winloss_map_runs_v2 ORDER BY id DESC LIMIT 1').first(),
+   db(env,'SELECT run_utc,status,candidates_inserted,ml_newly_settled,corrections,rolling_rows,live_rows,production_candidates_added,production_replay_added,elapsed_ms,error FROM sb_radar_winloss_map_runs_v2 ORDER BY id DESC LIMIT 1').first(),
    db(env,"SELECT n,w,l,roi_pct,period_start,period_end,asof_utc FROM sb_radar_winloss_map_stats_v1 WHERE scope='ALL'").first(),
    db(env,"SELECT signals,verified,w,l,pending,asof_utc FROM sb_radar_winloss_map_live_stats_v2 WHERE scope='ALL'").first(),
    db(env,"SELECT COUNT(*) n FROM sb_radar_winloss_map_candidates_v2 WHERE route='ML'").first()
