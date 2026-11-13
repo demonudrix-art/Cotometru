@@ -13,7 +13,12 @@ function accept(e,x){
  const rawTime=x.strTimestamp||((x.dateEvent&&x.strTime)?x.dateEvent+'T'+x.strTime:x.dateEvent+'T00:00:00');
  const ts=Date.parse(/(?:Z|[+-]\d\d:?\d\d)$/.test(rawTime||'')?rawTime:rawTime+'Z'),ko=Date.parse(e.kickoff_utc),delta=Math.abs(ts-ko)/60000;
  if(h<.62||a<.62||(h+a)/2<.70||!Number.isFinite(delta)||delta>120)return null;
- return {country:x.strCountry||e.country,league:x.strLeague,source_url:'https://www.thesportsdb.com/event/'+x.idEvent,confidence:delta<=30&&h>=.7&&a>=.7?.98:.92,delta};
+ const international=/\b(UEFA|CONCACAF|CONMEBOL|AFC|CAF|OFC|FIFA|CECAFA|COSAFA|World Cup|Nations League|Olympic Games|International)\b/i.test(x.strLeague)||[26,31,102].includes(Number(e.category_id));
+ const alias={italia:'italy',franta:'france',germania:'germany',romania:'romania',turcia:'turkey',spania:'spain',anglia:'england',scotia:'scotland',japonia:'japan',rusia:'russia',belgia:'belgium',olanda:'netherlands',egipt:'egypt',portugalia:'portugal',sua:'unitedstates',africadesud:'southafrica',slovacia:'slovakia',grecia:'greece'};
+ const cname=v=>{const t=String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z]/g,'');return alias[t]||t};
+ if(!international&&e.country&&x.strCountry&&cname(e.country)!==cname(x.strCountry))return null;
+ const country=international?'Internațional':(e.country||x.strCountry||null);
+ return {country,league:x.strLeague,source_url:'https://www.thesportsdb.com/event/'+x.idEvent,confidence:delta<=30&&h>=.7&&a>=.7?.98:.92,delta};
 }
 async function search(e){
  const pair=parse(e);if(!pair)return null;
