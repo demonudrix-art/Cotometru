@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.38";
+  static final String APP_VERSION="2.3.39";
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -34,6 +34,7 @@ public class MainActivity extends Activity implements SensorEventListener {
   SharedPreferences prefs;
   FrameLayout nativeSurface;
   LinearLayout nativeSplash;
+  android.animation.AnimatorSet splashAnimator;
   LinearLayout nativeBottomTabs;
   final LinearLayout[] nativeTabCells=new LinearLayout[4];
   final TextView[] nativeTabGlyphs=new TextView[4];
@@ -256,7 +257,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     title.setTextColor(0xfff7f2f5);title.setGravity(Gravity.CENTER);
     nativeSplash.addView(title,new LinearLayout.LayoutParams(-1,dp(46)));
     TextView subtitle=new TextView(this);
-    subtitle.setText("FOTBAL LIVE  •  ALERTE  •  STATISTICI");
+    subtitle.setText("GOLDEN CLASSIC 57′  •  ML LOGREG V1 57′–59′");
     subtitle.setTextSize(10);subtitle.setLetterSpacing(.11f);
     subtitle.setTextColor(0xffbbaebc);subtitle.setGravity(Gravity.CENTER);
     nativeSplash.addView(subtitle,new LinearLayout.LayoutParams(-1,dp(27)));
@@ -265,14 +266,32 @@ public class MainActivity extends Activity implements SensorEventListener {
     LinearLayout.LayoutParams spin=new LinearLayout.LayoutParams(dp(26),dp(26));
     spin.topMargin=dp(24);spin.gravity=Gravity.CENTER_HORIZONTAL;
     nativeSplash.addView(spinner,spin);
+    TextView progressCaption=new TextView(this);
+    progressCaption.setText("LIVE INTELLIGENCE  •  CONECTARE");
+    progressCaption.setTextSize(10);progressCaption.setLetterSpacing(.12f);
+    progressCaption.setTextColor(0xff83eacb);progressCaption.setGravity(Gravity.CENTER);
+    nativeSplash.addView(progressCaption,new LinearLayout.LayoutParams(-1,dp(34)));
+    android.animation.ObjectAnimator scaleX=android.animation.ObjectAnimator.ofFloat(symbol,View.SCALE_X,.82f,1.18f,.82f);
+    android.animation.ObjectAnimator scaleY=android.animation.ObjectAnimator.ofFloat(symbol,View.SCALE_Y,.82f,1.18f,.82f);
+    android.animation.ObjectAnimator flash=android.animation.ObjectAnimator.ofFloat(symbol,View.ALPHA,.62f,1f,.62f);
+    for(android.animation.ObjectAnimator a:new android.animation.ObjectAnimator[]{scaleX,scaleY,flash}){
+      a.setDuration(1500);a.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+      a.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+    }
+    splashAnimator=new android.animation.AnimatorSet();splashAnimator.playTogether(scaleX,scaleY,flash);splashAnimator.start();
+    title.setAlpha(0f);title.setTranslationY(dp(12));
+    title.animate().alpha(1f).translationY(0f).setDuration(600).start();
+    subtitle.setAlpha(0f);subtitle.animate().alpha(1f).setStartDelay(160).setDuration(700).start();
     nativeSurface.addView(nativeSplash,new FrameLayout.LayoutParams(-1,-1));
   }
 
   private void hideNativeSplash(){
     if(nativeSplash==null||nativeSplash.getVisibility()!=View.VISIBLE)return;
     LinearLayout splash=nativeSplash;
+    if(splashAnimator!=null){splashAnimator.cancel();splashAnimator=null;}
     splash.animate().cancel();
-    splash.animate().alpha(0f).setDuration(180).withEndAction(()->{
+    splash.animate().alpha(0f).setDuration(350)
+      .setInterpolator(new android.view.animation.DecelerateInterpolator()).withEndAction(()->{
       if(splash==nativeSplash)splash.setVisibility(View.GONE);
     }).start();
   }
@@ -318,12 +337,21 @@ public class MainActivity extends Activity implements SensorEventListener {
     for(int i=0;i<NATIVE_ROUTES.length;i++){
       boolean active=NATIVE_ROUTES[i].equals(nativeActiveRoute);
       if(nativeTabCells[i]==null)continue;
-      nativeTabCells[i].setBackground(nativeBackground(active?0xff65172f:0xff19141f,
-          active?0xff8b2747:0,14));
-      int tint=active?0xfff9f2f5:0xffb6a6b7;
+      boolean changed=nativeTabCells[i].isSelected()!=active;
+      nativeTabCells[i].setBackground(nativeBackground(active?0xff433447:0xff19141f,
+          active?0xff7ee5cf:0,14));
+      nativeTabCells[i].setElevation(active?dp(5):0f);
+      int tint=active?0xffe5fff6:0xffb6a6b7;
       nativeTabGlyphs[i].setTextColor(tint);
       nativeTabLabels[i].setTextColor(tint);
       nativeTabCells[i].setSelected(active);
+      if(changed){
+        TextView glyph=nativeTabGlyphs[i];
+        glyph.animate().cancel();glyph.setScaleX(active?.72f:1f);glyph.setScaleY(active?.72f:1f);
+        glyph.setTranslationY(active?dp(6):0f);
+        glyph.animate().scaleX(1f).scaleY(1f).translationY(0f).setDuration(active?420:240)
+          .setInterpolator(new android.view.animation.OvershootInterpolator(active?.85f:.2f)).start();
+      }
     }
   }
 

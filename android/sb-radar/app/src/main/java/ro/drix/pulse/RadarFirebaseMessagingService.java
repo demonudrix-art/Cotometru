@@ -40,12 +40,12 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
     String priority=d.getOrDefault("priority_code","").toUpperCase(Locale.ROOT).trim();
     String model=d.getOrDefault("model_version","").toUpperCase(Locale.ROOT);
     if("AWAY_57".equals(type))return; // retired signal family
-          String combined=label+" "+type+" "+priority+" "+model;
-    boolean purple=combined.contains("STRONG + SILVER")||combined.contains("STRONG_SILVER")||combined.contains("STRONG-SILVER");
-    boolean red=!purple&&combined.contains("STRONG");
-    boolean ml=(!isTest&&"SB_RADAR_ML_LOGREG_V1".equals(model))||"ML".equals(type)||"ML".equals(label);
-    String category=purple?"STRONG + SILVER":red?"STRONG":ml?"ML":"GOLDEN TICKET".equals(label)?"GOLDEN TICKET":"";
-    if(category.isEmpty())return; // Only historical Oct-31 ML + Golden Classic/Strong. Gold Rush and Silver-only stay retired.
+          boolean classic="SB_GOLDEN_CLASSIC_00_M57_1PP_V1".equals(model);
+    boolean ml="SB_RADAR_ML_LOGREG_V1".equals(model);
+    // Only the restored live models; legacy priority labels must not reactivate retired families.
+    String category=classic?"GOLDEN TICKET":ml?"ML":
+      isTest&&"GOLDEN TICKET".equals(label)?"GOLDEN TICKET":"";
+    if(category.isEmpty())return;
     try{
       long event=Long.parseLong(d.getOrDefault("event_id","0"));
       if(event<=0)return;
@@ -54,7 +54,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       String px=d.getOrDefault("px","-");
       String score=d.getOrDefault("home_score","-")+"–"+d.getOrDefault("away_score","-");
       String tier57=d.getOrDefault("gold_category_label","");
-      String heading=isTest?"TEST FCM • NU PARIA":purple?"🟣 RADIO MOV • 30 LEI":red?"🔴 RADIO ROȘU • 25 LEI":ml?"🧠 ML LOGREG V1 • 31 OCT":"GOLDEN TICKET";
+      String heading=isTest?"TEST FCM • NU PARIA":ml?"🧠 ML LOGREG V1 • 57′–59′":classic?"🟡 GOLDEN CLASSIC • 57′":"SEMNAL";
       String body=fixture+"\n"+heading+
         (tier57.isEmpty()?"":"\nREPER X57: "+tier57)+
         "\n⏱ MINUTUL "+minute+" • SCOR "+score+

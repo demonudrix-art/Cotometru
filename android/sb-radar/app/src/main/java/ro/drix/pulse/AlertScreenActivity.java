@@ -69,15 +69,16 @@ public class AlertScreenActivity extends Activity {
     String p=intent.getStringExtra("path");
     if(p!=null&&p.startsWith("/app?"))path=p;
     notificationId=intent.getIntExtra("notification_id",0);
-    boolean purple=title!=null&&title.toUpperCase(Locale.ROOT).contains("STRONG + SILVER");
-    boolean red=!purple&&title!=null&&title.toUpperCase(Locale.ROOT).contains("STRONG");
+    String liveTitle=title==null?"":title.toUpperCase(Locale.ROOT);
+    boolean purple=liveTitle.contains("ML LOGREG");
+    boolean red=!purple&&liveTitle.contains("GOLDEN CLASSIC");
     boolean gold=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLDEN TICKET");
     boolean rush=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLD RUSH");
     boolean power=title!=null&&title.toUpperCase(Locale.ROOT).contains("GG POWER");
     boolean hourly=title!=null&&title.contains("ANTRENAT ORAR");
-    accent=purple?0xffc36aff:red?0xffff3a5f:power?0xffdfb0ff:gold?0xffeac16d:0xff69dcd3;
+    accent=purple?0xff79e1f1:red?0xffffd479:power?0xffdfb0ff:gold?0xffeac16d:0xff69dcd3;
     int surface=0xff131a25;
-    int line=purple?0xff8358a3:red?0xff974454:power?0xff8358a3:gold?0xff77623c:0xff336765;
+    int line=purple?0xff477f99:red?0xff96723c:power?0xff8358a3:gold?0xff77623c:0xff336765;
     String raw=body==null?"":body.trim();
     String fixture=raw.isEmpty()?"Meci în monitorizare":raw.split("\\n",2)[0].trim();
     String minute=extract(raw,"(?:MINUTUL|MIN\\.)\\s*(\\d{1,3})","—");
@@ -107,13 +108,13 @@ public class AlertScreenActivity extends Activity {
     micro.setShadowLayer(dp(12),0,0,accent);
     root.addView(micro,lp(-1,-2));
     addGap(root,10);
-    TextView jackpot=label(purple?"✦  ULTRA JACKPOT  ✦":red?"✦  GOLDEN JACKPOT  ✦":
+    TextView jackpot=label(purple?"✦  ML INTELLIGENCE  ✦":red?"✦  GOLDEN CLASSIC  ✦":
       "✦  LIVE ALERT  ✦",23,accent,true,true);
     jackpot.setShadowLayer(dp(21),0,0,accent);
     jackpot.setLetterSpacing(.075f);
     root.addView(jackpot,lp(-1,-2));
     addGap(root,13);
-    TextView rarity=label(purple?"♛  STRONG + SILVER  ♛":red?"♛  GOLDEN STRONG  ♛":
+    TextView rarity=label(purple?"🧠  ML LOGREG V1  •  57′–59′":red?"🟡  GOLDEN CLASSIC  •  57′":
       "✦  SB RADAR  ✦",12,0xffffe6aa,true,true);
     rarity.setLetterSpacing(.10f);
     rarity.setShadowLayer(dp(14),0,0,accent);
@@ -138,7 +139,7 @@ public class AlertScreenActivity extends Activity {
     symbol.setShadowLayer(dp(11),0,0,accent);
     card.addView(symbol,lp(-1,-2));
     addGap(card,14);
-    TextView heading=label(purple?"STRONG\n+ SILVER":red?"GOLDEN\nSTRONG":
+    TextView heading=label(purple?"ML LOGREG\nV1":red?"GOLDEN\nCLASSIC":
       power?"GG POWER":gold?"GOLDEN TICKET":rush?"GOLD RUSH":hourly?"ML • ANTRENAT ORAR":"SEMNAL",
       purple||red?38:29,Color.WHITE,true,true);
     heading.setLetterSpacing(.06f);
@@ -146,14 +147,14 @@ public class AlertScreenActivity extends Activity {
     heading.setLineSpacing(dp(1),1f);
     card.addView(heading,lp(-1,-2));
     addGap(card,5);
-    TextView subtitle=label(test?"⚠ DEMONSTRAȚIE • NU PARIA":purple?"SEMNAL PREMIUM • EGAL (X)":
-      red?"SEMNAL PRIORITAR • EGAL (X)":gold?"TE SUNĂ BANII!":"SEMNAL • EGAL (X)",
+    TextView subtitle=label(test?"⚠ DEMONSTRAȚIE • NU PARIA":purple?"SCOR 0–0 • EGAL (X)":
+      red?"MINUTUL 57 • EGAL (X)":gold?"TE SUNĂ BANII!":"SEMNAL • EGAL (X)",
       13,test?0xffffde94:accent,true,true);
     subtitle.setLetterSpacing(.12f);
     subtitle.setShadowLayer(dp(8),0,0,accent);
     card.addView(subtitle,lp(-1,-2));
     addGap(card,16);
-    TextView stakes=label(purple?"75 LEI":red?"50 LEI":"⚡ LIVE",purple||red?51:35,Color.WHITE,true,true);
+    TextView stakes=label(purple?"57′–59′":red?"57′":"⚡ LIVE",purple||red?41:35,Color.WHITE,true,true);
     stakes.setLetterSpacing(.06f);
     stakes.setShadowLayer(dp(26),0,0,accent);
     card.addView(stakes,lp(-1,-2));

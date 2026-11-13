@@ -37,8 +37,8 @@ public class AlertService extends Service {
   @Override public IBinder onBind(Intent i){return null;}
   private void ensureChannels(){
     NotificationManager mgr=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
-    NotificationChannel monitor=new NotificationChannel(CH_MONITOR,"SB Radar • Monitor activ",NotificationManager.IMPORTANCE_LOW);
-    monitor.setDescription("Monitorizarea alertelor SB Radar");mgr.createNotificationChannel(monitor);
+    NotificationChannel monitor=new NotificationChannel(CH_MONITOR,"SB Radar • Live Intelligence",NotificationManager.IMPORTANCE_LOW);
+    monitor.setDescription("Monitor activ pentru Golden Classic 57′ și ML LogReg V1 57′–59′.");mgr.createNotificationChannel(monitor);
     ensureUrgentChannels(this);
     NotificationChannel wins=new NotificationChannel(CH_WINS,"Bilete câștigate",NotificationManager.IMPORTANCE_HIGH);
     wins.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);mgr.createNotificationChannel(wins);
@@ -50,27 +50,27 @@ public class AlertService extends Service {
     AudioAttributes soundAttrs=new AudioAttributes.Builder()
       .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-    NotificationChannel gold=new NotificationChannel(CH_GOLD,"🔴 Strong • Alarmă fullscreen 24/7",NotificationManager.IMPORTANCE_HIGH);
-    gold.setDescription("Golden Strong: notificare fullscreen, alarmă și vibrație 24/7");
+    NotificationChannel gold=new NotificationChannel(CH_GOLD,"🟡 Golden Classic 57′ • Alarmă",NotificationManager.IMPORTANCE_HIGH);
+    gold.setDescription("Golden Classic 0–0 la 57′: alarmă și vibrație, cu setările existente.");
     gold.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     gold.enableVibration(true);
     gold.setVibrationPattern(new long[]{0,650,350,650,900});
     gold.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(gold);
-    NotificationChannel ml=new NotificationChannel(CH_ML,"🟣 Strong + Silver • Alarmă fullscreen 24/7",NotificationManager.IMPORTANCE_HIGH);
-    ml.setDescription("Strong + Silver: notificare fullscreen, alarmă și vibrație 24/7");
+    NotificationChannel ml=new NotificationChannel(CH_ML,"SB Radar • Canal anterior (compatibilitate)",NotificationManager.IMPORTANCE_HIGH);
+    ml.setDescription("Canal anterior păstrat pentru compatibilitate și setările de alarmă.");
     ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     ml.enableVibration(true);
     ml.setVibrationPattern(new long[]{0,420,250,420,250,420});
     ml.setSound(ring,soundAttrs);
     mgr.createNotificationChannel(ml);
-    NotificationChannel octoberMl=new NotificationChannel(CH_OCT31_ML,"🧠 ML LogReg • 31 octombrie",NotificationManager.IMPORTANCE_HIGH);
+    NotificationChannel octoberMl=new NotificationChannel(CH_OCT31_ML,"🧠 ML LogReg V1 • 57′–59′",NotificationManager.IMPORTANCE_HIGH);
     octoberMl.setDescription("ML original din 31 octombrie: 0–0 la minutele 57–59, fără apel telefonic.");
     octoberMl.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     octoberMl.enableVibration(true);octoberMl.setVibrationPattern(new long[]{0,500,250,500,350,700});
     octoberMl.setSound(ring,soundAttrs);mgr.createNotificationChannel(octoberMl);
-    NotificationChannel night=new NotificationChannel(CH_NIGHT,"SB Radar • Vibrație nocturnă 22–05",NotificationManager.IMPORTANCE_HIGH);
-    night.setDescription("Golden Ticket, Gold Rush, GG Power: numai vibrație noaptea, fără sunet sau apel.");
+    NotificationChannel night=new NotificationChannel(CH_NIGHT,"SB Radar • Canal vibrație (compatibilitate)",NotificationManager.IMPORTANCE_HIGH);
+    night.setDescription("Canal anterior de compatibilitate; setările utilizatorului sunt păstrate.");
     night.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     night.enableVibration(true);
     night.setVibrationPattern(new long[]{0,320,180,320,180,320});
@@ -118,10 +118,9 @@ public class AlertService extends Service {
   }
   private static String signalTitle(boolean gold,String modelVersion){
     String normalized=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
-    if(normalized.contains("STRONG + SILVER")||normalized.contains("STRONG_SILVER")||normalized.contains("STRONG-SILVER"))
-      return "🟣 RADIO MOV • 30 LEI • SB Radar";
-    if(normalized.contains("STRONG"))return "🔴 RADIO ROȘU • 25 LEI • SB Radar";
-    if(normalized.contains("SB_RADAR_ML_LOGREG_V1")||normalized.contains("ML_OCT31"))return "🧠 ML LOGREG • 31 OCT • SB Radar";
+    if(normalized.contains("SB_RADAR_ML_LOGREG_V1")||normalized.contains("ML_OCT31"))return "🧠 ML LOGREG V1 • 57′–59′ • SB Radar";
+    if(normalized.contains("SB_GOLDEN_CLASSIC_00_M57_1PP_V1"))return "🟡 GOLDEN CLASSIC • 57′ • SB Radar";
+    if(normalized.contains("STRONG"))return "SB Radar • Filtru anterior";
     if(modelVersion!=null&&modelVersion.toUpperCase(Locale.ROOT).contains("GG_POWER"))return "⚡ GG POWER • 50 LEI • SB Radar";
     if(gold)return "🏆 GOLDEN TICKET • SB Radar";
     String v=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
@@ -135,9 +134,23 @@ public class AlertService extends Service {
     String action=intent==null?"START":intent.getAction();
     if(SILENCE.equals(action)){stopRinging();return START_STICKY;}
     if("STOP".equals(action)){stopSelf();return START_NOT_STICKY;}
-    Notification foreground=builder(this,CH_MONITOR).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle("SB Radar • Monitor activ").setContentText("Urmărește Strong + Silver și Golden Strong")
-      .setContentIntent(open(this,FOREGROUND_ID,"/app?tab=live")).setOngoing(true).build();
+    Notification foreground=builder(this,CH_MONITOR)
+      .setSmallIcon(R.drawable.sbr_status_idle)
+      .setContentTitle("SB Radar • LIVE INTELLIGENCE")
+      .setContentText("Golden Classic 57′ · ML LogReg V1 57′–59′")
+      .setSubText("MONITORIZARE ACTIVĂ")
+      .setStyle(new Notification.BigTextStyle().bigText(
+        "🟡 Golden Classic: scor 0–0 la 57′\\n" +
+        "🧠 ML LogReg V1: 57′–59′\\n" +
+        "Monitorizarea poate fi întreruptă de Android sau de conexiune."))
+      .setCategory(Notification.CATEGORY_SERVICE)
+      .setColor(0xff6de7c7)
+      .setWhen(System.currentTimeMillis()).setUsesChronometer(true)
+      .setOnlyAlertOnce(true)
+      .setContentIntent(open(this,FOREGROUND_ID,"/app?tab=live"))
+      .addAction(R.drawable.sbr_status_idle,"RADAR",open(this,FOREGROUND_ID+1,"/app?tab=live"))
+      .addAction(R.drawable.sbr_status_ticket,"SLIP",open(this,FOREGROUND_ID+2,"/app?tab=slip"))
+      .setOngoing(true).build();
     startForeground(FOREGROUND_ID,foreground);
     if("TEST_GOLD".equals(action)||"TEST_RUSH".equals(action)){
       boolean gold="TEST_GOLD".equals(action);
@@ -163,8 +176,9 @@ public class AlertService extends Service {
   }
   private void showSignal(String category,int notificationId,String fixture,String body,String path,String modelVersion,boolean test){
     if(!notificationsAllowed())return;
-    boolean purple=category.contains("STRONG + SILVER")||category.contains("STRONG_SILVER")||
-      (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER")));
+    boolean classic=modelVersion!=null&&modelVersion.contains("SB_GOLDEN_CLASSIC_00_M57_1PP_V1");
+    boolean purple=!classic&&(category.contains("STRONG + SILVER")||category.contains("STRONG_SILVER")||
+      (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER"))));
     boolean gold="GOLDEN TICKET".equals(category)||"STRONG".equals(category);
     boolean quiet=nightQuiet();
     String channel="ML".equals(category)?CH_OCT31_ML:purple?CH_ML:CH_GOLD;
@@ -246,8 +260,9 @@ public class AlertService extends Service {
     if(prefs.getBoolean(key,false))return;
     if(Build.VERSION.SDK_INT>=33&&ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)return;
     int id=(int)(Math.abs(event)%100000)+3000;
-    boolean purple=category.contains("STRONG + SILVER")||category.contains("STRONG_SILVER")||
-      (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER")));
+    boolean classic=modelVersion!=null&&modelVersion.contains("SB_GOLDEN_CLASSIC_00_M57_1PP_V1");
+    boolean purple=!classic&&(category.contains("STRONG + SILVER")||category.contains("STRONG_SILVER")||
+      (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER"))));
     String title=signalTitle("GOLDEN TICKET".equals(category)||strong, (modelVersion==null?"":modelVersion)+" "+category);
     boolean quiet=nightQuiet();
     String channel="ML".equals(category)?CH_OCT31_ML:purple?CH_ML:CH_GOLD;
