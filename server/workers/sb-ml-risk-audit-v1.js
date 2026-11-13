@@ -58,7 +58,7 @@ export async function auditMlRisk(env,eventId,deviceId){
   const params=groups.flatMap(x=>[x.dimension,x.key]);
   const [a,b]=await Promise.all([
    exec(env,'SELECT dimension,dimension_key,n,w,l,roi_pct,avg_odds,avg_ml,asof_utc FROM sb_radar_ml_risk_segments_v1 WHERE '+where,...params).all(),
-   exec(env,'SELECT dimension,dimension_key,n,w,l,roi_pct,avg_odds,avg_ml,asof_utc FROM sb_radar_ml_snapshot_stats_v2 WHERE snapshot_id=? AND ('+where+')',SNAPSHOT,...params).all()
+   exec(env,'SELECT dimension,dimension_key,n,w,l,roi_pct,avg_odds,avg_ml,run.asof_utc FROM sb_radar_ml_snapshot_stats_v2 snap JOIN sb_radar_ml_snapshot_runs_v2 run ON run.snapshot_id=snap.snapshot_id WHERE snap.snapshot_id=? AND ('+where+')',SNAPSHOT,...params).all()
   ]);
   rolling=statData(a.results||[],groups);baseline=statData(b.results||[],groups);
  }
