@@ -22,13 +22,13 @@ public final class ChromeDialogNotifier {
     if(manager==null)return;
     boolean night;
     try{int h=ZonedDateTime.now(ZoneId.of("Europe/Bucharest")).getHour();night=h>=22||h<5;}catch(Exception ignored){night=false;}
-    String channelId=night?"sbr_chrome_dialog_quiet_v1":"sbr_chrome_dialog_alert_v1";
+    String channelId=night?"sbr_chrome_dialog_quiet_silent_v2":"sbr_chrome_dialog_alert_silent_v2";
     if(Build.VERSION.SDK_INT>=26){
       NotificationChannel channel=new NotificationChannel(channelId,
         night?"SB Radar · Confirmări Chrome (noapte)":"SB Radar · Confirmări Chrome",
         NotificationManager.IMPORTANCE_HIGH);
       channel.enableVibration(true);
-      if(night)channel.setSound(null,null);
+      channel.setSound(null,null);
       manager.createNotificationChannel(channel);
     }
     String text=(body==null?"":body.trim());

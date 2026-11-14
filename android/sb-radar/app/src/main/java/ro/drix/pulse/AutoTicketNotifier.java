@@ -5,8 +5,6 @@ import android.net.Uri;
 import android.os.Build;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
-import android.media.RingtoneManager;
-import android.media.AudioAttributes;
 /** SB Radar automatic bookmaker-confirmed ticket notification; no notifications for prepared or uncertain bets. */
 public final class AutoTicketNotifier{
  private AutoTicketNotifier(){}
@@ -19,12 +17,11 @@ public final class AutoTicketNotifier{
   if(manager==null)return;
   int hour=ZonedDateTime.now(ZoneId.of("Europe/Bucharest")).getHour();
   boolean quiet=hour>=22||hour<5;
-  String channelId=quiet?"sbr_auto_ticket_quiet_v1":"sbr_auto_ticket_normal_v1";
+  String channelId=quiet?"sbr_auto_ticket_quiet_vibration_v2":"sbr_auto_ticket_normal_vibration_v2";
   if(Build.VERSION.SDK_INT>=26){
    NotificationChannel channel=new NotificationChannel(channelId,quiet?"SB Radar · Bilete (noapte)":"SB Radar · Bilete automate",NotificationManager.IMPORTANCE_HIGH);
    channel.enableVibration(true);
-   if(quiet)channel.setSound(null,null);
-   else channel.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build());
+   channel.setSound(null,null);
    manager.createNotificationChannel(channel);
   }
   String color="strong-silver".equals(category)?"🟣 ":"strong".equals(category)?"🔴 ":"";

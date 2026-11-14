@@ -5,9 +5,6 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.media.AudioAttributes;
-import android.media.MediaPlayer;
-import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.*;
 import org.json.*;
@@ -17,18 +14,17 @@ import java.util.TimeZone;
 
 public class AlertService extends Service {
   static final String CH_MONITOR="sb_radar_monitor_v230";
-  static final String CH_GOLD="sb_radar_strong_alarm_v2316";
-  static final String CH_ML="sb_radar_purple_alarm_v2316";
-  static final String CH_OCT31_ML="sb_radar_ml_logreg_31oct_v1";
+  static final String CH_GOLD="sb_radar_golden_vibration_only_v240";
+  static final String CH_ML="sb_radar_purple_vibration_only_v240";
+  static final String CH_OCT31_ML="sb_radar_ml_logreg_vibration_only_v240";
   static final String CH_NIGHT="sb_radar_vibration_night_v2315";
-  static final String CH_WINS="sb_radar_wins_v232";
+  static final String CH_WINS="sb_radar_wins_vibration_only_v240";
   static final int FOREGROUND_ID=1310;
   static final String SILENCE="SILENCE";
   private static volatile AlertService current;
   private static final Handler MAIN=new Handler(Looper.getMainLooper());
   private static Runnable ringTimeout;
   static boolean nightQuiet(){return false;} // User enabled urgent purple/red alerts and fullscreen 24/7.
-  private MediaPlayer player;
   private Vibrator vibrator;
   volatile boolean running=false;
   Thread thread;
@@ -41,34 +37,30 @@ public class AlertService extends Service {
     monitor.setDescription("Monitor activ pentru Golden Classic 57′ și ML LogReg V1 57′–59′.");mgr.createNotificationChannel(monitor);
     ensureUrgentChannels(this);
     NotificationChannel wins=new NotificationChannel(CH_WINS,"Bilete câștigate",NotificationManager.IMPORTANCE_HIGH);
-    wins.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);mgr.createNotificationChannel(wins);
+    wins.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);wins.enableVibration(true);wins.setSound(null,null);mgr.createNotificationChannel(wins);
   }
-  // Channels are immutable: v237 restores urgent audio/vibration without changing users\u0027 previous channel settings.
+  // Android keeps prior channel settings; v240 uses new vibration-only, silent channel IDs.
   private static void ensureUrgentChannels(Context context){
     NotificationManager mgr=(NotificationManager)context.getSystemService(NOTIFICATION_SERVICE);
-    Uri ring=RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-    AudioAttributes soundAttrs=new AudioAttributes.Builder()
-      .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
-      .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-    NotificationChannel gold=new NotificationChannel(CH_GOLD,"🟡 Golden Classic 57′ • Alarmă",NotificationManager.IMPORTANCE_HIGH);
-    gold.setDescription("Golden Classic 0–0 la 57′: alarmă și vibrație, cu setările existente.");
+    NotificationChannel gold=new NotificationChannel(CH_GOLD,"🟡 Golden Classic 57′ • Vibrație",NotificationManager.IMPORTANCE_HIGH);
+    gold.setDescription("Golden Classic 0–0 la 57′: vibrație și ecran de alertă, fără sunet.");
     gold.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     gold.enableVibration(true);
     gold.setVibrationPattern(new long[]{0,650,350,650,900});
-    gold.setSound(ring,soundAttrs);
+    gold.setSound(null,null);
     mgr.createNotificationChannel(gold);
-    NotificationChannel ml=new NotificationChannel(CH_ML,"SB Radar • Canal anterior (compatibilitate)",NotificationManager.IMPORTANCE_HIGH);
-    ml.setDescription("Canal anterior păstrat pentru compatibilitate și setările de alarmă.");
+    NotificationChannel ml=new NotificationChannel(CH_ML,"SB Radar • Canal mov (fără sunet)",NotificationManager.IMPORTANCE_HIGH);
+    ml.setDescription("Vibrație și afișare, fără sunet.");
     ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     ml.enableVibration(true);
     ml.setVibrationPattern(new long[]{0,420,250,420,250,420});
-    ml.setSound(ring,soundAttrs);
+    ml.setSound(null,null);
     mgr.createNotificationChannel(ml);
     NotificationChannel octoberMl=new NotificationChannel(CH_OCT31_ML,"🧠 ML LogReg V1 • 57′–59′",NotificationManager.IMPORTANCE_HIGH);
     octoberMl.setDescription("ML original din 31 octombrie: 0–0 la minutele 57–59, fără apel telefonic.");
     octoberMl.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     octoberMl.enableVibration(true);octoberMl.setVibrationPattern(new long[]{0,500,250,500,350,700});
-    octoberMl.setSound(ring,soundAttrs);mgr.createNotificationChannel(octoberMl);
+    octoberMl.setSound(null,null);mgr.createNotificationChannel(octoberMl);
     NotificationChannel night=new NotificationChannel(CH_NIGHT,"SB Radar • Canal vibrație (compatibilitate)",NotificationManager.IMPORTANCE_HIGH);
     night.setDescription("Canal anterior de compatibilitate; setările utilizatorului sunt păstrate.");
     night.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
@@ -250,7 +242,7 @@ public class AlertService extends Service {
     }
   }
 
-  // Data-only FCM: display immediately, then try to start the foreground monitor for local ringing.
+  // Data-only FCM: display immediately and preserve vibration-only attention.
   // Shared deduplication key prevents duplicate notifications from FCM and the 25-second polling fallback.
   static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority,String modelVersion){
     boolean strong=category!=null&&category.toUpperCase(Locale.ROOT).contains("STRONG");
@@ -290,8 +282,8 @@ public class AlertService extends Service {
     if(!quiet)AlertAttention.start(ctx);
     prefs.edit().putBoolean(key,true).apply();
     // High-priority FCM may start a foreground service while the screen is off.
-    // It keeps the user-requested 45-second alarm alive beyond onMessageReceived().
-    // If Android refuses background starts, the direct alarm is the fallback.
+    // It preserves vibration-only attention beyond onMessageReceived().
+    // If Android refuses background starts, direct vibration is the fallback.
     boolean started=false;
     if(highPriority&&!quiet) {
       try {

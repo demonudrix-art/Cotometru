@@ -3,14 +3,12 @@ import android.Manifest;
 import android.app.*;
 import android.content.*;
 import android.content.pm.PackageManager;
-import android.media.AudioAttributes;
-import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import java.util.*;
 /** Native notification restored from the installed 2.3.34 baseline, independent of Away57. */
 final class GoalWatchNotifier {
- private static final String DAY="sb_radar_goal_watch_day_v231",NIGHT="sb_radar_goal_watch_night_v231";
+ private static final String DAY="sb_radar_goal_watch_day_silent_v240",NIGHT="sb_radar_goal_watch_night_silent_v240";
  private GoalWatchNotifier(){}
  static void post(Context ctx,Map<String,String> d){
   try{
@@ -24,8 +22,7 @@ final class GoalWatchNotifier {
    NotificationChannel ch=new NotificationChannel(channel,quiet?"⚡ Goal Watch • vibrație 22–05":"⚡ Goal Watch • Over 0.5",NotificationManager.IMPORTANCE_HIGH);
    ch.setDescription("Alertă informativă Over 0.5 la 57′, fără plasare automată");ch.enableVibration(true);
    ch.setVibrationPattern(quiet?new long[]{0,190,150,190}:new long[]{0,240,150,290,150,160});
-   if(quiet)ch.setSound(null,null);
-   else ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT).build());
+   ch.setSound(null,null);
    ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);mgr.createNotificationChannel(ch);
    String fixture=d.getOrDefault("fixture","Meci"),risk=d.getOrDefault("goal_risk_pct","—");
    String hDrop=d.getOrDefault("drop_home_pp","—"),aDrop=d.getOrDefault("drop_away_pp","—");
