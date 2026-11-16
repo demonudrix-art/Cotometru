@@ -22,7 +22,7 @@ const SETTLE_SQL="UPDATE sb_radar_profit_engine_observations_v1 AS o"+
  " SET outcome=CASE WHEN r.winner_1x2='X' THEN 'WON' ELSE 'LOST' END,"+
  " unit_profit=CASE WHEN r.winner_1x2='X' THEN o.odds_x-1.0 ELSE -1.0 END,settled_seen_utc=?"+
  " FROM match_results r WHERE o.event_id=r.event_id AND o.outcome='PENDING'"+
- " AND r.verified=1 AND r.event_status='FINISHED' AND r.winner_1x2 IN ('1','X','2')";
+ " AND r.verified=1 AND r.event_status IN ('FINISHED','MARKET_SETTLED') AND r.winner_1x2 IN ('1','X','2')";
 export async function sbProfitShadowTick(env){
  const now=new Date().toISOString(),hour=now.slice(0,13)+":00:00Z";
  if(await env.DB.prepare("SELECT 1 FROM sb_radar_profit_engine_runs_v1 WHERE hour_utc=?").bind(hour).first())return;
