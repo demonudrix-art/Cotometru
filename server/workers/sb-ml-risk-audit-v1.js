@@ -65,12 +65,13 @@ export async function auditMlRisk(env,eventId,deviceId){
  }
  const wfScope=hb&&sb?'HOUR_SCORE':'ALL',wfKey=hb&&sb?hb+' | '+sb:'*';
  const since=new Date(Date.now()-7*86400000).toISOString();
- const [wf,forward,slipNow,slip7,prospectMatched]=await Promise.all([
+ const [wf,forward,slipNow,slip7,prospectMatched,autoProfile]=await Promise.all([
   exec(env,histSql,SNAPSHOT,wfScope,wfKey).all(),
   exec(env,prospectSql,wfScope,wfKey).all(),
   exec(env,slipNowSql,deviceId,eventId).all(),
   exec(env,slip7Sql,deviceId,since).all(),
-  groups.length?exec(env,prospectRankingSql(groups),new Date(Date.now()-8*86400000).toISOString().slice(0,10),...groups.flatMap(x=>[x.dimension,x.key])).all():Promise.resolve({results:[]})
+  groups.length?exec(env,prospectRankingSql(groups),new Date(Date.now()-8*86400000).toISOString().slice(0,10),...groups.flatMap(x=>[x.dimension,x.key])).all():Promise.resolve({results:[]}),
+  exec(env,"SELECT scope,scope_key,n,w,l,days,roi_pct,conservative_roi_pct,status,winloss_asof_utc,checked_utc FROM sb_radar_ml_auto_profile_v1 WHERE id=1").first().catch(()=>null)
  ]);
  const asof=rolling.find(x=>x.stat?.asof_utc)?.stat?.asof_utc||null;
  const evidence=rolling.find(x=>x.dimension==='HOUR_SCORE_ODDS')?.stat;
@@ -87,6 +88,7 @@ export async function auditMlRisk(env,eventId,deviceId){
   retrospective_walkforward:{mode:'RETROSPECTIVE_NOT_PROSPECTIVE',scope:wfScope,key:wfKey,rows:wf.results||[]},
   prospective_walkforward:{mode:'FROZEN_EARLY_DAY_ONLY',rows:forward.results||[]},
   prospective_rankings:{mode:'FROZEN_BEFORE_MATCH_DAY',asof_utc:new Date().toISOString(),rows:prospectMatched.results||[]},
+  automatic_profile:autoProfile||null,
   slip:{event_bets:slipNow.results||[],x_last_7d_by_alert:slip7.results||[]},
   caution:tooSmall?'INSUFFICIENT_COMBINATION_N':'HISTORICAL_ONLY_NO_GUARANTEE',
   notes:'All WIN/LOSS segments refer only to replay of ML LogReg V1; actual BET NOW and user slips are separate. Score is a logistic ranking, not P(draw). No stake recommendation.'
