@@ -26,6 +26,7 @@ function statData(rows,items){
 const infoSql="SELECT e.event_id,e.fixture,e.tournament_id,e.category_id,COALESCE(NULLIF(c.country,'NECONFIRMATA'),t.country,'') country,COALESCE(NULLIF(c.league_name,'NECONFIRMATA'),t.league_name,'') league,COALESCE(c.match_type,'OTHER_OR_UNKNOWN') match_type,c.source as metadata_source,d.evaluated_utc,d.ml_score,d.ml_cutoff,d.px ml_px,d.accepted,d.model_version as decision_model,q.route as replay_route,q.signal_utc replay_utc,q.ml_score replay_ml,q.odds_x replay_odds,a.triggered_utc alert_utc,a.model_version alert_model,a.stage alert_stage,a.px alert_odds FROM event_catalog e LEFT JOIN sb_radar_event_competition c ON c.event_id=e.event_id LEFT JOIN sb_radar_tournament_labels t ON t.tournament_id=e.tournament_id LEFT JOIN sb_radar_ml_decisions d ON d.event_id=e.event_id AND d.model_version='SB_RADAR_ML_LOGREG_V1' LEFT JOIN sb_radar_winloss_map_candidates_v2 q ON q.event_id=e.event_id LEFT JOIN ghost_equal_alerts a ON a.event_id=e.event_id AND a.stage='BET_NOW' WHERE e.event_id=? LIMIT 1";
 const histSql="SELECT scope,scope_key,COUNT(*) days,SUM(test_n) test_n,SUM(test_w) test_w,SUM(test_l) test_l,ROUND(100.0*SUM(test_w)/NULLIF(SUM(test_n),0),1) win_pct,SUM(CASE WHEN eligible_at_day_start=1 THEN 1 ELSE 0 END) eligible_days FROM sb_radar_ml_walkforward_v2 WHERE snapshot_id=? AND (scope=? AND scope_key=? OR scope='ALL' AND scope_key='*') AND eligible_at_day_start=1 GROUP BY scope,scope_key";
 const prospectSql="SELECT day_local,scope,scope_key,valid_on_time,min_sample_pass,train_n,train_w,train_l,test_n,test_w,test_l,test_pending,frozen_utc,last_checked_utc FROM sb_radar_ml_forward_frozen_v3 WHERE (scope=? AND scope_key=? OR scope='ALL' AND scope_key='*') ORDER BY day_local DESC LIMIT 10";
+const prospectRankingSql=(conditions)=>"SELECT scope,scope_key,COUNT(*) days,SUM(test_n) test_n,SUM(test_w) test_w,SUM(test_l) test_l,SUM(test_pending) test_pending,MAX(last_checked_utc) asof_utc FROM sb_radar_ml_forward_frozen_v3 WHERE valid_on_time=1 AND min_sample_pass=1 AND day_local>=? AND ("+conditions+") GROUP BY scope,scope_key";
 const slipNowSql="SELECT selection,status,COUNT(*) n,ROUND(SUM(stake_lei),2) stake_lei,ROUND(SUM(CASE WHEN status IN ('WON','LOST','VOID','CASHOUT') THEN COALESCE(returned_lei,0)-stake_lei END),2) settled_net_lei FROM ghost_equal_bets WHERE device_id=? AND event_id=? GROUP BY selection,status ORDER BY selection,status";
 const slip7Sql="SELECT a.model_version AS linked_model,b.selection,b.status,COUNT(*) n,ROUND(SUM(b.stake_lei),2) stake_lei,ROUND(SUM(CASE WHEN b.status IN ('WON','LOST','VOID','CASHOUT') THEN COALESCE(b.returned_lei,0)-b.stake_lei END),2) settled_net_lei FROM ghost_equal_bets b LEFT JOIN ghost_equal_alerts a ON a.event_id=b.event_id AND a.stage='BET_NOW' WHERE b.device_id=? AND b.placed_utc>=? AND b.selection='X' GROUP BY a.model_version,b.selection,b.status";
 function makeConditions(conditions){
@@ -64,11 +65,12 @@ export async function auditMlRisk(env,eventId,deviceId){
  }
  const wfScope=hb&&sb?'HOUR_SCORE':'ALL',wfKey=hb&&sb?hb+' | '+sb:'*';
  const since=new Date(Date.now()-7*86400000).toISOString();
- const [wf,forward,slipNow,slip7]=await Promise.all([
+ const [wf,forward,slipNow,slip7,prospectMatched]=await Promise.all([
   exec(env,histSql,SNAPSHOT,wfScope,wfKey).all(),
   exec(env,prospectSql,wfScope,wfKey).all(),
   exec(env,slipNowSql,deviceId,eventId).all(),
-  exec(env,slip7Sql,deviceId,since).all()
+  exec(env,slip7Sql,deviceId,since).all(),
+  groups.length?exec(env,prospectRankingSql(makeConditions(groups.map(x=>({dimension:x.dimension,key:x.key})))),new Date(Date.now()-8*86400000).toISOString().slice(0,10),...groups.flatMap(x=>[x.dimension,x.key])).all():Promise.resolve({results:[]})
  ]);
  const asof=rolling.find(x=>x.stat?.asof_utc)?.stat?.asof_utc||null;
  const evidence=rolling.find(x=>x.dimension==='HOUR_SCORE_ODDS')?.stat;
@@ -84,6 +86,7 @@ export async function auditMlRisk(env,eventId,deviceId){
   baseline:{snapshot_id:SNAPSHOT,period_label:'6–13 nov. 2026',segments:baseline,overlaps_rolling:true},
   retrospective_walkforward:{mode:'RETROSPECTIVE_NOT_PROSPECTIVE',scope:wfScope,key:wfKey,rows:wf.results||[]},
   prospective_walkforward:{mode:'FROZEN_EARLY_DAY_ONLY',rows:forward.results||[]},
+  prospective_rankings:{mode:'FROZEN_BEFORE_MATCH_DAY',asof_utc:new Date().toISOString(),rows:prospectMatched.results||[]},
   slip:{event_bets:slipNow.results||[],x_last_7d_by_alert:slip7.results||[]},
   caution:tooSmall?'INSUFFICIENT_COMBINATION_N':'HISTORICAL_ONLY_NO_GUARANTEE',
   notes:'All WIN/LOSS segments refer only to replay of ML LogReg V1; actual BET NOW and user slips are separate. Score is a logistic ranking, not P(draw). No stake recommendation.'
