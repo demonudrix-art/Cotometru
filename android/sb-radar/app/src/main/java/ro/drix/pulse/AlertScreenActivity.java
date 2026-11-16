@@ -81,6 +81,11 @@ public class AlertScreenActivity extends Activity {
     int line=purple?0xff477f99:red?0xff96723c:power?0xff8358a3:gold?0xff77623c:0xff336765;
     String raw=body==null?"":body.trim();
     String fixture=raw.isEmpty()?"Meci în monitorizare":raw.split("\\n",2)[0].trim();
+    // Golden Classic badges are delivered before the fixture by the live FCM Worker.
+    String oddsBadge=extract(fixture,"【(COTĂ 1,90–2,09)】","");
+    String dropBadge=extract(fixture,"【(AMBELE LENTE|UNA RAPIDĂ · UNA LENTĂ|AMBELE RAPIDE)】","");
+    String fixtureClean=fixture.replaceFirst("^(?:\\s*【[^】]+】)+\\s*","").trim();
+    if(fixtureClean.isEmpty())fixtureClean=fixture;
     String minute=extract(raw,"(?:MINUTUL|MIN\\.)\\s*(\\d{1,3})","—");
     String score=extract(raw,"(?:SCOR|Scor)\\s*(\\d+\\s*[–-]\\s*\\d+)","—");
     String odds=extract(raw,"COT[ĂA]\\s*(\\d+(?:[\\.,]\\d+)?)",
@@ -163,7 +168,22 @@ public class AlertScreenActivity extends Activity {
     rule.setBackgroundColor(accent);
     card.addView(rule,lp(-1,1));
     addGap(card,19);
-    TextView match=label(fixture,20,0xfff2f4f7,true,true);
+    // Large informational tags above the match name; never change betting decisions.
+    if(!oddsBadge.isEmpty()){
+      TextView oddsTag=label("✦ "+oddsBadge,19,0xffffe4a3,true,true);
+      oddsTag.setBackground(shape(0xff785522,0xffefc954,10));
+      oddsTag.setPadding(dp(10),dp(7),dp(10),dp(7));
+      card.addView(oddsTag,lp(-1,-2));
+      addGap(card,7);
+    }
+    if(!dropBadge.isEmpty()){
+      TextView dropTag=label(dropBadge,18,0xffe7fcff,true,true);
+      dropTag.setBackground(shape(0xff18313b,0xff63bfe3,10));
+      dropTag.setPadding(dp(10),dp(7),dp(10),dp(7));
+      card.addView(dropTag,lp(-1,-2));
+      addGap(card,9);
+    }
+    TextView match=label(fixtureClean,20,0xfff2f4f7,true,true);
     match.setShadowLayer(dp(4),0,0,accent);
     match.setMaxLines(3);
     match.setLineSpacing(dp(2),1f);
