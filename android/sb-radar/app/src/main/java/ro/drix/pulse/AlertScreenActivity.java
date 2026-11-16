@@ -91,7 +91,9 @@ public class AlertScreenActivity extends Activity {
     String odds=extract(raw,"COT[ĂA]\\s*(\\d+(?:[\\.,]\\d+)?)",
       extract(raw,"(?:Egal \\(X\\)|X @)\\s*(\\d+(?:[\\.,]\\d+)?)","—"));
     String category57=extract(raw,"CATEGORIA (?:GOLDEN )?X57:\\s*([^\\r\\n]+)","");
-    boolean test=raw.contains("test local")||raw.contains("NU PARIA");
+    // A user warning containing NU PARIA must never be mistaken for a TEST notification.
+    boolean mixedWarning=raw.contains("⚠ SCĂDERE MIXTĂ — NU PARIA");
+    boolean test=raw.contains("test local")||raw.contains("TEST FCM • NU PARIA")||raw.contains("DEMONSTRAȚIE • NU PARIA")||raw.contains("SIMULARE — NU PARIA")||raw.contains("MOD TEST");
     GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
       new int[]{0xff090e17,purple?0xff221532:red?0xff2b131e:gold?0xff191911:0xff0e2326,0xff080d15});
     ScrollView scroll=new ScrollView(this);
@@ -188,6 +190,18 @@ public class AlertScreenActivity extends Activity {
     match.setMaxLines(3);
     match.setLineSpacing(dp(2),1f);
     card.addView(match,lp(-1,-2));
+    // Caution is displayed UNDER the fixture; never suppresses or alters Slip preparation.
+    if(red&&mixedWarning){
+      addGap(card,9);
+      TextView warning=label("⚠ SCĂDERE MIXTĂ — NU PARIA",19,0xffffdfc7,true,true);
+      warning.setBackground(shape(0xff66302c,0xfffa8c64,10));
+      warning.setPadding(dp(10),dp(10),dp(10),dp(10));
+      warning.setMaxLines(3);
+      warning.setShadowLayer(dp(6),0,0,0xffa64a32);
+      card.addView(warning,lp(-1,-2));
+      TextView informative=label("DOAR INFORMATIV · Slip automat neschimbat",11,0xffffc5a9,true,true);
+      card.addView(informative,lp(-1,-2));
+    }
     if(!category57.isEmpty()){
       int categoryColor=category57.contains("NU PARIA")?0xffd899a4:0xffb5cbdd;
       TextView categoryCaption=label("CATEGORIA GOLDEN · "+category57,12,categoryColor,true,true);
