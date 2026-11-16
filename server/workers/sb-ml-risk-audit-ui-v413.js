@@ -88,31 +88,34 @@ function sbMlRiskAuditPanel(d){
   }else cell.append(text('div','Fără selecții ML decontate în ultimele 7 zile.','sb-risk-mini'));
   const old=b?.stat;
   if(old)cell.append(text('div','Arhivă 6–13 nov.: '+old.w+' WIN / '+old.l+' LOSS ('+old.n+') · ROI '+Number(old.roi_pct||0).toFixed(1)+'%','sb-risk-archive'));
-  profiles.push({dim,label,stat:seg?.stat,cell});
+  profiles.push({dim,label,key:seg?.key||b?.key||'',stat:seg?.stat,cell});
  }
  // Choose the most informative historical context automatically, not the highest raw WIN%.
  // Conservative Wilson-style penalty avoids pushing tiny, lucky buckets to the top.
  const now=Date.now(),asof=Date.parse(r.rolling?.asof_utc||'');
  const recent=Number.isFinite(asof)&&now-asof>=0&&now-asof<9000000;
+ const forward=new Map((r.prospective_rankings?.rows||[]).map(x=>[x.scope+'::'+x.scope_key,x]));
  function rank(p){
   const s=p.stat,n=Number(s?.n||0),o=Number(s?.avg_odds||0);
-  if(!recent||n<25||!Number.isFinite(o)||o<=1)return -Infinity;
-  const rate=Number(s.w||0)/n;
-  const uncertainty=1.64*Math.sqrt(Math.max(.0001,rate*(1-rate))/n);
+  const f=forward.get(p.dim+'::'+p.key),testN=Number(f?.test_w||0)+Number(f?.test_l||0);
+  // A prospectively frozen cohort can be promoted only after sufficient settled tests.
+  if(!recent||n<25||testN<20||Number(f?.days||0)<3||!Number.isFinite(o)||o<=1)return -Infinity;
+  const rate=Number(f.test_w||0)/testN;
+  const uncertainty=1.64*Math.sqrt(Math.max(.0001,rate*(1-rate))/testN);
   return rate-uncertainty-1/o;
  }
- const eligible=profiles.filter(p=>Number(p.stat?.n||0)>=25&&rank(p)>-Infinity)
+ const eligible=profiles.filter(p=>rank(p)>-Infinity)
     .sort((a,b)=>rank(b)-rank(a)||Number(b.stat.n)-Number(a.stat.n));
  const chosen=eligible[0]||profiles.filter(p=>Number(p.stat?.n||0)>0)
     .sort((a,b)=>Number(b.stat.n)-Number(a.stat.n))[0];
  if(chosen){
   chosen.cell.classList.add('emphasis');
-  root.append(text('div','🔄 CONTEXT SELECTAT AUTOMAT · '+chosen.label+
+  root.append(text('div','🔄 CONTEXT SELECTAT AUTOMAT '+(eligible.length?'(teste prospective)':'(istoric)')+' · '+chosen.label+
     ' · actualizat '+(recent?sbWlTime(r.rolling.asof_utc):'cu întârziere'),'sb-risk-context'));
   root.append(chosen.cell);
   const validated=rank(chosen)>0;
   const note=recent&&validated?
-    'Segment istoric cu balanță conservatoare favorabilă; avantajul pentru meciuri viitoare NU este validat.':
+    'Profil cu teste prospective înghețate anterior zilei meciului și rezultat conservator favorabil; încă nu garantează predicția următorului meci.':
     'Niciun profil nu are momentan un avantaj predictiv demonstrat; selecția afișează doar contextul statistic cel mai relevant.';
   root.append(text('div',note,'sb-risk-flag'+(recent?'':' danger')));
   if(profiles.length>1){
