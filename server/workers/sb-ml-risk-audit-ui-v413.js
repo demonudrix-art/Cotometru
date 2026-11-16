@@ -70,10 +70,11 @@ function sbMlRiskAuditPanel(d){
  const baseline=new Map((r.baseline?.segments||[]).map(x=>[x.dimension,x]));
  const labels=[['HOUR_GROUP','⏱ Ore'],['ML_SCORE','🧠 Interval ML'],['ODDS_X','📊 Cota X'],['HOUR_SCORE','⏳ Oră + ML'],['SCORE_ODDS','🧮 ML + cote'],['HOUR_SCORE_ODDS','⚡ COMBINAȚIE COMPLETĂ'],['TYPE','🏆 Tip competiție'],['HOUR_TYPE','🏆 Oră + tip']];
  const grid=text('div','','sb-risk-grid');
+ const profiles=[];
  for(const [dim,label] of labels){
   const seg=rolling.get(dim),b=baseline.get(dim);
   if(!seg&&!b)continue;
-  const cell=text('div','','sb-risk-seg'+(dim==='HOUR_SCORE_ODDS'?' emphasis':''));
+  const cell=text('div','','sb-risk-seg');
   cell.append(text('div',label,'sb-risk-name'));
   cell.append(text('div',(seg?.key||b?.key||'').replaceAll('GE_','≥').replaceAll('LT_','<').replaceAll('2.00_TO_2.14','2,00–2,14').replaceAll('0.60','0,60').replaceAll('_',' '),'sb-risk-bins'));
   const cur=seg?.stat;
@@ -87,10 +88,41 @@ function sbMlRiskAuditPanel(d){
   }else cell.append(text('div','Fără selecții ML decontate în ultimele 7 zile.','sb-risk-mini'));
   const old=b?.stat;
   if(old)cell.append(text('div','Arhivă 6–13 nov.: '+old.w+' WIN / '+old.l+' LOSS ('+old.n+') · ROI '+Number(old.roi_pct||0).toFixed(1)+'%','sb-risk-archive'));
-  grid.append(cell);
+  profiles.push({dim,label,stat:seg?.stat,cell});
  }
- if(grid.children.length)root.append(grid);
- else root.append(text('div','Nu există încă date statistice comparabile pentru acest profil.','sb-risk-flag'));
+ // Choose the most informative historical context automatically, not the highest raw WIN%.
+ // Conservative Wilson-style penalty avoids pushing tiny, lucky buckets to the top.
+ const now=Date.now(),asof=Date.parse(r.rolling?.asof_utc||'');
+ const recent=Number.isFinite(asof)&&now-asof>=0&&now-asof<9000000;
+ function rank(p){
+  const s=p.stat,n=Number(s?.n||0),o=Number(s?.avg_odds||0);
+  if(!recent||n<25||!Number.isFinite(o)||o<=1)return -Infinity;
+  const rate=Number(s.w||0)/n;
+  const uncertainty=1.64*Math.sqrt(Math.max(.0001,rate*(1-rate))/n);
+  return rate-uncertainty-1/o;
+ }
+ const eligible=profiles.filter(p=>Number(p.stat?.n||0)>=25&&rank(p)>-Infinity)
+    .sort((a,b)=>rank(b)-rank(a)||Number(b.stat.n)-Number(a.stat.n));
+ const chosen=eligible[0]||profiles.filter(p=>Number(p.stat?.n||0)>0)
+    .sort((a,b)=>Number(b.stat.n)-Number(a.stat.n))[0];
+ if(chosen){
+  chosen.cell.classList.add('emphasis');
+  root.append(text('div','🔄 CONTEXT SELECTAT AUTOMAT · '+chosen.label+
+    ' · actualizat '+(recent?sbWlTime(r.rolling.asof_utc):'cu întârziere'),'sb-risk-context'));
+  root.append(chosen.cell);
+  const validated=rank(chosen)>0;
+  const note=recent&&validated?
+    'Segment istoric cu balanță conservatoare favorabilă; avantajul pentru meciuri viitoare NU este validat.':
+    'Niciun profil nu are momentan un avantaj predictiv demonstrat; selecția afișează doar contextul statistic cel mai relevant.';
+  root.append(text('div',note,'sb-risk-flag'+(recent?'':' danger')));
+  if(profiles.length>1){
+    const more=document.createElement('details');more.className='sb-risk-details';
+    const label=document.createElement('summary');label.textContent='Compară alte '+(profiles.length-1)+' profiluri · arhiva';more.append(label);
+    for(const p of profiles)if(p!==chosen)grid.append(p.cell);
+    more.append(grid);root.append(more);
+  }
+ }else root.append(text('div','Nu există încă date recente și comparabile pentru acest profil.','sb-risk-flag'));
+ root.append(text('div','Rotația schimbă doar profilul explicativ din Audit, nu filtrele ML/Golden, alertele sau mizele.','sb-risk-context'));
  if(r.caution==='INSUFFICIENT_COMBINATION_N')root.append(text('div','⚠️ Combinația exactă oră + ML + cotă are sub 10 selecții sau nu are rezultate. Nu o considera avantaj confirmat.','sb-risk-flag danger'));
  if(r.metadata?.type==='YOUTH')root.append(text('div','⚠️ JUNIORI: verifică separat eșantionul, rezultatele și ligile; risc istoric observat, nu interdicție automată.','sb-risk-flag danger'));
  const detail=document.createElement('details');detail.className='sb-risk-details';
