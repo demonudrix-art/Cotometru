@@ -63,19 +63,24 @@ function sbWinlossGuide(v,x){
  const key=String(x?.event_id||0)+':'+(lg?.w??co?.w??0)+':'+(lg?.l??co?.l??0);
  const first=!sbWlSeen.has(key);sbWlSeen.add(key);if(sbWlSeen.size>1000)sbWlSeen.clear();
  const card=text('section','','sb-winloss-map sb-wl-cine'+(first?' sb-wl-enter':''));
- const head=text('div','','sb-wl-head');head.append(text('strong',sbWlFlag(country)+' HARTA WIN / LOSS · ML'));
+ const head=text('div','','sb-wl-head');head.append(text('strong',sbWlFlag(country)+' HARTA WIN / LOSS · ML · AUTO'));
  const status=String(v.ml_winloss_sync_status||''),stamp=String(v.ml_winloss_sync_utc||'');
  const fresh=status==='OK'&&Number.isFinite(Date.parse(stamp))&&Date.now()-Date.parse(stamp)<9000000;
  head.append(text('span',fresh?'● RECONTROL ORAR':'● RECONTROL ÎNTÂRZIAT','sb-wl-live'+(fresh?'':' stale')));
  card.append(head);card.append(text('div','Verificat '+sbWlTime(stamp)+' · actualizare din oră în oră · interval mobil 7 zile','sb-wl-muted'));
  const row=text('div','','');row.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px';
  const name=text('strong','','');row.append(name);
- const controls=text('div','','sb-wl-switch');row.append(controls);card.append(row);
+ const controls=text('div','','sb-wl-switch');card.append(row);
  const body=text('div','','');card.append(body);
  const modes=[];
  if(lg||lgBase)modes.push({code:'LEAGUE',label:'Ligă',fresh:lg,base:lgBase,actual:lgActual,name:String(v.oddalerts_league||lg?.league||lgBase?.league||'Liga')});
  if(co||coBase)modes.push({code:'COUNTRY',label:'Țară',fresh:co,base:coBase,actual:coActual,name:country+' · toate ligile'});
- let selected=modes[0]?.code||'COUNTRY';
+ // Prefer a current, adequately populated league; fall back to the broader country.
+ // This chooses the most interpretable context, not an empirically proven forecast.
+ const sufficient=modes.filter(m=>Number(m.fresh?.n||0)>=30);
+ const preferred=sufficient.find(m=>m.code==='LEAGUE')||sufficient.find(m=>m.code==='COUNTRY');
+ const largest=[...modes].sort((a,b)=>Number(b.fresh?.n||0)-Number(a.fresh?.n||0))[0];
+ let selected=(preferred||largest||modes[0])?.code||'COUNTRY';
  const buttons=new Map();
  for(const mode of modes){const button=document.createElement('button');button.type='button';button.textContent=mode.label;button.setAttribute('aria-pressed',String(mode.code===selected));button.onclick=()=>{selected=mode.code;render()};buttons.set(mode.code,button);controls.append(button)}
  function drawBar(holder,label,amount,total,win){
@@ -100,7 +105,10 @@ function sbWinlossGuide(v,x){
   const message=text('div',archived?'📁 Reper istoric 6–13 nov.; nu sunt încă rezultate comparabile recente.':w>l?'↗ Balanță istorică favorabilă; avantaj viitor neconfirmat.':l>w?'↘ Balanță istorică nefavorabilă; verifică liga înainte de decizie.':'◌ Balanță istorică echilibrată.','sb-wl-note'+(archived||n<10?' low':l>w?' risk':''));body.append(message);
   if(mode.base&&mode.fresh){
    const base=mode.base,pp=100*w/n-100*Number(base.w)/Number(base.n);
-   body.append(text('div','Reper 6–13 nov.: '+base.w+' WIN / '+base.l+' LOSS ('+base.n+')'+(n>=10&&Number(base.n)>=10?' · variație '+(pp>=0?'+':'')+pp.toFixed(1)+' pp':'')+' · perioade posibil suprapuse.','sb-wl-muted'));
+   const archive=document.createElement('details');archive.className='sb-wl-explain';
+   const archiveTitle=document.createElement('summary');archiveTitle.textContent='Reper istoric (13 nov.)';archive.append(archiveTitle);
+   archive.append(text('div','6–13 nov.: '+base.w+' WIN / '+base.l+' LOSS ('+base.n+')'+(n>=10&&Number(base.n)>=10?' · variație '+(pp>=0?'+':'')+pp.toFixed(1)+' pp':'')+' · perioade posibil suprapuse.','sb-wl-muted'));
+   body.append(archive);
   }
   const actual=mode.actual,act=text('div',actual?'📡 BET NOW reale, 7 zile: '+actual.w+' WIN / '+actual.l+' LOSS'+(Number(actual.pending)>0?' · '+actual.pending+' în așteptare':'')+' ('+actual.signals+' semnale).':'📡 BET NOW reale: încă fără semnale pentru această ligă/țară în 7 zile.','sb-wl-actual');
   body.append(act);
@@ -108,7 +116,9 @@ function sbWinlossGuide(v,x){
  render();
  if(youth){const warn=text('div','','sb-wl-warning');warn.append(text('strong','⚠️ JUNIORI / U19 / U21 · RISC ISTORIC'));
  const y=typ||sbWlData(v.ml_winloss_type_baseline);warn.append(text('div',y?'ML juniori: '+y.w+' WIN / '+y.l+' LOSS ('+y.n+' meciuri).':'Fără eșantion suficient pentru juniori.'));card.append(warn)}
- const detail=document.createElement('details');detail.className='sb-wl-explain';const summary=document.createElement('summary');summary.textContent='Cum se calculează?';detail.append(summary);
+ const detail=document.createElement('details');detail.className='sb-wl-explain';
+ const summary=document.createElement('summary');summary.textContent='Schimbă contextul Ligă / Țară · metodă';detail.append(summary);
+ detail.append(controls);
  detail.append(text('div','Recontrol orar al selecțiilor ML LogReg V1 în ultimele 7 zile, separat de Golden Classic. 📡 numără doar alertele BET NOW trimise efectiv, fără a le amesteca în replay. Reperul 6–13 noiembrie rămâne arhivat. Procentele nu sunt probabilitatea următorului meci, o notă de siguranță sau o recomandare de miză.',''));
  card.append(detail);return card;
 }
