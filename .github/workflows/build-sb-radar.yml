@@ -28,7 +28,7 @@ jobs:
           base64 --decode android/sb-radar/assets/sb_radar_launcher.webp.base64 > android/sb-radar/app/src/main/res/drawable-nodpi/sb_radar_icon.webp
           echo 'c2b85e0e5227527ca4dd86eada8ce9c5ca91dc2a8eae70c18ec10f0c62cb8d51  android/sb-radar/app/src/main/res/drawable-nodpi/sb_radar_icon.webp' | sha256sum -c -
       - name: Build APK
-        run: gradle --no-daemon -p android/sb-radar :app:assembleDebug
+        run: gradle --no-daemon -p android/sb-radar :app:assembleRelease
       - name: Package Android APK signer (public tool, no private keys)
         run: |
           TOOL="$(find "$ANDROID_HOME/build-tools" -name apksigner.jar -print -quit)"
@@ -42,8 +42,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         id: apk_upload
         with:
-          name: SB-Radar-v2.3.29-Background-Heartbeat-APK
-          path: android/sb-radar/app/build/outputs/apk/debug/app-debug.apk
+          name: SB-Radar-v2.3.41-Unsigned-Release-Build
+          path: android/sb-radar/app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 30
       - name: Save build artifact pointer
         shell: bash
