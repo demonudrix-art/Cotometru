@@ -41,9 +41,11 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
     String model=d.getOrDefault("model_version","").toUpperCase(Locale.ROOT);
     if("AWAY_57".equals(type))return; // retired signal family
           boolean classic="SB_GOLDEN_CLASSIC_00_M57_1PP_V1".equals(model);
-    boolean ml="SB_RADAR_ML_LOGREG_V1".equals(model);
+    boolean gap="true".equalsIgnoreCase(d.getOrDefault("gap_pattern_match","false"))||
+      "SB_RADAR_GAP_40_50_X50_V1".equalsIgnoreCase(d.getOrDefault("gap_model_version",""));
+    boolean ml=!gap&&"SB_RADAR_ML_LOGREG_V1".equals(model);
     // Only the restored live models; legacy priority labels must not reactivate retired families.
-    String category=classic?"GOLDEN TICKET":ml?"ML":
+    String category=gap?"GAP NAVY":classic?"GOLDEN TICKET":ml?"ML":
       isTest&&"GOLDEN TICKET".equals(label)?"GOLDEN TICKET":"";
     if(category.isEmpty())return;
     try{
@@ -54,7 +56,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       String px=d.getOrDefault("px","-");
       String score=d.getOrDefault("home_score","-")+"–"+d.getOrDefault("away_score","-");
       String tier57=d.getOrDefault("gold_category_label","");
-      String heading=isTest?"TEST FCM • NU PARIA":ml?"🧠 ML LOGREG V1 • 57′–59′":classic?"🟡 GOLDEN CLASSIC • 57′":"SEMNAL";
+      String heading=isTest?"TEST FCM • NU PARIA":gap?"🔵 GAP NAVY • X 50′ • +"+d.getOrDefault("gap50_pp","1.00")+" pp":ml?"🧠 ML SELECT • 2,05–2,09 · 5–7 pp":classic?"🟡 GOLDEN CLASSIC • 57′":"SEMNAL";
       String body=fixture+"\n"+heading+
         (tier57.isEmpty()?"":"\nREPER X57: "+tier57)+
         "\n⏱ MINUTUL "+minute+" • SCOR "+score+
@@ -62,7 +64,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
         "\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL";
       boolean high=message.getPriority()==RemoteMessage.PRIORITY_HIGH;
       AlertService.postFromFcm(this,category,event,fixture,body,
-        "/app?tab=live&event_id="+event,high,model+" "+priority);
+        "/app?tab=live&event_id="+event,high,model+" "+priority+(gap?" GAP_NAVY":""));
       // FCM was historically not acknowledged by the APK; acknowledge only real delivered alerts.
       // Keep the test queue isolated from the user's betting and signal history.
       if(!isTest){
