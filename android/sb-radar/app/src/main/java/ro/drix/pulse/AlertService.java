@@ -112,7 +112,10 @@ public class AlertService extends Service {
     return false;
   }
   private static synchronized void ringIfActive(Context context,int id){
-    if(!nightQuiet()&&canRing(context,id))AlertAttention.start(context);
+    // FCM already started vibration and its one-shot nature tone directly.
+    // Do NOT restart AlertAttention: doing so cancels the tone before it finishes.
+    // Retain this call for legacy foreground wake compatibility only.
+    if(!nightQuiet()&&canRing(context,id))return;
   }
   private static String signalTitle(boolean gold,String modelVersion){
     String normalized=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
