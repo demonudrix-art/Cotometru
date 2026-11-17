@@ -198,12 +198,12 @@ public class AlertService extends Service {
     Intent dismiss=new Intent(this,AlertDismissReceiver.class).setAction("ro.drix.pulse.SILENCE");
     dismiss.putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(this,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-    Notification.Builder b=builder(this,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setSmallIcon(purple?R.drawable.sbr_status_purple:R.drawable.sbr_status_red)
+    Notification.Builder b=builder(this,channel)
+      .setSmallIcon(isGap?R.drawable.sbr_alert_water:"ML".equals(category)?R.drawable.sbr_alert_wind:R.drawable.sbr_alert_bird)
        .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(this,id,path)).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
-      .setCategory(Notification.CATEGORY_ALARM).setColor(purple?0xffa879ff:0xfff54d61)
+      .setCategory(Notification.CATEGORY_ALARM).setColor(isGap?0xff3679c0:"ML".equals(category)?0xffe35b68:0xffe9b655)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
     if(!quiet&&(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
@@ -281,7 +281,7 @@ public class AlertService extends Service {
     PendingIntent full=PendingIntent.getActivity(ctx,id+400000,fs,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Intent dismiss=new Intent(ctx,AlertDismissReceiver.class).setAction("ro.drix.pulse.SILENCE").putExtra("notification_id",id);
     PendingIntent silent=PendingIntent.getBroadcast(ctx,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
-    Notification.Builder b=builder(ctx,channel).setSmallIcon(android.R.drawable.ic_dialog_info)
+    Notification.Builder b=builder(ctx,channel).setSmallIcon(isGap?R.drawable.sbr_alert_water:"ML".equals(category)?R.drawable.sbr_alert_wind:R.drawable.sbr_alert_bird)
       .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
       .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_ALARM)
       .setVisibility(Notification.VISIBILITY_PUBLIC).setPriority(Notification.PRIORITY_MAX)
