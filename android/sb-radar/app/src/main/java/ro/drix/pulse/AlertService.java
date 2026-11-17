@@ -17,6 +17,7 @@ public class AlertService extends Service {
   static final String CH_GOLD="sb_radar_golden_vibration_only_v240";
   static final String CH_ML="sb_radar_purple_vibration_only_v240";
   static final String CH_OCT31_ML="sb_radar_ml_logreg_vibration_only_v240";
+  static final String CH_GAP="sb_radar_gap_navy_soft_nature_v250";
   static final String CH_NIGHT="sb_radar_vibration_night_v2315";
   static final String CH_WINS="sb_radar_wins_vibration_only_v240";
   static final int FOREGROUND_ID=1310;
@@ -61,6 +62,11 @@ public class AlertService extends Service {
     octoberMl.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     octoberMl.enableVibration(true);octoberMl.setVibrationPattern(new long[]{0,500,250,500,350,700});
     octoberMl.setSound(null,null);mgr.createNotificationChannel(octoberMl);
+    NotificationChannel gap=new NotificationChannel(CH_GAP,"🔵 GAP NAVY • Natură discretă",NotificationManager.IMPORTANCE_HIGH);
+    gap.setDescription("GAP NAVY 40→50: vibrație, ecran și sunet natural delicat redat de aplicație; fără alarmă standard.");
+    gap.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+    gap.enableVibration(true);gap.setVibrationPattern(new long[]{0,300,160,300});
+    gap.setSound(null,null);mgr.createNotificationChannel(gap);
     NotificationChannel night=new NotificationChannel(CH_NIGHT,"SB Radar • Canal vibrație (compatibilitate)",NotificationManager.IMPORTANCE_HIGH);
     night.setDescription("Canal anterior de compatibilitate; setările utilizatorului sunt păstrate.");
     night.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
@@ -110,7 +116,8 @@ public class AlertService extends Service {
   }
   private static String signalTitle(boolean gold,String modelVersion){
     String normalized=modelVersion==null?"":modelVersion.toUpperCase(Locale.ROOT);
-    if(normalized.contains("SB_RADAR_ML_LOGREG_V1")||normalized.contains("ML_OCT31"))return "🧠 ML LOGREG V1 • 57′–59′ • SB Radar";
+    if(normalized.contains("GAP_NAVY")||normalized.contains("SB_RADAR_GAP"))return "🔵 GAP NAVY • X 50′ • SB Radar";
+    if(normalized.contains("SB_RADAR_ML_LOGREG_V1")||normalized.contains("ML_OCT31"))return "🧠 ML SELECT • X 2,05–2,09 · ↓ 5–7 pp • SB Radar";
     if(normalized.contains("SB_GOLDEN_CLASSIC_00_M57_1PP_V1"))return "🟡 GOLDEN CLASSIC • 57′ • SB Radar";
     if(normalized.contains("STRONG"))return "SB Radar • Filtru anterior";
     if(modelVersion!=null&&modelVersion.toUpperCase(Locale.ROOT).contains("GG_POWER"))return "⚡ GG POWER • 50 LEI • SB Radar";
@@ -173,7 +180,8 @@ public class AlertService extends Service {
       (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER"))));
     boolean gold="GOLDEN TICKET".equals(category)||"STRONG".equals(category);
     boolean quiet=nightQuiet();
-    String channel="ML".equals(category)?CH_OCT31_ML:purple?CH_ML:CH_GOLD;
+    boolean isGap="GAP NAVY".equals(category)||(modelVersion!=null&&modelVersion.contains("GAP_NAVY"));
+    String channel=isGap?CH_GAP:"ML".equals(category)?CH_OCT31_ML:purple?CH_ML:CH_GOLD;
     String title=signalTitle(gold,(modelVersion==null?"":modelVersion)+" "+category);
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     int id=notificationId==0?(gold?23201:23202):notificationId;
@@ -195,7 +203,7 @@ public class AlertService extends Service {
     if(!quiet&&(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
     getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE).edit().remove("dismissed_alert_"+id).commit();
     manager.notify(id,b.build());
-    if(!quiet)AlertAttention.start(this); // Night vibration is handled solely by the silent channel.
+    if(!quiet)AlertAttention.start(this,category); // Soft original nature tone; respects silent mode and notification volume.
   }
    private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
@@ -217,8 +225,9 @@ public class AlertService extends Service {
       boolean gold="GOLDEN TICKET".equals(category);
       boolean power="GG POWER".equals(category)||row.optString("model_version","").contains("GG_POWER")||row.optBoolean("gg_power",false);
       boolean ml="ML".equals(category)&&"SB_RADAR_ML_LOGREG_V1".equals(row.optString("model_version",""));
+      boolean gap=row.optBoolean("gap_pattern_match",false)||"GAP NAVY".equals(category)||row.optString("gap_model_version","").contains("SB_RADAR_GAP");
       boolean rush="GOLD RUSH".equals(category);
-      if(!win&&!gold&&!ml&&!rush&&!power&&!purple&&!red)continue; // Silver-only and retired filters never ring.
+      if(!win&&!gold&&!ml&&!gap&&!rush&&!power&&!purple&&!red)continue; // Silver-only and retired filters never ring.
       String key="notified_"+event+"_"+(win?"win":"betnow");
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
@@ -232,8 +241,8 @@ public class AlertService extends Service {
           .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
-      }else showSignal(ml?"ML":purple?"STRONG + SILVER":red?"STRONG":power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",
-        id,fixture,body,path,row.optString("model_version","")+" "+code,false);
+      }else showSignal(gap?"GAP NAVY":ml?"ML":purple?"STRONG + SILVER":red?"STRONG":power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",
+        id,fixture,gap?("🔵 GAP NAVY · X "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+" · GAP +"+String.format(Locale.US,"%.2f",row.optDouble("gap50_pp",0))+" pp\n"+body):body,path,row.optString("model_version","")+" "+code+(gap?" GAP_NAVY":""),false);
       prefs.edit().putBoolean(key,true).apply();
       if(!win){try{
         JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
@@ -246,7 +255,7 @@ public class AlertService extends Service {
   // Shared deduplication key prevents duplicate notifications from FCM and the 25-second polling fallback.
   static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority,String modelVersion){
     boolean strong=category!=null&&category.toUpperCase(Locale.ROOT).contains("STRONG");
-    if(event<=0||!("GOLDEN TICKET".equals(category)||"GOLD RUSH".equals(category)||"GG POWER".equals(category)||"ML".equals(category)||strong))return;
+    if(event<=0||!("GOLDEN TICKET".equals(category)||"GOLD RUSH".equals(category)||"GG POWER".equals(category)||"ML".equals(category)||"GAP NAVY".equals(category)||strong))return;
     SharedPreferences prefs=ctx.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE);
     String key="notified_"+event+"_betnow";
     if(prefs.getBoolean(key,false))return;
@@ -257,7 +266,8 @@ public class AlertService extends Service {
       (modelVersion!=null&&(modelVersion.contains("STRONG_SILVER")||modelVersion.contains("STRONG + SILVER"))));
     String title=signalTitle("GOLDEN TICKET".equals(category)||strong, (modelVersion==null?"":modelVersion)+" "+category);
     boolean quiet=nightQuiet();
-    String channel="ML".equals(category)?CH_OCT31_ML:purple?CH_ML:CH_GOLD;
+    boolean isGap="GAP NAVY".equals(category)||(modelVersion!=null&&modelVersion.contains("GAP_NAVY"));
+    String channel=isGap?CH_GAP:"ML".equals(category)?CH_OCT31_ML:purple?CH_ML:CH_GOLD;
     ensureUrgentChannels(ctx); // Required when FCM wakes a process with no monitor service.
     NotificationManager mgr=(NotificationManager)ctx.getSystemService(NOTIFICATION_SERVICE);
     Intent fs=new Intent(ctx,AlertScreenActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -279,7 +289,7 @@ public class AlertService extends Service {
       .putInt("fcm_last_channel_importance",activeChannel==null?0:activeChannel.getImportance()).apply();
     // Start attention immediately after displaying the native notification;
     // getActiveNotifications() may lag by a frame on Samsung when FCM wakes the app.
-    if(!quiet)AlertAttention.start(ctx);
+    if(!quiet)AlertAttention.start(ctx,category); // One short distinct Golden/ML/GAP nature tone.
     prefs.edit().putBoolean(key,true).apply();
     // High-priority FCM may start a foreground service while the screen is off.
     // It preserves vibration-only attention beyond onMessageReceived().
