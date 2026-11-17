@@ -139,11 +139,12 @@ public class AlertService extends Service {
     Notification foreground=builder(this,CH_MONITOR)
       .setSmallIcon(R.drawable.sbr_status_idle)
       .setContentTitle("SB Radar • LIVE INTELLIGENCE")
-      .setContentText("🟡 Golden Classic 57′ • 🧠 ML LogReg V1 57′–59′")
+      .setContentText("🔵 GAP NAVY 40′/50′ • 🟡 Golden 57′ • 🧠 ML 57′–59′")
       .setSubText("MONITORIZARE ACTIVĂ")
       .setStyle(new Notification.BigTextStyle().bigText(
         "🟡 Golden Classic • 0–0 la 57′\n" +
         "🧠 ML LogReg V1 • 57′–59′\n" +
+        "🔵 GAP NAVY • observație 40′, confirmare 50′\n" +
         "Alertele depind de conexiune și de restricțiile Android."))
       .setCategory(Notification.CATEGORY_SERVICE)
       .setColor(0xff6de7c7)
