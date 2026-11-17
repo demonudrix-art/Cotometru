@@ -154,10 +154,13 @@ public class AlertService extends Service {
       .addAction(R.drawable.sbr_status_ticket,"SLIP",open(this,FOREGROUND_ID+2,"/app?tab=slip"))
       .setOngoing(true).build();
     startForeground(FOREGROUND_ID,foreground);
-    if("TEST_GOLD".equals(action)||"TEST_RUSH".equals(action)){
-      boolean gold="TEST_GOLD".equals(action);
-      showSignal(gold?"GOLDEN TICKET":"GOLD RUSH",0,"Simulare notificare", "Acesta este un test local. Nu este un semnal real.\n⏱ MINUTUL 57 • SCOR 0–0\n🎯 PARIU EGAL (X) • COTĂ 2.10\nMIZĂ SUGERATĂ 20 LEI",
-        "/app?tab=live",gold?"":"SB_GOLD_RUSH_00_M57_X205_214_V1",true); 
+    if("TEST_GOLD".equals(action)||"TEST_ML".equals(action)||"TEST_GAP".equals(action)||"TEST_RUSH".equals(action)){
+      boolean golden="TEST_GOLD".equals(action),gap="TEST_GAP".equals(action);
+      String category=golden?"GOLDEN TICKET":gap?"GAP NAVY":"ML";
+      String model=golden?"SB_GOLDEN_CLASSIC_00_M57_1PP_V1":gap?"SB_RADAR_GAP_40_50_X50_V1 GAP_NAVY":"SB_RADAR_ML_LOGREG_V1";
+      showSignal(category,0,"TEST LOCAL • "+category,
+        "Test alerte naturale SB Radar, fără pariu real.\\n"+(golden?"Ciripit discret":gap?"Picături discrete":"Adiere discretă")+
+        "\\nVolumul telefonului rămâne nemodificat.", "/app?tab=live",model,true);
     }
     if("RING_FCM".equals(action)&&intent!=null)ringIfActive(this,intent.getIntExtra("notification_id",0));
     if(running)return START_STICKY;
@@ -311,7 +314,7 @@ public class AlertService extends Service {
 
   static void testAlert(Context c,String kind){
     Intent i=new Intent(c,AlertService.class);
-    i.setAction(("GOLD RUSH".equals(kind)||"ML".equals(kind))?"TEST_RUSH":"TEST_GOLD");
+    i.setAction("GAP NAVY".equals(kind)?"TEST_GAP":("ML".equals(kind)||"GOLD RUSH".equals(kind))?"TEST_ML":"TEST_GOLD");
     try{c.startForegroundService(i);}catch(Exception ignored){}
   }
   @Override public void onDestroy(){running=false;if(thread!=null)thread.interrupt();stopRinging();current=null;super.onDestroy();}
