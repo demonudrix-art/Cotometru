@@ -26,7 +26,7 @@ import java.util.UUID;
 
 public class MainActivity extends Activity implements SensorEventListener {
   static final String BASE="https://ghost-equal-alert-v1.drix-beast-xray.workers.dev";
-  static final String APP_VERSION="2.3.40";
+  static final String APP_VERSION=BuildConfig.VERSION_NAME;
   static final String PREF_NAME="drix_pulse";
   WebView web;
   TextView footer;
@@ -184,7 +184,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     buildNativeSplash();
     root.addView(nativeSurface,new LinearLayout.LayoutParams(-1,0,1f));
     buildNativeTabs();
-    footer=new TextView(this);footer.setText("APK "+APP_VERSION+"  •  Server —");
+    footer=new TextView(this);footer.setText("APK v"+APP_VERSION+"  •  Server v—");
     footer.setTextSize(10);footer.setTextColor(0xff97a5b4);footer.setPadding(14,5,12,7);footer.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);
     root.addView(footer,new LinearLayout.LayoutParams(-1,-2));
     setContentView(root);
@@ -225,7 +225,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         FirebaseBootstrap.onClaimReady(this);
         final String v;
         String value="—";try{value=new JSONObject(readHttp(BASE+"/api/mobile/version",token(this),null)).optString("server_version","—");}catch(Exception ignored){}
-        v=value;runOnUiThread(()->{footer.setText("APK "+APP_VERSION+"  •  Server "+v);openIntent(getIntent());});
+        v=value;runOnUiThread(()->{footer.setText("APK v"+APP_VERSION+"  •  Server v"+v);openIntent(getIntent());});
       }catch(Exception e){runOnUiThread(this::showOffline);}
     }).start();
   }
