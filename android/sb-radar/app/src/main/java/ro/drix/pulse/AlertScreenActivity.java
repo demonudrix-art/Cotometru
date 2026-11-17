@@ -70,15 +70,16 @@ public class AlertScreenActivity extends Activity {
     if(p!=null&&p.startsWith("/app?"))path=p;
     notificationId=intent.getIntExtra("notification_id",0);
     String liveTitle=title==null?"":title.toUpperCase(Locale.ROOT);
-    boolean purple=liveTitle.contains("ML LOGREG");
-    boolean red=!purple&&liveTitle.contains("GOLDEN CLASSIC");
+    boolean purple=liveTitle.contains("ML LOGREG")||liveTitle.contains("ML SELECT");
+    boolean navy=liveTitle.contains("GAP NAVY");
+    boolean red=!purple&&!navy&&(liveTitle.contains("GOLDEN CLASSIC")||liveTitle.contains("GOLDEN TICKET"));
     boolean gold=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLDEN TICKET");
     boolean rush=title!=null&&title.toUpperCase(Locale.ROOT).contains("GOLD RUSH");
     boolean power=title!=null&&title.toUpperCase(Locale.ROOT).contains("GG POWER");
     boolean hourly=title!=null&&title.contains("ANTRENAT ORAR");
-    accent=purple?0xff79e1f1:red?0xffffd479:power?0xffdfb0ff:gold?0xffeac16d:0xff69dcd3;
+    accent=navy?0xff70aaff:purple?0xffef6278:red?0xffffd479:power?0xffdfb0ff:gold?0xffeac16d:0xff69dcd3;
     int surface=0xff131a25;
-    int line=purple?0xff477f99:red?0xff96723c:power?0xff8358a3:gold?0xff77623c:0xff336765;
+    int line=navy?0xff3566a0:purple?0xff8d4658:red?0xff96723c:power?0xff8358a3:gold?0xff77623c:0xff336765;
     String raw=body==null?"":body.trim();
     String fixture=raw.isEmpty()?"Meci în monitorizare":raw.split("\\n",2)[0].trim();
     // Golden Classic badges are delivered before the fixture by the live FCM Worker.
@@ -93,9 +94,9 @@ public class AlertScreenActivity extends Activity {
     String category57=extract(raw,"CATEGORIA (?:GOLDEN )?X57:\\s*([^\\r\\n]+)","");
     // A user warning containing NU PARIA must never be mistaken for a TEST notification.
     boolean mixedWarning=raw.contains("⚠ SCĂDERE MIXTĂ — NU PARIA");
-    boolean test=raw.contains("test local")||raw.contains("TEST FCM • NU PARIA")||raw.contains("DEMONSTRAȚIE • NU PARIA")||raw.contains("SIMULARE — NU PARIA")||raw.contains("MOD TEST");
+    boolean test=liveTitle.contains("TEST LOCAL")||raw.toLowerCase(Locale.ROOT).contains("test local")||raw.contains("TEST FCM • NU PARIA")||raw.contains("DEMONSTRAȚIE • NU PARIA")||raw.contains("SIMULARE — NU PARIA")||raw.contains("MOD TEST");
     GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-      new int[]{0xff090e17,purple?0xff221532:red?0xff2b131e:gold?0xff191911:0xff0e2326,0xff080d15});
+      new int[]{0xff090e17,navy?0xff0c2543:purple?0xff281322:red?0xff2b2113:gold?0xff191911:0xff0e2326,0xff080d15});
     ScrollView scroll=new ScrollView(this);
     scroll.setFillViewport(true);
     scroll.setBackgroundColor(Color.TRANSPARENT);
@@ -115,13 +116,13 @@ public class AlertScreenActivity extends Activity {
     micro.setShadowLayer(dp(12),0,0,accent);
     root.addView(micro,lp(-1,-2));
     addGap(root,10);
-    TextView jackpot=label(purple?"✦  ML INTELLIGENCE  ✦":red?"✦  GOLDEN CLASSIC  ✦":
+    TextView jackpot=label(navy?"✦  GAP NAVY  ✦":purple?"✦  ML SELECT  ✦":red?"✦  GOLDEN CLASSIC  ✦":
       "✦  LIVE ALERT  ✦",23,accent,true,true);
     jackpot.setShadowLayer(dp(21),0,0,accent);
     jackpot.setLetterSpacing(.075f);
     root.addView(jackpot,lp(-1,-2));
     addGap(root,13);
-    TextView rarity=label(purple?"🧠  ML LOGREG V1  •  57′–59′":red?"🟡  GOLDEN CLASSIC  •  57′":
+    TextView rarity=label(navy?"GAP +1 pp  •  50′":purple?"ML SELECT  •  X 2,05–2,09":red?"GOLDEN CLASSIC  •  57′":
       "✦  SB RADAR  ✦",12,0xffffe6aa,true,true);
     rarity.setLetterSpacing(.10f);
     rarity.setShadowLayer(dp(14),0,0,accent);
@@ -133,35 +134,40 @@ public class AlertScreenActivity extends Activity {
     card.setGravity(Gravity.CENTER_HORIZONTAL);
     card.setPadding(dp(13),dp(20),dp(13),dp(17));
     GradientDrawable cardFrame=new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-      new int[]{0xf8131727,purple?0xf5211539:red?0xf52b1426:0xf5231726,0xf8131724});
+      new int[]{0xf8131727,navy?0xf51c3559:purple?0xf5351c29:red?0xf52d2517:0xf5231726,0xf8131724});
     cardFrame.setCornerRadius(dp(23));
     cardFrame.setStroke(dp(3),accent);
     card.setBackground(cardFrame);
     card.setElevation(dp(17));
     root.addView(card,lp(-1,-2));
 
-    TextView symbol=label(purple?"✦  NIVEL MAXIM  ✦":red?"✦  PRIORITATE ÎNALTĂ  ✦":
+    TextView symbol=label(navy?"✦  GAP CONFIRMAT  ✦":purple?"✦  ML SELECT  ✦":red?"✦  GOLDEN CLASSIC  ✦":
       power?"⚡ GG POWER":gold?"◇ GOLD":rush?"◈ RUSH":"⌁ TEST AI",12,accent,true,true);
     symbol.setLetterSpacing(.12f);
     symbol.setShadowLayer(dp(11),0,0,accent);
     card.addView(symbol,lp(-1,-2));
-    addGap(card,14);
-    TextView heading=label(purple?"ML LOGREG\nV1":red?"GOLDEN\nCLASSIC":
+    addGap(card,12);
+    NatureGlyphView natureIcon=new NatureGlyphView(this,navy?NatureGlyphView.WATER:purple?NatureGlyphView.WIND:NatureGlyphView.BIRD,accent);
+    natureIcon.setBackground(shape(navy?0xff152d4e:purple?0xff3c1e2e:0xff352b17,accent,18));
+    natureIcon.setPadding(dp(9),dp(9),dp(9),dp(9));
+    card.addView(natureIcon,lp(76,76));
+    addGap(card,11);
+    TextView heading=label(navy?"GAP\nNAVY":purple?"ML\nSELECT":red?"GOLDEN\nCLASSIC":
       power?"GG POWER":gold?"GOLDEN TICKET":rush?"GOLD RUSH":hourly?"ML • ANTRENAT ORAR":"SEMNAL",
-      purple||red?38:29,Color.WHITE,true,true);
+      purple||red||navy?38:29,Color.WHITE,true,true);
     heading.setLetterSpacing(.06f);
     heading.setShadowLayer(dp(18),0,0,accent);
     heading.setLineSpacing(dp(1),1f);
     card.addView(heading,lp(-1,-2));
     addGap(card,5);
-    TextView subtitle=label(test?"⚠ DEMONSTRAȚIE • NU PARIA":purple?"SCOR 0–0 • EGAL (X)":
-      red?"MINUTUL 57 • EGAL (X)":gold?"TE SUNĂ BANII!":"SEMNAL • EGAL (X)",
+    TextView subtitle=label(test?"⚠ DEMONSTRAȚIE • NU PARIA":navy?"GAP +1 pp • EGAL (X)":purple?"X 2,05–2,09 • ↓ 5–7 pp":
+      red?"MINUTUL 57 • EGAL (X)":gold?"GOLDEN TICKET":"SEMNAL • EGAL (X)",
       13,test?0xffffde94:accent,true,true);
     subtitle.setLetterSpacing(.12f);
     subtitle.setShadowLayer(dp(8),0,0,accent);
     card.addView(subtitle,lp(-1,-2));
     addGap(card,16);
-    TextView stakes=label(purple?"57′–59′":red?"57′":"⚡ LIVE",purple||red?41:35,Color.WHITE,true,true);
+    TextView stakes=label(navy?"50′":purple?"57′–59′":red?"57′":"⚡ LIVE",purple||red||navy?41:35,Color.WHITE,true,true);
     stakes.setLetterSpacing(.06f);
     stakes.setShadowLayer(dp(26),0,0,accent);
     card.addView(stakes,lp(-1,-2));
@@ -227,8 +233,8 @@ public class AlertScreenActivity extends Activity {
       row.addView(chip,params);
     }
     addGap(card,17);
-    TextView note=label(test?"⚠ MOD TEST • NU PLASA PARIURI":purple?"STRONG + SILVER • VERIFICĂ PREȚUL X":
-      red?"GOLDEN STRONG • VERIFICĂ PREȚUL X":"Verifică prețul X înainte de plasare",
+    TextView note=label(test?"⚠ MOD TEST • NU PLASA PARIURI":navy?"GAP NAVY • VERIFICĂ PREȚUL X":purple?"ML SELECT • VERIFICĂ PREȚUL X":
+      red?"GOLDEN CLASSIC • VERIFICĂ PREȚUL X":"Verifică prețul X înainte de plasare",
       11,test?0xffffde94:0xffcbd1de,true,true);
     card.addView(note,lp(-1,-2));
 
@@ -241,8 +247,9 @@ public class AlertScreenActivity extends Activity {
     open.setAllCaps(false);
     open.setTextColor(0xff091018);
     GradientDrawable openBg=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-      purple?new int[]{0xff811cff,0xffe5aaff,0xff8f27ff}:
-      red?new int[]{0xffdd1a41,0xffff97a6,0xffdf254b}:
+      navy?new int[]{0xff244a8f,0xffa0d3ff,0xff3172ca}:
+      purple?new int[]{0xffba304f,0xffffb1c1,0xffd94363}:
+      red?new int[]{0xffcd9639,0xffffe4a3,0xffe4b65d}:
       new int[]{0xffdda14a,0xffffffcf,0xffdca055});
     openBg.setCornerRadius(dp(12));
     open.setBackground(openBg);
@@ -268,7 +275,7 @@ public class AlertScreenActivity extends Activity {
     dismiss.setOnClickListener(v->{stopAndDismiss();finish();});
 
     addGap(root,19);
-    TextView foot=label("ALERTĂ SONORĂ   •   MAX. 45 SECUNDE",10,0xff82909d,true,false);
+    TextView foot=label("SUNET NATURAL DISCRET · VIBRAȚIE · FĂRĂ VOLUM FORȚAT",10,0xff82909d,true,false);
     foot.setLetterSpacing(.08f);
     foot.setShadowLayer(dp(6),0,0,accent);
     root.addView(foot,lp(-1,-2));
@@ -294,6 +301,9 @@ public class AlertScreenActivity extends Activity {
       jackpot.setScaleX(1f+.15f*wave);jackpot.setScaleY(1f+.15f*wave);
       stakes.setScaleX(1f+.15f*wave);stakes.setScaleY(1f+.15f*wave);
       rarity.setAlpha(.6f+.4f*wave);
+      natureIcon.setRotation(navy?0f:purple?1.8f*(2*wave-1):5.0f*(2*wave-1));
+      natureIcon.setTranslationY(navy?dp(2.5f*(1-wave)):purple?0f:dp(1.5f*(1-wave)));
+      natureIcon.setScaleX(0.98f+.06f*wave);natureIcon.setScaleY(0.98f+.06f*wave);
       cardFrame.setStroke(dp(3+5*wave),Color.argb(182+(int)(73*wave),
         Color.red(accent),Color.green(accent),Color.blue(accent)));
     });
