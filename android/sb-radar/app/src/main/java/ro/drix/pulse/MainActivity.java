@@ -527,7 +527,8 @@ public class MainActivity extends Activity implements SensorEventListener {
     @JavascriptInterface public void retry(){runOnUiThread(()->enrollAndOpen());}
     @JavascriptInterface public void testNotification(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GOLDEN TICKET"));}
     @JavascriptInterface public void testGoldenAlert(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GOLDEN TICKET"));}
-    @JavascriptInterface public void testMlAlert(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GOLD RUSH"));}
+    @JavascriptInterface public void testMlAlert(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"ML"));}
+    @JavascriptInterface public void testGapAlert(){runOnUiThread(()->AlertService.testAlert(MainActivity.this,"GAP NAVY"));}
     @JavascriptInterface public void openAdminConsole(){runOnUiThread(()->startActivity(new Intent(MainActivity.this,AdminConsoleActivity.class)));}
     @JavascriptInterface public void autoTicketPlaced(String ticketId,String fixture,double stake){runOnUiThread(()->AutoTicketNotifier.post(MainActivity.this,ticketId,fixture,"",stake));}
     @JavascriptInterface public void setupFullScreenAlerts(){runOnUiThread(()->openFullScreenSettings());}
