@@ -19,7 +19,8 @@ final class AlertAttention {
   private static Runnable timeout;
   private static volatile int soundGeneration=0;
   private static final int SAMPLE_RATE=22050;
-  private static final float QUIET_VOLUME=0.085f; // applied after respecting Android notification volume
+  private static final float QUIET_VOLUME=0.085f; // unchanged for Golden/GAP
+  private static final float ML_WIND_VOLUME=0.42f; // only ML wind; never overrides silent/DND
 
   static synchronized void start(Context context) {
     start(context,"GENERIC"); // legacy RING_FCM stage: vibration only, no duplicate sound
@@ -69,9 +70,11 @@ final class AlertAttention {
         .setTransferMode(AudioTrack.MODE_STATIC).setBufferSizeInBytes(pcm.length*2).build();
       if(track.getState()!=AudioTrack.STATE_INITIALIZED||generation!=soundGeneration)return;
       if(track.write(pcm,0,pcm.length)<pcm.length||generation!=soundGeneration)return;
-      track.setVolume(QUIET_VOLUME);
+      final String upper=category.toUpperCase(java.util.Locale.ROOT);
+      final boolean mlWind=!upper.contains("GOLD")&&!upper.contains("GAP")&&!upper.contains("NAVY");
+      track.setVolume(mlWind?ML_WIND_VOLUME:QUIET_VOLUME);
       track.play();
-      Thread.sleep(1000);
+      Thread.sleep(pcm.length*1000L/SAMPLE_RATE+120L);
     }catch(Exception ignored){
       // Notification and vibration must remain available even when playback is restricted.
     }finally{
@@ -82,7 +85,9 @@ final class AlertAttention {
     }
   }
   private static short[] createNaturePcm(String category){
-    final int n=(int)(SAMPLE_RATE*0.88);
+    final String audioType=category.toUpperCase(java.util.Locale.ROOT);
+    final double duration=(audioType.contains("GOLD")||audioType.contains("GAP")||audioType.contains("NAVY"))?0.88:1.72;
+    final int n=(int)(SAMPLE_RATE*duration);
     final short[] out=new short[n];
     final String type=category.toUpperCase(java.util.Locale.ROOT);
     final boolean gap=type.contains("GAP")||type.contains("NAVY");
@@ -116,9 +121,10 @@ final class AlertAttention {
         // ML: a quiet airy leaf/breeze wash, slightly pitched and without sharp alarms.
         seed=(seed*1664525L+1013904223L)&0xffffffffL;
         double noise=((seed>>>12)&0xffff)/32768.0-1.0;
-        double env=Math.pow(Math.sin(Math.PI*t/0.88),2);
-        phase+=(2*Math.PI*(355+33*Math.sin(2*Math.PI*t*1.9)))/SAMPLE_RATE;
-        v=env*(0.22*Math.sin(phase)+0.09*Math.sin(phase*1.51)+0.055*noise);
+        double env=Math.pow(Math.max(0,Math.sin(Math.PI*t/duration)),1.7);
+        double gust=0.78+0.22*Math.sin(2*Math.PI*t*1.65-0.8);
+        phase+=(2*Math.PI*(305+28*Math.sin(2*Math.PI*t*1.5)))/SAMPLE_RATE;
+        v=env*gust*(0.32*Math.sin(phase)+0.13*Math.sin(phase*1.51)+0.095*noise);
       }
       // PCM amplitude stays low even before per-track quiet gain.
       out[i]=(short)(Math.max(-1,Math.min(1,v))*16500);
