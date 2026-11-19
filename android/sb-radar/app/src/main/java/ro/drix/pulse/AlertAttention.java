@@ -161,9 +161,4 @@ final class AlertAttention {
     }
     return out;
   }
-  static synchronized void stop(){
-    soundGeneration++;
-    if(timeout!=null){HANDLER.removeCallbacks(timeout);timeout=null;}
-    if(vibrator!=null){try{vibrator.cancel();}catch(Exception ignored){}vibrator=null;}
-  }
 }
