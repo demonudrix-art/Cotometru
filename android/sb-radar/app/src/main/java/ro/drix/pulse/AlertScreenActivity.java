@@ -275,7 +275,7 @@ public class AlertScreenActivity extends Activity {
     dismiss.setOnClickListener(v->{stopAndDismiss();finish();});
 
     addGap(root,19);
-    TextView foot=label("SUNET NATURAL DISCRET · VIBRAȚIE · FĂRĂ VOLUM FORȚAT",10,0xff82909d,true,false);
+    TextView foot=label("SUNET NATURAL REPETAT · VIBRAȚIE · OPREȘTE ALERTA",10,0xff82909d,true,false);
     foot.setLetterSpacing(.08f);
     foot.setShadowLayer(dp(6),0,0,accent);
     root.addView(foot,lp(-1,-2));

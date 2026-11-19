@@ -6,44 +6,43 @@ import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
-/** Quiet original nature tones + vibration. Never touches system volume or uses ALARM audio. */
+/** Repeating natural alert tones until dismissed. Honors user media/silent/DND settings. */
 final class AlertAttention {
-  private static final Handler HANDLER=new Handler(Looper.getMainLooper());
-  private static final long MAX_ATTENTION_MS=45000;
-  private static Vibrator vibrator;
-  private static Runnable timeout;
-  private static volatile int soundGeneration=0;
   private static final int SAMPLE_RATE=22050;
-  private static final float QUIET_VOLUME=0.085f; // unchanged for Golden/GAP
-  private static final float ML_WIND_VOLUME=0.42f; // only ML wind; never overrides silent/DND
+  // Higher native gain, never modifies the device's actual notification volume.
+  private static final float NATURE_VOLUME=0.82f;
+  private static final long BETWEEN_TONES_MS=1650L;
+  private static volatile int soundGeneration=0;
+  private static volatile AudioTrack activeTrack;
+  private static Thread soundThread;
+  private static Vibrator vibrator;
 
   static synchronized void start(Context context) {
-    start(context,"GENERIC"); // legacy RING_FCM stage: vibration only, no duplicate sound
+    start(context,"GENERIC"); // Legacy vibration-only path.
   }
+
   static synchronized void start(Context context,String category) {
     stop();
+    final Context app=context.getApplicationContext();
     try{
-      vibrator=(Vibrator)context.getApplicationContext().getSystemService(Context.VIBRATOR_SERVICE);
+      vibrator=(Vibrator)app.getSystemService(Context.VIBRATOR_SERVICE);
       if(vibrator!=null&&vibrator.hasVibrator()) {
-        vibrator.vibrate(VibrationEffect.createWaveform(new long[]{0,360,180,360,250,420},-1));
+        // Three vibration pulses followed by a pause; repeats until dismissed.
+        vibrator.vibrate(VibrationEffect.createWaveform(
+          new long[]{0,460,210,460,260,460,2050},0));
       }
     }catch(Exception ignored){}
-    int generation=soundGeneration;
-    if(shouldPlay(context,category)){
-      final Context app=context.getApplicationContext();
-      final String kind=category;
-      Thread sound=new Thread(()->playNatureTone(app,kind,generation),"SB-Radar-Nature-Tone");
-      sound.setDaemon(true);
-      sound.start();
-    }
-    timeout=AlertAttention::stop;
-    HANDLER.postDelayed(timeout,MAX_ATTENTION_MS);
+    if(category==null||"GENERIC".equalsIgnoreCase(category))return;
+    final int generation=soundGeneration;
+    final String kind=category;
+    soundThread=new Thread(()->playNatureLoop(app,kind,generation),"SB-Radar-Nature-Loop");
+    soundThread.setDaemon(true);
+    soundThread.start();
   }
+
   private static boolean shouldPlay(Context ctx,String category){
     if(category==null||"GENERIC".equalsIgnoreCase(category))return false;
     try{
@@ -51,39 +50,70 @@ final class AlertAttention {
       NotificationManager nm=(NotificationManager)ctx.getSystemService(Context.NOTIFICATION_SERVICE);
       if(audio==null||audio.getRingerMode()!=AudioManager.RINGER_MODE_NORMAL)return false;
       if(audio.getStreamVolume(AudioManager.STREAM_NOTIFICATION)==0)return false;
-      // DND, priority-only, silent and vibrate modes are respected, not overridden.
+      // Never bypass Do Not Disturb or force ringer or notification volume.
       if(nm!=null&&nm.getCurrentInterruptionFilter()!=NotificationManager.INTERRUPTION_FILTER_ALL)return false;
       return true;
     }catch(Exception ignored){return false;}
   }
-  private static void playNatureTone(Context ctx,String category,int generation){
-    AudioTrack track=null;
-    try{
-      final short[] pcm=createNaturePcm(category);
-      final AudioAttributes attributes=new AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
-        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
-      final AudioFormat format=new AudioFormat.Builder()
-        .setSampleRate(SAMPLE_RATE).setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build();
-      track=new AudioTrack.Builder().setAudioAttributes(attributes).setAudioFormat(format)
-        .setTransferMode(AudioTrack.MODE_STATIC).setBufferSizeInBytes(pcm.length*2).build();
-      if(track.getState()!=AudioTrack.STATE_INITIALIZED||generation!=soundGeneration)return;
-      if(track.write(pcm,0,pcm.length)<pcm.length||generation!=soundGeneration)return;
-      final String upper=category.toUpperCase(java.util.Locale.ROOT);
-      final boolean mlWind=!upper.contains("GOLD")&&!upper.contains("GAP")&&!upper.contains("NAVY");
-      track.setVolume(mlWind?ML_WIND_VOLUME:QUIET_VOLUME);
-      track.play();
-      Thread.sleep(pcm.length*1000L/SAMPLE_RATE+120L);
-    }catch(Exception ignored){
-      // Notification and vibration must remain available even when playback is restricted.
-    }finally{
-      if(track!=null){
-        try{track.stop();}catch(Exception ignored){}
-        try{track.release();}catch(Exception ignored){}
+
+  private static boolean pauseUntilNext(long millis,int generation){
+    final long end=android.os.SystemClock.uptimeMillis()+millis;
+    while(generation==soundGeneration&&!Thread.currentThread().isInterrupted()){
+      long remain=end-android.os.SystemClock.uptimeMillis();
+      if(remain<=0)return true;
+      try{Thread.sleep(Math.min(remain,120L));}
+      catch(InterruptedException e){Thread.currentThread().interrupt();return false;}
+    }
+    return false;
+  }
+
+  private static void playNatureLoop(Context ctx,String category,int generation){
+    final short[] pcm=createNaturePcm(category);
+    final AudioAttributes attributes=new AudioAttributes.Builder()
+      .setUsage(AudioAttributes.USAGE_NOTIFICATION_EVENT)
+      .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+    final AudioFormat format=new AudioFormat.Builder()
+      .setSampleRate(SAMPLE_RATE).setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+      .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build();
+    while(generation==soundGeneration&&!Thread.currentThread().isInterrupted()){
+      if(!shouldPlay(ctx,category)){
+        if(!pauseUntilNext(400L,generation))break;
+        continue;
       }
+      AudioTrack track=null;
+      try{
+        track=new AudioTrack.Builder().setAudioAttributes(attributes).setAudioFormat(format)
+          .setTransferMode(AudioTrack.MODE_STATIC).setBufferSizeInBytes(pcm.length*2).build();
+        if(track.getState()!=AudioTrack.STATE_INITIALIZED)break;
+        if(track.write(pcm,0,pcm.length)<pcm.length)break;
+        synchronized(AlertAttention.class){
+          if(generation!=soundGeneration)break;
+          activeTrack=track;
+        }
+        track.setVolume(NATURE_VOLUME);
+        track.play();
+        if(!pauseUntilNext(pcm.length*1000L/SAMPLE_RATE+120L,generation))break;
+      }catch(Exception ignored){
+        if(!pauseUntilNext(900L,generation))break;
+      }finally{
+        synchronized(AlertAttention.class){if(activeTrack==track)activeTrack=null;}
+        if(track!=null){
+          try{track.stop();}catch(Exception ignored){}
+          try{track.release();}catch(Exception ignored){}
+        }
+      }
+      if(!pauseUntilNext(BETWEEN_TONES_MS,generation))break;
     }
   }
+
+  static synchronized void stop(){
+    soundGeneration++;
+    if(soundThread!=null){soundThread.interrupt();soundThread=null;}
+    AudioTrack track=activeTrack;activeTrack=null;
+    if(track!=null){try{track.pause();track.flush();track.stop();}catch(Exception ignored){}}
+    if(vibrator!=null){try{vibrator.cancel();}catch(Exception ignored){}vibrator=null;}
+  }
+
   private static short[] createNaturePcm(String category){
     final String audioType=category.toUpperCase(java.util.Locale.ROOT);
     final double duration=(audioType.contains("GOLD")||audioType.contains("GAP")||audioType.contains("NAVY"))?0.88:1.72;

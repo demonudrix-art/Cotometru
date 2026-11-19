@@ -202,7 +202,7 @@ public class AlertService extends Service {
     Notification.Builder b=builder(this,channel)
       .setSmallIcon(isGap?R.drawable.sbr_alert_water:"ML".equals(category)?R.drawable.sbr_alert_wind:R.drawable.sbr_alert_bird)
        .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
-      .setContentIntent(open(this,id,path)).setAutoCancel(true)
+      .setContentIntent(full).setAutoCancel(true)
       .setPriority(Notification.PRIORITY_MAX).setVisibility(Notification.VISIBILITY_PUBLIC)
       .setCategory(Notification.CATEGORY_ALARM).setColor(isGap?0xff3679c0:"ML".equals(category)?0xffe35b68:0xffe9b655)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
@@ -284,7 +284,7 @@ public class AlertService extends Service {
     PendingIntent silent=PendingIntent.getBroadcast(ctx,id,dismiss,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Notification.Builder b=builder(ctx,channel).setSmallIcon(isGap?R.drawable.sbr_alert_water:"ML".equals(category)?R.drawable.sbr_alert_wind:R.drawable.sbr_alert_bird)
       .setContentTitle(title).setContentText(fixture+" • EGAL (X)").setStyle(new Notification.BigTextStyle().bigText(body))
-      .setContentIntent(open(ctx,id,path)).setAutoCancel(true).setCategory(Notification.CATEGORY_ALARM)
+      .setContentIntent(full).setAutoCancel(true).setCategory(Notification.CATEGORY_ALARM)
       .setVisibility(Notification.VISIBILITY_PUBLIC).setPriority(Notification.PRIORITY_MAX)
       .setDeleteIntent(silent).setOnlyAlertOnce(true)
       .addAction(android.R.drawable.ic_media_pause,"Închide alerta",silent);
@@ -294,9 +294,9 @@ public class AlertService extends Service {
     NotificationChannel activeChannel=mgr.getNotificationChannel(channel);
     prefs.edit().putBoolean("fcm_last_fsi_requested",!quiet&&(Build.VERSION.SDK_INT<34||mgr.canUseFullScreenIntent()))
       .putInt("fcm_last_channel_importance",activeChannel==null?0:activeChannel.getImportance()).apply();
-    // Start attention immediately after displaying the native notification;
+    // Start repeating attention immediately after displaying the native notification;
     // getActiveNotifications() may lag by a frame on Samsung when FCM wakes the app.
-    if(!quiet)AlertAttention.start(ctx,category); // One short distinct Golden/ML/GAP nature tone.
+    if(!quiet)AlertAttention.start(ctx,category); // Audible, repeating natural tone and vibration until dismiss.
     prefs.edit().putBoolean(key,true).apply();
     // High-priority FCM may start a foreground service while the screen is off.
     // It preserves vibration-only attention beyond onMessageReceived().
