@@ -33,6 +33,11 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       }catch(Exception e){android.util.Log.w("SB_Radar_FCM","Auto ticket receipt invalid",e);}
       return;
     }
+    // Independent X57 research alert: never masquerades as BET_NOW, ML, GAP or Golden.
+    if("X57_HALF".equals(d.get("stage")) || "X57_CONFIRM".equals(d.get("stage"))){
+      X57CoreaNotifier.post(this,d);
+      return;
+    }
     if(!"BET_NOW".equals(d.get("stage")))return;
     boolean isTest="true".equalsIgnoreCase(d.getOrDefault("test","false"));
     String label=d.getOrDefault("signal_label","").toUpperCase(Locale.ROOT).trim();
