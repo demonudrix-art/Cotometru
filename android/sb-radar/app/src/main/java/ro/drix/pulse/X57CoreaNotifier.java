@@ -81,21 +81,19 @@ final class X57CoreaNotifier {
       final String px = decimal(data.get("px"));
       final String gh = generosityPct(data.get("gh"));
       final String ga = generosityPct(data.get("ga"));
-      final String title = confirmed
-          ? "🧬 X57 COREA • CONFIRMAT 57′"
-          : "🧬 X57 COREA • CANDIDAT LA PAUZĂ";
+      final String title = "🧬 X57 COREA · PIAȚA SE TEME";
       final String body = fixture + "\n"
-          + (confirmed ? "0–0 la min. " + minute + " · toate condițiile X57 verificate"
-                       : "0–0 la pauză · candidatură preliminară, încă NEconfirmată") + "\n"
+          + (confirmed ? "✅ CONFIRMAT 57′ · 0–0 la min. " + minute + " · criteriile X57 îndeplinite"
+                       : "🕒 CANDIDAT PAUZĂ · 0–0 · așteaptă verificarea de la 57′") + "\n"
           + "X45: " + x45 + " · X acum: " + px + "\n"
           + (confirmed ? "Generosity: acasă " + gh + " · deplasare " + ga + "\n" : "")
           + "Experimental • NU este BET NOW și NU pune bilet automat";
       final int notificationId = (int) (eventId % 150000) + (confirmed ? 880000 : 710000);
 
       final Notification note = new Notification.Builder(context, channelId)
-          .setSmallIcon(R.drawable.sbr_status_goalwatch)
+          .setSmallIcon(R.drawable.sbr_alert_dna)
           .setContentTitle(title)
-          .setContentText(fixture + (confirmed ? " · X " + px : " · urmărește minutul 57"))
+          .setContentText((confirmed ? "✓ CONFIRMAT · " : "◉ CANDIDAT · ") + fixture + " · X " + px)
           .setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(AlertService.open(context, notificationId,
               "/app?tab=live&event_id=" + eventId))
