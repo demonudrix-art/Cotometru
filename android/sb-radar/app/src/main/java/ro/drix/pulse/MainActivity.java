@@ -410,6 +410,14 @@ public class MainActivity extends Activity implements SensorEventListener {
     String tab="live",id=null,bet=null;
     Uri u=intent==null?null:intent.getData();
     if(u!=null){tab="slip".equals(u.getQueryParameter("tab"))?"slip":"live";id=u.getQueryParameter("event_id");bet=u.getQueryParameter("bet_id");}
+    else if(intent!=null){
+      // FCM notification payloads from Android's system tray have extras, not a URI.
+      String stage=intent.getStringExtra("stage");
+      String requestedTab=intent.getStringExtra("tab");
+      tab="BET_WON".equals(stage)||"slip".equals(requestedTab)?"slip":"live";
+      id=intent.getStringExtra("event_id");
+      bet=intent.getStringExtra("bet_id");
+    }
     String path="/app?tab="+tab;
     if(id!=null&&id.matches("[0-9]{1,16}"))path+="&event_id="+id;
     if(bet!=null&&bet.matches("[0-9]{1,16}"))path+="&bet_id="+bet;
