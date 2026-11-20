@@ -38,6 +38,11 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       X57CoreaNotifier.post(this,d);
       return;
     }
+    // Separate informational and decontated-WIN FCM; never enter BET_NOW pipeline.
+    if("X_COVERAGE_INFO".equals(d.get("stage")) || "BET_WON".equals(d.get("stage"))){
+      RadarInfoWinNotifier.post(this,d);
+      return;
+    }
     if(!"BET_NOW".equals(d.get("stage")))return;
     boolean isTest="true".equalsIgnoreCase(d.getOrDefault("test","false"));
     String label=d.getOrDefault("signal_label","").toUpperCase(Locale.ROOT).trim();
