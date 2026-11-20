@@ -60,7 +60,7 @@ final class RadarInfoWinNotifier {
     }
     final int notificationId=(int)((win?betId:eventId)%200000)+(win?770000:550000);
     final Notification note=new Notification.Builder(context,channelId)
-      .setSmallIcon(win?android.R.drawable.star_big_on:R.drawable.sbr_alert_dna)
+      .setSmallIcon(win?android.R.drawable.ic_dialog_info:R.drawable.sbr_alert_dna)
       .setContentTitle(title)
       .setContentText(fixture)
       .setStyle(new Notification.BigTextStyle().bigText(body))
