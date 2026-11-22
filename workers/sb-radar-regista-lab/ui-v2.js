@@ -445,9 +445,16 @@ function sbPeekMount(){
    '<span id="sbMiniRegista" class="sb-mini-regista">♜ Regista · program</span>'+
    '<button class="sb-mini-search" id="sbPeekSearchToggle" type="button" aria-label="Deschide căutarea" aria-expanded="false">⌕</button>'+
    '<span aria-hidden="true" class="sb-mini-arrow">⌄</span></summary>'+
-   '<div class="sb-mini-pane"><div id="sbMiniCheck">♜ Regista · verificările sunt separate de BET NOW</div>'+
-   '<details id="sbMiniFuture"><summary>♜ Meciuri Regista programate</summary><div id="sbMiniFutureList"></div></details>'+
-   '<details id="sbMiniRoadSub"><summary>🟡 Golden / 🔵 GAP · monitorizare detaliată</summary></details></div>';
+   '<div class="sb-mini-pane sb-cine-pane">'+
+   '<div class="sb-cine-head"><span class="sb-cine-flare" aria-hidden="true">✦</span><span>RADAR · URMĂTOARELE SEMNALE</span><small>LIVE PREVIEW</small></div>'+
+   '<div class="sb-cine-picks">'+
+   '<button type="button" class="sb-cine-pick sb-cine-regista" id="sbCineRegista" aria-label="Arată programul Regista"><span class="sb-cine-pick-icon" aria-hidden="true">♜</span><span class="sb-cine-pick-info"><strong>REGISTA · URMEAZĂ</strong><span id="sbCineRegistaMatch">Se încarcă programul</span><small id="sbCineRegistaMarket">Selecția este încă neconfirmată</small></span><span class="sb-cine-right" id="sbCineRegistaTime">—</span></button>'+
+   '<div class="sb-cine-mini-grid">'+
+   '<div class="sb-cine-pick sb-cine-golden"><span class="sb-cine-pick-icon" aria-hidden="true">✦</span><span class="sb-cine-pick-info"><strong>GOLDEN · 57′</strong><span id="sbCineGoldenTime">Monitorizare</span><small id="sbCineGoldenMatch">Fără candidat prioritar</small></span></div>'+
+   '<div class="sb-cine-pick sb-cine-gap"><span class="sb-cine-pick-icon" aria-hidden="true">◉</span><span class="sb-cine-pick-info"><strong>GAP · 50′</strong><span id="sbCineGapTime">Monitorizare</span><small id="sbCineGapMatch">Fără candidat prioritar</small></span></div></div></div>'+
+   '<div class="sb-cine-check" id="sbMiniCheck">♜ Regista · fereastra de verificare se calculează</div>'+
+   '<details id="sbMiniFuture" class="sb-cine-expander"><summary><span>♜ Program Regista</span><span class="sb-cine-chevron" aria-hidden="true">⌄</span></summary><div id="sbMiniFutureList"></div></details>'+
+   '<details id="sbMiniTech" class="sb-cine-expander sb-cine-tech"><summary><span>⚙ Date tehnice · Road to 57 / Heartbeats</span><span id="sbCineTechCount" class="sb-cine-tech-count"></span><span class="sb-cine-chevron" aria-hidden="true">⌄</span></summary><details id="sbMiniRoadSub"><summary>🟡 Golden / 🔵 GAP · diagnostic complet</summary></details></details></div>';
   road.parentNode.insertBefore(drawer,road);
   drawer.querySelector('#sbMiniRoadSub').append(road);
   const search=drawer.querySelector('#sbPeekSearchToggle');
@@ -462,6 +469,11 @@ function sbPeekMount(){
   // No automatic expansion of Road or Heartbeats; only users open technical details.
   drawer.querySelector('#sbMiniRoadSub').open=false;
   drawer.querySelector('#sbMiniFuture').open=false;
+  drawer.querySelector('#sbMiniTech').open=false;
+  const reg=drawer.querySelector('#sbCineRegista');
+  if(reg)reg.addEventListener('click',()=>{const future=document.getElementById('sbMiniFuture');if(future){future.open=!future.open;future.scrollIntoView({block:'nearest',behavior:'smooth'});}});
+  drawer.addEventListener('toggle',()=>{if(!drawer.open){drawer.querySelector('#sbMiniTech').open=false;drawer.querySelector('#sbMiniRoadSub').open=false;drawer.querySelector('#sbMiniFuture').open=false;}});
+
  }
  if(drawer&&drawer.parentElement!==live)live.insertBefore(drawer,live.firstChild);else if(drawer&&live.firstElementChild!==drawer)live.insertBefore(drawer,live.firstChild);
  const radar=document.querySelector('#live .radar-card');
@@ -490,7 +502,18 @@ function sbPeekUpdate(){
  set('sbMiniRegista',next?'♜ '+sbPeekTime(next.kickoff_utc)+' · '+String(next.market||''):'♜ fără meci nou');
  const checkStart=next12?Date.parse(next12.kickoff_utc)-45*60000:NaN;
  const nextCheck=next12?(now<checkStart?'verificare posibilă la '+sbPeekTime(new Date(checkStart).toISOString()):now<Date.parse(next12.kickoff_utc)-300000?'fereastră în verificare':'fereastră închisă'):'fără verificare 1/2 programată';
- set('sbMiniCheck','♜ Regista · '+nextCheck+' · niciun BET NOW anticipat');
+ set('sbMiniCheck','♜ Următoarea verificare 1/2 · '+nextCheck+'. Nu este BET NOW.');
+ const marketName=x=>({BTTS:'GG',NO_BTTS:'NG',OVER25:'OVER 2,5',UNDER25:'UNDER 2,5'})[String(x||'').toUpperCase()]||String(x||'—');
+ set('sbCineRegistaTime',next?sbPeekTime(next.kickoff_utc):'—');
+ set('sbCineRegistaMatch',next?String(next.fixture||'Meci programat'):'Niciun meci viitor verificat');
+ set('sbCineRegistaMarket',next?marketName(next.market)+' · '+Number(next.probability_pct||0).toFixed(0)+'% Regista · '+(next.status==='BET_NOW'?'BET NOW CONFIRMAT':'OBSERVAȚIE, NU BET NOW'):'Așteptăm următorul import');
+ set('sbCineGoldenTime',golden.urgent?'ALERTĂ CONFIRMATĂ':golden.title);
+ set('sbCineGapTime',gap.urgent?'ALERTĂ CONFIRMATĂ':gap.title);
+ set('sbCineGoldenMatch',golden.note||'Fără candidat prioritar');
+ set('sbCineGapMatch',gap.note||'Fără candidat prioritar');
+ const tech=document.getElementById('sbPulseHomeState');
+ set('sbCineTechCount',tech?tech.textContent.trim():'');
+
  const rows=document.getElementById('sbMiniFutureList');
  if(rows){
   const signature=list.slice(0,5).map(x=>[x.event_id,x.market,x.kickoff_utc].join(':')).join('|');
@@ -499,7 +522,10 @@ function sbPeekUpdate(){
    if(!list.length){const empty=document.createElement('div');empty.textContent='Niciun pronostic viitor confirmat în import.';rows.append(empty);}
    for(const item of list.slice(0,5)){
     const row=document.createElement('div');
-    row.textContent=sbPeekTime(item.kickoff_utc)+' · '+String(item.fixture||'Meci')+' · '+String(item.market||'')+' · '+String(item.probability_pct||'—')+'% (observație)';
+    const time=document.createElement('strong');time.textContent=sbPeekTime(item.kickoff_utc);
+    const fixture=document.createElement('span');fixture.textContent=String(item.fixture||'Meci');
+    const desc=document.createElement('small');desc.textContent=marketName(item.market)+' · '+Number(item.probability_pct||0).toFixed(0)+'% · '+(item.status==='BET_NOW'?'BET NOW CONFIRMAT':'NUMAI OBSERVAȚIE');
+    fixture.append(desc);row.append(time,fixture);
     rows.append(row);
    }
   }
