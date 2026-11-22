@@ -111,6 +111,8 @@ body.sb-peek-home-v1 #sbGlobalSearch.sb-peek-search-open{display:block!important
 #sbPeekHub .sb-peek-tile span{font-size:10px;font-weight:950;letter-spacing:.035em;white-space:nowrap}
 #sbPeekHub .sb-peek-tile strong{font-size:12px;font-weight:950;color:#e8fff7;line-height:1.25;min-height:26px;max-width:100%;overflow-wrap:break-word}
 #sbPeekHub .sb-peek-tile small{font-size:9px;line-height:1.35;font-weight:650;color:#c1d3d8;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#sbPeekHub #sbPeekRegCheck{display:block;font-size:9px;font-style:normal;font-weight:850;color:#9be5bd;border-top:1px solid #428b764a;padding-top:5px;margin-top:auto;line-height:1.25;max-width:100%;overflow-wrap:anywhere}
+#sbPeekHub #sbPeekRegista{min-height:104px}
 #sbPeekHub .sb-peek-gold{border-color:#987747;background:linear-gradient(130deg,#28231e,#222332)}
 #sbPeekHub .sb-peek-gold span{color:#f4ce88}
 #sbPeekHub .sb-peek-navy{border-color:#3166a2;background:linear-gradient(130deg,#142945,#172437)}
@@ -379,7 +381,7 @@ function sbPeekMount(){
    '<div class="sb-peek-tiles">'+
      '<button type="button" class="sb-peek-tile sb-peek-gold" id="sbPeekGolden"><span>🟡 GOLDEN</span><strong id="sbPeekGoldenTime">57′</strong><small id="sbPeekGoldenMatch">Monitorizare</small></button>'+
      '<button type="button" class="sb-peek-tile sb-peek-navy" id="sbPeekGap"><span>🔵 GAP</span><strong id="sbPeekGapTime">50′</strong><small id="sbPeekGapMatch">Monitorizare</small></button>'+
-     '<button type="button" class="sb-peek-tile sb-peek-regista" id="sbPeekRegista"><span>♜ REGISTA</span><strong id="sbPeekRegTime">Se verifică…</strong><small id="sbPeekRegMatch">Program pre-meci</small></button>'+
+     '<button type="button" class="sb-peek-tile sb-peek-regista" id="sbPeekRegista"><span>♜ REGISTA</span><strong id="sbPeekRegTime">Următorul meci…</strong><small id="sbPeekRegMatch">Pronosticuri viitoare</small><em id="sbPeekRegCheck">1/2: în verificare</em></button>'+
    '</div>'+
    '<div id="sbPeekTicker" class="sb-peek-ticker">♜ Regista · se încarcă următoarele meciuri…</div>'+
    '<details id="sbPeekUpcoming"><summary><span>♜ Următoarele meciuri Regista</span><b id="sbPeekUpcomingCount">—</b></summary><div id="sbPeekUpcomingList">Se citesc pronosticurile Regista…</div><p class="sb-peek-disclaimer">Pronosticurile viitoare NU sunt BET NOW. Confirmarea necesită cotă 1/2 recentă și control de valoare în fereastra pre-meci.</p></details>';
@@ -433,8 +435,15 @@ function sbPeekUpdate(){
  const windowLabel=next?(until>0?'Verificare în '+sbPeekCountdown(until):now<Date.parse(next.kickoff_utc)-5*60000?'În verificare, NU BET NOW':'Start '+nextTime):'Fără 1/2 viitor';
  const nextFixture=next?String(next.fixture||'Meci'):'Nicio selecție 1/2 disponibilă';
  set('sbPeekRoadRegista',next?'♜ REGISTA · '+nextFixture+' · posibilă verificare '+(until>0?'în '+sbPeekCountdown(until)+' ('+sbPeekTime(new Date(target).toISOString())+')':windowLabel):soon?'♜ REGISTA · '+sbPeekTime(soon.kickoff_utc)+' · '+soon.market+' · informativ':'♜ REGISTA · fără viitor 1/2 confirmat');
- set('sbPeekRegTime',windowLabel);
- set('sbPeekRegMatch',next?nextFixture+' · '+nextTime:'Așteptăm importul Regista');
+ // The large Regista tile leads with the NEXT MATCH, not a distant 1/2 check.
+ // A BTTS prediction stays informational; the separate footer names the next
+ // possible 1/2 value-verification window. Neither state is an emitted BET NOW.
+ const first=soon||next;
+ const mkt=String(first?.market||'').toUpperCase();
+ const mktLabel=mkt==='BTTS'?'BTTS · informativ':mkt==='1'||mkt==='2'?'selecția '+mkt+' · de verificat':mkt||'pronostic';
+ set('sbPeekRegTime',first?sbPeekTime(first.kickoff_utc)+' · '+mkt:'Fără meci');
+ set('sbPeekRegMatch',first?String(first.fixture||'Meci')+' · '+mktLabel:'Așteptăm importul Regista');
+ set('sbPeekRegCheck',next?'1/2: '+(until>0?'verificare '+sbPeekTime(new Date(target).toISOString()):windowLabel):'1/2: nicio verificare programată');
  set('sbPeekUpcomingCount',arr.length+' programate');
  const more=document.getElementById('sbPeekUpcomingList');
  if(more){
@@ -467,7 +476,7 @@ function sbPeekUpdate(){
  if(radar&&rtext){
   radar.hidden=!soon;
   if(soon){
-   const label=next?'♜ REGISTA · '+sbPeekTime(next.kickoff_utc)+' · '+windowLabel:'♜ REGISTA · '+sbPeekTime(soon.kickoff_utc)+' · pronostic programat';
+   const label='♜ REGISTA · '+sbPeekTime(soon.kickoff_utc)+' · '+String(soon.fixture||'Meci')+' · '+(soon.signal_emitted?'alertă emisă':'pronostic, NU BET NOW');
    if(rtext.textContent!==label)rtext.textContent=label;
   }
  }
