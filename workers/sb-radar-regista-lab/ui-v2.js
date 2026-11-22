@@ -4,7 +4,7 @@
 if(window.__SB_REGISTA_V2__)return;window.__SB_REGISTA_V2__=true;
 const STYLE=String.raw`
 #sbTripleArchmlwind,#sbTripleArchmlgeneral,#sbrXCoverage,#sbBetaLiveNotice{display:none!important}
-#sbRegistaLab{position:relative;display:block;margin:12px 2px 16px;color:#eaf7f7;border:1px solid #386c72;border-radius:17px;overflow:hidden;background:linear-gradient(125deg,#12343c 0%,#112333 55%,#161c2e 100%);box-shadow:0 6px 22px #010a1245;font:12px system-ui,sans-serif}
+#sbRegistaLab{position:relative;display:block!important;visibility:visible!important;opacity:1!important;width:100%;grid-column:1/-1!important;margin:12px 2px 16px;color:#eaf7f7;border:1px solid #386c72;border-radius:17px;overflow:hidden;background:linear-gradient(125deg,#12343c 0%,#112333 55%,#161c2e 100%);box-shadow:0 6px 22px #010a1245;font:12px system-ui,sans-serif}
 #sbRegistaLab *{box-sizing:border-box}
 #sbRegistaLab>details>summary{display:flex;align-items:center;gap:12px;list-style:none;cursor:pointer;min-height:72px;padding:12px 13px}
 #sbRegistaLab summary::-webkit-details-marker{display:none}
@@ -36,11 +36,18 @@ const STYLE=String.raw`
 `;
 const css=document.createElement('style');css.id='sbRegistaLabV2Css';css.textContent=STYLE;document.head.append(css);
 function mount(){
-if(document.getElementById('sbRegistaLab'))document.getElementById('sbRegistaLab').remove();
 let live=document.getElementById('live');if(!live)return false;
-let section=document.createElement('section');section.id='sbRegistaLab';
-section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon">♜</span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>FULL · LEAGUE · TOP 10 · predicții originale</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span style="color:#c6e5df">⌄</span></summary><div class="rl-body"><div class="rl-statline"><div class="rl-stat"><b id="rl24">—</b><small>24h</small></div><div class="rl-stat"><b id="rl7d">—</b><small>7 zile</small></div><div class="rl-stat"><b id="rlWl">—</b><small>WIN / LOSS</small></div></div><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><div id="rlCards"></div><details class="rl-archive" id="rlArchive"><summary>▤ Arhivă Regista · contor și rezultate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div style="padding-top:12px"><a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa originală Regista</a></div></div></details>';
-live.insertBefore(section,live.querySelector('#sb57TopDuo')?.nextSibling||live.firstChild);
+let section=document.getElementById('sbRegistaLab');
+if(!section){section=document.createElement('section');section.id='sbRegistaLab';live.insertBefore(section,live.firstChild);}
+section.style.setProperty('display','block','important');
+section.style.setProperty('visibility','visible','important');
+section.style.setProperty('opacity','1','important');
+section.style.setProperty('grid-column','1 / -1','important');
+section.style.setProperty('width','100%','important');
+section.removeAttribute('hidden');
+section.innerHTML='<details open id="rlDetails"><summary><span class="rl-icon">♜</span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>FULL · LEAGUE · TOP 10 · predicții originale</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span style="color:#c6e5df">⌄</span></summary><div class="rl-body"><div class="rl-statline"><div class="rl-stat"><b id="rl24">—</b><small>24h</small></div><div class="rl-stat"><b id="rl7d">—</b><small>7 zile</small></div><div class="rl-stat"><b id="rlWl">—</b><small>WIN / LOSS</small></div></div><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><div id="rlCards"></div><details class="rl-archive" id="rlArchive"><summary>▤ Arhivă Regista · contor și rezultate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div style="padding-top:12px"><a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa originală Regista</a></div></div></details>';
+if(section.parentElement!==live)live.insertBefore(section,live.firstChild);
+else if(section!==live.firstElementChild)live.insertBefore(section,live.firstChild);
 section.querySelectorAll('.rl-tab').forEach(b=>b.onclick=()=>{section.querySelectorAll('.rl-tab').forEach(x=>x.classList.toggle('active',x===b));current=b.dataset.rlt;render();});
 section.querySelector('#rlDetails').addEventListener('toggle',ev=>{if(ev.target.open)poll(true)});
 return true;
@@ -106,6 +113,12 @@ function localPulse(rows){
   }catch(_){}
 }
 async function poll(force){if(busy||!document.getElementById('sbRegistaLab')||(!force&&Date.now()-lastAt<30000))return;if(typeof api!=='function')return;busy=true;try{const d=await api('/api/mobile/regista/summary');if(!d?.items)throw Error('No data');model=d;lastAt=Date.now();render();localPulse(d.items);}catch(e){const s=document.getElementById('rlSourceStatus');if(s){s.style.display='block';s.textContent='Regista indisponibil momentan. Nu se emit semnale fără date verificate.';}}finally{busy=false;}}
-function boot(){if(!mount())return;setTimeout(()=>poll(true),500);setInterval(()=>{if(!document.hidden)poll(false)},30000);}
+function boot(){
+ if(!mount())return;
+ setTimeout(()=>poll(true),500);
+ setInterval(()=>{if(!document.hidden)poll(false)},30000);
+ // Some legacy home scripts rebuild the Live subtree: recover the card if removed.
+ setInterval(()=>{const root=document.getElementById('live');if(root&&!document.getElementById('sbRegistaLab')){if(mount()){render();poll(true);}}},5000);
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
