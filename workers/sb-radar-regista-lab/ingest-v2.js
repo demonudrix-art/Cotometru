@@ -20,7 +20,7 @@ function norm(s){
  'paris sg':'psg','monchengladbach':'borussia monchengladbach','dortmund':'borussia dortmund','leipzig':'rb leipzig',
  'leverkusen':'bayer leverkusen','freiburg':'freiburg','sc freiburg':'freiburg','vfb stuttgart':'stuttgart',
  'fc paderborn':'paderborn','tottenham hotspur':'tottenham','angers':'angers','olympique lyonnais':'olympique lyon',
- 'as monaco':'monaco','villarreal cf':'villarreal'};
+ 'as monaco':'monaco','villarreal cf':'villarreal','atletico de madrid':'atletico madrid','atletico madrid':'atletico madrid'};
  return m[a]||a.replace(/^(?:fc|ssc|cf|afc) /,'').replace(/ (?:fc|cf)$/,'');
 }
 function market(x){
