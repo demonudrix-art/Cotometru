@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 if(window.__SB_REGISTA_V2__)return;window.__SB_REGISTA_V2__=true;
-const STYLE=String.raw\`
+const STYLE=String.raw`
 #sbTripleArchmlwind,#sbTripleArchmlgeneral,#sbrXCoverage,#sbBetaLiveNotice{display:none!important}
 #sbRegistaLab{position:relative;display:block;margin:12px 2px 16px;color:#eaf7f7;border:1px solid #386c72;border-radius:17px;overflow:hidden;background:linear-gradient(125deg,#12343c 0%,#112333 55%,#161c2e 100%);box-shadow:0 6px 22px #010a1245;font:12px system-ui,sans-serif}
 #sbRegistaLab *{box-sizing:border-box}
@@ -33,7 +33,7 @@ const STYLE=String.raw\`
 #sbRegistaLab .rl-archive>summary{cursor:pointer;padding:11px;font-weight:850;background:#1b3640;list-style:none}
 #sbRegistaLab .rl-archive .rl-archive-body{padding:8px;max-height:340px;overflow:auto}
 @media(prefers-reduced-motion:reduce){#sbRegistaLab .rl-icon:after,#sbRegistaLab .rl-icon:before{animation:none!important}}
-\`;
+`;
 const css=document.createElement('style');css.id='sbRegistaLabV2Css';css.textContent=STYLE;document.head.append(css);
 function mount(){
 if(document.getElementById('sbRegistaLab'))document.getElementById('sbRegistaLab').remove();
