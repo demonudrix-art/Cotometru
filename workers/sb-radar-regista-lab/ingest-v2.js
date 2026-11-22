@@ -65,8 +65,8 @@ const UPSERT=[
  'ON CONFLICT(signal_id) DO UPDATE SET source_last_seen_utc=excluded.source_last_seen_utc,probability_pct=excluded.probability_pct,',
  'source_published_utc=excluded.source_published_utc,kickoff_utc=excluded.kickoff_utc,event_id=COALESCE(excluded.event_id,sb_regista_signals_v1.event_id),',
  'match_confidence=COALESCE(excluded.match_confidence,sb_regista_signals_v1.match_confidence),',
- "quote_captured_utc=CASE WHEN excluded.status='BET_NOW' THEN excluded.quote_captured_utc ELSE sb_regista_signals_v1.quote_captured_utc END,",
- "odds_at_signal=CASE WHEN excluded.status='BET_NOW' THEN excluded.odds_at_signal ELSE sb_regista_signals_v1.odds_at_signal END,",
+ "quote_captured_utc=COALESCE(excluded.quote_captured_utc,sb_regista_signals_v1.quote_captured_utc),",
+ "odds_at_signal=COALESCE(excluded.odds_at_signal,sb_regista_signals_v1.odds_at_signal),",
  "signal_utc=CASE WHEN excluded.status='BET_NOW' AND sb_regista_signals_v1.signal_utc IS NULL THEN excluded.signal_utc ELSE sb_regista_signals_v1.signal_utc END,",
  'status=excluded.status,updated_utc=excluded.updated_utc'
 ].join(' ');
@@ -87,9 +87,13 @@ export async function syncRegistaV2(env){
    }
    const quoteOk=quote&&Number.isFinite(odds)&&odds>1&&nowMs-Date.parse(quote.captured_utc)<=20*60000;
    let status=nowMs>=kick?'HISTORICAL_IMPORT':!e?'UNMATCHED':!sourceOk?'SOURCE_TIME_UNVERIFIED':'MATCHED';
-   if(e&&sourceOk&&nowMs<=kick-300000&&kick-nowMs<=45*60000&&quoteOk)status='BET_NOW';
+   const pModel=p.pct/100,breakEven=quoteOk?1/odds:NaN,edgePP=100*(pModel-breakEven),evPct=100*(pModel*odds-1);
+   // Experimental VALUE gate. The Regista estimate is not calibrated to actual Superbet returns.
+   // 1X2 only: X has no verified Regista sample, while O/U and BTTS have no market-specific odds here.
+   const valueCandidate=['1','2'].includes(p.market)&&quoteOk&&edgePP>=5-1e-8&&evPct>=8-1e-8;
+   if(e&&sourceOk&&nowMs<=kick-300000&&kick-nowMs<=45*60000&&valueCandidate)status='BET_NOW';
    const signalId='regista:'+p.list+':'+p.match_id+':'+p.market;
-   await env.DB.prepare(UPSERT).bind(signalId,p.list,p.url,p.match_id,p.fixture,p.market,p.pct,now,now,p.source_updated,p.kickoff,eventId,e?1:null,status==='BET_NOW'?quote.captured_utc:null,status==='BET_NOW'?odds:null,status==='BET_NOW'?now:null,status,now).run();
+   await env.DB.prepare(UPSERT).bind(signalId,p.list,p.url,p.match_id,p.fixture,p.market,p.pct,now,now,p.source_updated,p.kickoff,eventId,e?1:null,quoteOk&&sourceOk?quote.captured_utc:null,quoteOk&&sourceOk?odds:null,status==='BET_NOW'?now:null,status,now).run();
    count++;
   }
  }catch(e){error=String(e).slice(0,300);console.error('REGISTA_PARSE',error);}
