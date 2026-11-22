@@ -14,19 +14,25 @@ out.push({type:k,fixture:(m[1]+' – '+m[2]).trim(),market:mk.toUpperCase(),prob
 }return out.filter((v,i,ar)=>ar.findIndex(w=>w.type===v.type&&w.fixture===v.fixture&&w.market===v.market)===i);
 }
 async function sync(env){let status=null,count=0,error=null;const now=new Date().toISOString();
-try{const response=await fetch(BASE,{headers:{Accept:'text/html','User-Agent':'SB-Radar-Regista-Lab/1.0'}});status=response.status;if(!response.ok)throw Error('source http '+status);const raw=await response.text();if(raw.length<2000)throw Error('source too short');let picks=extract(raw);if(!picks.length)throw Error('PARSER_NO_VERIFIED_PICKS');for(const p of picks){await env.DB.prepare('INSERT INTO sb_regista_picks_v1(list_code,fixture,market,probability,source_url,fetched_utc) VALUES(?,?,?,?,?,?)').bind(p.type,p.fixture,p.market,p.prob,p.src,now).run();count++;}}
+try{const response=await fetch(BASE,{headers:{Accept:'text/html','User-Agent':'SB-Radar-Regista-Lab/1.0'},signal:AbortSignal.timeout(9000)});status=response.status;if(!response.ok)throw Error('source http '+status);const raw=await response.text();if(raw.length<2000)throw Error('source too short');let picks=extract(raw);if(!picks.length)throw Error('PARSER_NO_VERIFIED_PICKS');for(const p of picks){await env.DB.prepare('INSERT INTO sb_regista_picks_v1(list_code,fixture,market,probability,source_url,fetched_utc) VALUES(?,?,?,?,?,?)').bind(p.type,p.fixture,p.market,p.prob,p.src,now).run();count++;}}
 catch(e){error=String(e).slice(0,320)}
 await env.DB.prepare('INSERT INTO sb_regista_sync_runs_v1(started_utc,source_status,stored_rows,error) VALUES(?,?,?,?)').bind(now,status,count,error).run();
+}
+async function guardedSync(env){
+const now=new Date().toISOString(),before=new Date(Date.now()-20*60000).toISOString();
+const lock=await env.DB.prepare('UPDATE sb_regista_sync_lock_v1 SET last_triggered_utc=? WHERE id=1 AND last_triggered_utc<?').bind(now,before).run();
+if((lock.meta?.changes||0)!==1)return false;
+await sync(env);return true;
 }
 export default {
 async fetch(request,env){const path=new URL(request.url).pathname;
 if(path==='/embed.js')return new Response(EMBED,{headers:{'content-type':'application/javascript; charset=utf-8','access-control-allow-origin':'*','cache-control':'public,max-age=60'}});
-if(path==='/api/picks'){const type=(new URL(request.url).searchParams.get('type')||'FULL').toUpperCase();if(!['FULL','LEAGUE','TOP10'].includes(type))return J({error:'Invalid list'},400);
+if(path==='/api/picks'){await guardedSync(env);const type=(new URL(request.url).searchParams.get('type')||'FULL').toUpperCase();if(!['FULL','LEAGUE','TOP10'].includes(type))return J({error:'Invalid list'},400);
 const x=await env.DB.prepare("SELECT list_code,fixture,market,probability,source_url,fetched_utc FROM sb_regista_picks_v1 WHERE list_code=? AND fetched_utc>=datetime('now','-7 days') ORDER BY fetched_utc DESC LIMIT 60").bind(type).all();
 const q=await env.DB.prepare('SELECT started_utc,source_status,stored_rows,error FROM sb_regista_sync_runs_v1 ORDER BY id DESC LIMIT 1').first();return J({type,items:x.results||[],sync:q||null,source:BASE,mode:'RESEARCH_NO_BETS_NO_FCM'});}
 if(path==='/health'){const q=await env.DB.prepare('SELECT started_utc,source_status,stored_rows,error FROM sb_regista_sync_runs_v1 ORDER BY id DESC LIMIT 1').first();return J({worker:'sb-radar-regista-lab-v1',last:q||null,status:q?.stored_rows?'IMPORTED':'UNVERIFIED',mode:'READ_ONLY'});}
 if(path==='/'){return new Response('<!doctype html><html lang="ro"><meta name="viewport" content="width=device-width,initial-scale=1"><title>REGISTA LAB</title><body style="background:#091720;color:#eaf9f6;padding:18px"><div id="live"></div><script src="/embed.js"></script></body></html>',{headers:{'content-type':'text/html; charset=utf-8'}});}
 return J({error:'Not found'},404);
 },
-async scheduled(event,env,ctx){ctx.waitUntil(sync(env));}
+async scheduled(event,env,ctx){ctx.waitUntil(guardedSync(env));}
 };
