@@ -10,9 +10,12 @@ return win===null?null:win?'WIN':'LOSS';
 }
 function priceMetric(row){
  const odds=Number(row.odds_at_signal),prob=Number(row.probability_pct)/100;
- const supported=['1','2'].includes(String(row.market||'').toUpperCase());
- if(!supported||!Number.isFinite(odds)||odds<=1||!Number.isFinite(prob)||prob<=0||prob>1)
-  return {break_even_pct:null,edge_pp:null,ev_pct:null,value_candidate:false,price_status:supported?'NO_PRICE':'UNSUPPORTED_MARKET'};
+ const market=String(row.market||'').toUpperCase();
+ const supported=['1','2','OVER25'].includes(market);
+ const threshold=market==='2'?70:market==='OVER25'?85:market==='1'?0:101;
+ const thresholdOk=Number(row.probability_pct)>=threshold;
+ if(!supported||!Number.isFinite(odds)||odds<=1||!Number.isFinite(prob)||prob<=0||prob>1||!thresholdOk)
+  return {break_even_pct:null,edge_pp:null,ev_pct:null,value_candidate:false,price_status:!supported?'UNSUPPORTED_MARKET':!thresholdOk?'BELOW_REGISTA_THRESHOLD':'NO_PRICE'};
  const breakEven=1/odds,edgePP=100*(prob-breakEven),evPct=100*(prob*odds-1);
  return {break_even_pct:Math.round(breakEven*10000)/100,edge_pp:Math.round(edgePP*100)/100,
   ev_pct:Math.round(evPct*100)/100,value_candidate:edgePP>=5-1e-8&&evPct>=8-1e-8,
@@ -24,14 +27,19 @@ function wasEmitted(row){
   emitted>=first&&first<=k-300000&&quoted<=emitted&&emitted-quoted<=20*60000&&emitted>=k-45*60000&&emitted<k-300000&&
   priceMetric(row).value_candidate;
 }
+function currentQuoteInfo(row){
+ const isOver=String(row.market||'').toUpperCase()==='OVER25';
+ return {odds:isOver?row.goal_market_price:row.current_odds,
+  utc:isOver?row.goal_market_quote_utc:row.current_quote_utc};
+}
 function currentPriceMetric(row){
- return priceMetric({...row,odds_at_signal:row.current_odds});
+ return priceMetric({...row,odds_at_signal:currentQuoteInfo(row).odds});
 }
 function ready(row,now){
  if(!wasEmitted(row))return false;
- const id=Number(row.event_id),k=Date.parse(row.kickoff_utc),cap=Date.parse(row.current_quote_utc),last=Date.parse(row.source_last_seen_utc);
+ const quote=currentQuoteInfo(row),id=Number(row.event_id),k=Date.parse(row.kickoff_utc),cap=Date.parse(quote.utc),last=Date.parse(row.source_last_seen_utc);
  return currentPriceMetric(row).value_candidate&&Number.isSafeInteger(id)&&id>0&&Number(row.match_confidence)>=.98&&
-  ['1','2'].includes(row.market)&&Number(row.current_odds)>1&&
+  ['1','2','OVER25'].includes(row.market)&&Number(quote.odds)>1&&
   Number.isFinite(k)&&Number.isFinite(cap)&&Number.isFinite(last)&&cap<=now&&now-cap<=20*60000&&
   last<=now&&now-last<=60*60000&&k-now>5*60000&&k-now<=45*60000;
 }
@@ -39,7 +47,8 @@ function visibleStatus(row,now){
  if(!wasEmitted(row))return row.status;
  if(ready(row,now))return 'BET_NOW';
  if(now>=Date.parse(row.kickoff_utc)-5*60000)return 'EXPIRED';
- if(!Number.isFinite(Date.parse(row.current_quote_utc))||now-Date.parse(row.current_quote_utc)>20*60000)return 'QUOTE_STALE';
+ const quoteTime=Date.parse(currentQuoteInfo(row).utc);
+ if(!Number.isFinite(quoteTime)||now-quoteTime>20*60000)return 'QUOTE_STALE';
  if(!currentPriceMetric(row).value_candidate)return 'PRICE_CHANGED';
  return 'INACTIVE';
 }
@@ -70,7 +79,7 @@ function goalsResearch(rows,now){
    market_quote_utc:x.goal_market_quote_utc||null,market_id:x.goal_market_id||null,
    market_price_source:Number(x.goal_market_price)>1?'SUPERBET_V3_VERIFIED':'NOT_CAPTURED',
    theoretical_ev_pct:Number(x.goal_market_price)>1?Math.round((Number(x.probability_pct)/100*Number(x.goal_market_price)-1)*10000)/100:null,
-   betnow:false};
+   betnow:!!x.signal_emitted&&x.status==='BET_NOW'};
  });
  const markets={};
  for(const market of typeSet){
@@ -85,14 +94,14 @@ function goalsResearch(rows,now){
    forward_wins:wins,forward_losses:settled.length-wins,forward_pending:forward.length-settled.length,
    high_probability_watch:high.length,market_quotes_verified:priced.length,
    priced_settled:pricedSettled.length,probe_roi_pct:probeRoi,roi_pct:pricedSettled.length>=30?probeRoi:null,
-   market_status:market==='OVER25'?'PRIORITY_RESEARCH_NO_BETNOW':market==='BTTS'?'OBSERVE_ONLY_WEAK_PUBLIC_ACCURACY':'OBSERVE_ONLY_SMALL_SAMPLE'};
+   market_status:market==='OVER25'?'CONDITIONAL_BETNOW_WITH_VERIFIED_BOOK_PRICE':market==='BTTS'?'OBSERVE_ONLY_WEAK_PUBLIC_ACCURACY':'OBSERVE_ONLY_SMALL_SAMPLE'};
  }
  const upcoming=entries.filter(x=>x.prospective&&Date.parse(x.kickoff_utc)>now)
   .sort((a,b)=>Date.parse(a.kickoff_utc)-Date.parse(b.kickoff_utc)).slice(0,15);
- return {mode:'SHADOW_NO_BETS_NO_ALERTS',version:'GOALS_RESEARCH_V1',
-  why_no_betnow:'No verified Superbet market-specific Over/Under or BTTS price at the source time; 1X2 quotes cannot be reused.',
+ return {mode:'SHADOW_NO_BETS_NO_ALERTS',version:'GOALS_RESEARCH_V2',
+  why_no_betnow:'Over2.5 is conditional on an actual fresh Superbet market-specific price and all EV gates. Without it, no BetNow. GG/Under remain non-actionable.',
   markets,upcoming,distinct_picks:entries.length,
-  note:'Prospective WIN/LOSS deduplicates event_id+market and uses verified finals. Imports after kickoff are excluded. Research prices are Superbet market-specific and taken before kickoff; ROI is validated only after at least 30 settled price-backed observations, and no goals BET NOW is enabled.'};
+  note:'Prospective WIN/LOSS deduplicates event_id+market and uses verified finals. Imports after kickoff are excluded. Research prices are Superbet market-specific and taken before kickoff; ROI is validated only after at least 30 settled price-backed observations, and Over2.5 BetNow is conditional on a verified fresh exact-market quote and Regista probability >=85%.'};
 }
 export async function registaMobileApi(req,env,who,path,slipDeviceFor){
 try{
