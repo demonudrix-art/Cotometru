@@ -163,7 +163,7 @@ function registaMatchPanel(eventId){
  stamp.style.cssText='display:block;color:#b5d8cb;margin-bottom:9px';
  const button=document.createElement('button');button.type='button';button.className='rl-bet';button.textContent='▤ Înregistrează în Slip · miză 50 lei';button.onclick=()=>fillRegistaSlip(item);
  panel.append(title,info,stamp,button);
- root.insertBefore(panel,root.firstChild?.nextSibling||root.firstChild);
+ root.insertBefore(panel,root.firstChild); // Keep Regista pick visible above loading and offline audit messages
 }
 let lastOpenedRegistaEvent=0;
 document.addEventListener('sb-regista-match-open',event=>{
