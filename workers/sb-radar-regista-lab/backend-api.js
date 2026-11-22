@@ -1,0 +1,51 @@
+/* REGISTA LAB V2 — owner-safe read API. Never creates bets or FCM. */
+const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+const NOW=()=>new Date().toISOString();
+const PICK_SQL="SELECT s.signal_id,s.list_code,s.source_url,s.fixture,s.market,s.probability_pct,s.source_first_seen_utc,s.source_last_seen_utc,s.source_published_utc,s.kickoff_utc,s.event_id,s.match_confidence,s.quote_captured_utc,s.odds_at_signal,s.signal_utc,s.status,r.event_status,r.verified,r.home_score final_home,r.away_score final_away FROM sb_regista_signals_v1 s LEFT JOIN match_results r ON r.event_id=s.event_id ORDER BY s.source_last_seen_utc DESC LIMIT 500";
+function finish(row){
+if(row?.event_status!=='FINISHED'||Number(row.verified)!==1||!Number.isInteger(Number(row.final_home))||!Number.isInteger(Number(row.final_away))||row.final_home==null||row.final_away==null)return null;
+const h=Number(row.final_home),a=Number(row.final_away),m=String(row.market||'').toUpperCase().replace(/\s+/g,'');
+const win=m==='1'?h>a:m==='X'?h===a:m==='2'?a>h:m==='BTTS'?h>0&&a>0:m==='NO_BTTS'?h===0||a===0:m==='OVER25'||m==='OVER2.5'?h+a>=3:m==='UNDER25'||m==='UNDER2.5'?h+a<=2:null;
+return win===null?null:win?'WIN':'LOSS';
+}
+function ready(row,now){
+if(row.status!=='BET_NOW')return false;
+const id=Number(row.event_id),k=Date.parse(row.kickoff_utc),cap=Date.parse(row.quote_captured_utc),seen=Date.parse(row.source_first_seen_utc),last=Date.parse(row.source_last_seen_utc);
+return Number.isSafeInteger(id)&&id>0&&Number(row.match_confidence)>=.98&&['1','X','2'].includes(row.market)&&Number(row.odds_at_signal)>1&&Number.isFinite(k)&&Number.isFinite(cap)&&Number.isFinite(seen)&&Number.isFinite(last)&&seen<=k-300000&&cap<=now&&now-cap<=20*60000&&last<=now&&now-last<=60*60000&&k-now>0&&k-now<=45*60000;
+}
+export async function registaMobileApi(req,env,who,path){
+try{
+if(path==='/api/mobile/regista/ack'&&req.method==='POST'){
+ const input=await req.json().catch(()=>({})),id=String(input.signal_id||'').slice(0,128);
+ if(!/^[A-Za-z0-9_:.-]{8,128}$/.test(id))return response({error:'Invalid signal ID'},400);
+ const check=await env.DB.prepare("SELECT 1 n FROM sb_regista_signals_v1 WHERE signal_id=? AND status='BET_NOW' AND event_id>0 LIMIT 1").bind(id).first();
+ if(!check)return response({error:'Unverified signal'},409);
+ await env.DB.prepare("INSERT OR IGNORE INTO sb_regista_local_receipts_v1(device_id,signal_id,notified_utc) VALUES(?,?,?)").bind(String(who.device_id),id,NOW()).run();
+ return response({ok:true});
+}
+if(!['/api/mobile/regista/summary','/api/mobile/regista/alerts'].includes(path)||req.method!=='GET')return response({error:'not_found'},404);
+const [records,sync]=await Promise.all([
+ env.DB.prepare(PICK_SQL).all(),
+ env.DB.prepare('SELECT started_utc,source_status,stored_rows,error FROM sb_regista_sync_runs_v1 ORDER BY id DESC LIMIT 1').first()
+]);
+const now=Date.now();
+const rows=(records.results||[]).map(s=>({...s,result_status:finish(s),status:ready(s,now)?'BET_NOW':s.status==='BET_NOW'?'EXPIRED':s.status})); // Expired never alerts.
+if(path.endsWith('/alerts'))return response({mode:'LOCAL_VIBRATE_NO_FCM',alerts:rows.filter(s=>s.status==='BET_NOW').map(s=>({
+ signal_id:s.signal_id,event_id:s.event_id,fixture:s.fixture,market:s.market,probability_pct:s.probability_pct,odds:s.odds_at_signal,kickoff_utc:s.kickoff_utc,stage:'BET_NOW',source:'REGISTA'
+})).slice(0,30)});
+const counts={FULL:{},LEAGUE:{},TOP10:{}};
+for(const typ of Object.keys(counts)){
+ const r=rows.filter(s=>s.list_code===typ),readyNow=r.filter(s=>s.status==='BET_NOW');
+ counts[typ]={
+  total:r.length,betnow:readyNow.length,
+  last24h:r.filter(s=>Date.parse(s.source_first_seen_utc)>=now-86400000).length,
+  last7d:r.filter(s=>Date.parse(s.source_first_seen_utc)>=now-7*86400000).length,
+  wins:r.filter(s=>s.result_status==='WIN').length,
+  losses:r.filter(s=>s.result_status==='LOSS').length,
+  pending:r.filter(s=>!s.result_status).length,
+  roi:null // Cannot claim ROI without captured market-specific odds at each betting opportunity.
+ };
+}
+return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,server_utc:NOW()});
+}catch(e){console.error('REGISTA_READ_FAIL',String(e).slice(0,170));return response({error:'REGISTA_LAB_UNAVAILABLE',items:[],counts:{},sync:null},503);}
+}
