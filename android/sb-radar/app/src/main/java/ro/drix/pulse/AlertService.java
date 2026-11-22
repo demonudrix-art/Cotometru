@@ -179,7 +179,20 @@ public class AlertService extends Service {
     thread.start();return START_STICKY;
   }
   private boolean notificationsAllowed(){
-    return Build.VERSION.SDK_INT<33||checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED;
+    NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+    return (Build.VERSION.SDK_INT<33||checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED)
+      &&manager!=null&&manager.areNotificationsEnabled();
+  }
+  // Acknowledgements are per actual phone + bet, not per fixture/event.
+  // Retry even when local SharedPreferences already contains the WIN so the
+  // server can recover from an earlier failed receipt without showing a duplicate.
+  private void ackNativeWin(String token,long betId){
+    if(betId<=0)return;
+    try{
+      JSONObject ack=new JSONObject();
+      ack.put("stage","WIN");ack.put("bet_id",betId);
+      MainActivity.readHttp(MainActivity.BASE+"/api/mobile/ack",token,ack.toString());
+    }catch(Exception e){android.util.Log.w("SB_Radar","WIN receipt retry pending");}
   }
   private void showSignal(String category,int notificationId,String fixture,String body,String path,String modelVersion,boolean test){
     if(!notificationsAllowed())return;
@@ -223,7 +236,8 @@ public class AlertService extends Service {
       JSONObject row=arr.optJSONObject(i);if(row==null)continue;
       long event=row.optLong("event_id",0);String stage=row.optString("stage","");
       boolean win="WIN".equals(stage)||row.optBoolean("native_win_compat",false);
-      if(event<=0||(!win&&!"BET_NOW".equals(stage)))continue;
+      long betId=row.optLong("bet_id",0);
+      if(event<=0||(!win&&!"BET_NOW".equals(stage))||(win&&betId<=0))continue;
       if("AWAY_57".equalsIgnoreCase(row.optString("signal_type","")))continue;
             String category=row.optString("signal_label",row.optString("signal_type","")).toUpperCase(Locale.ROOT).trim();
       JSONObject priority=row.optJSONObject("priority_category");
@@ -238,22 +252,29 @@ public class AlertService extends Service {
       boolean rush="GOLD RUSH".equals(category);
       if(!win&&!gold&&!gap)continue; // OWNER POLICY: only Golden / GAP bet alerts, plus verified ticket WIN.
       String key="notified_"+event+"_"+(win?"win":"betnow");
-      if(prefs.getBoolean(key,false))continue;
+      if(prefs.getBoolean(key,false)){
+        if(win)ackNativeWin(token,betId); // Server receipt may have failed during initial delivery.
+        continue;
+      }
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
       int min=row.optInt("minute",0);String score=row.optString("home_score","-")+"–"+row.optString("away_score","-");
       String category57=row.optString("gold_category_label","");
-      String body=fixture+(win?" • Rezultat confirmat":"\nCATEGORIA GOLDEN X57: "+(category57.isEmpty()?"captură indisponibilă":category57)+"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU EGAL (X) • COTĂ "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+(power?"\n⚡ GG POWER • MIZĂ SUGERATĂ 50 LEI":rush?"\n💰 GOLD RUSH • MIZĂ SUGERATĂ 20 LEI":"")+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL");
+      String body=fixture+(win?" • Bilet #"+betId+" · "+row.optString("selection","")+" · cotă "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+" · câștig "+String.format(Locale.US,"%.2f",row.optDouble("returned_lei",0))+" lei":"\nCATEGORIA GOLDEN X57: "+(category57.isEmpty()?"captură indisponibilă":category57)+"\n⏱ MINUTUL "+min+" • SCOR "+score+"\n🎯 PARIU EGAL (X) • COTĂ "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+(power?"\n⚡ GG POWER • MIZĂ SUGERATĂ 50 LEI":rush?"\n💰 GOLD RUSH • MIZĂ SUGERATĂ 20 LEI":"")+"\nDESCHIDE SB RADAR ȘI VERIFICĂ PREȚUL");
       String path=win?"/app?tab=slip&bet_id="+row.optLong("bet_id",0):"/app?tab=live&event_id="+event;
       int id=(int)(Math.abs(event)%100000)+3000+(win?100000:0);
       if(win){
+        NotificationManager winManager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        NotificationChannel winChannel=winManager==null?null:winManager.getNotificationChannel(CH_WINS);
+        if(winManager==null||(winChannel!=null&&winChannel.getImportance()==NotificationManager.IMPORTANCE_NONE))continue;
         Notification n=builder(this,CH_WINS).setSmallIcon(android.R.drawable.ic_dialog_info).setAutoCancel(true)
           .setContentTitle("SB Radar • Bilet câștigat").setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body))
           .setContentIntent(open(this,id,path)).setVisibility(Notification.VISIBILITY_PUBLIC).build();
-        ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id,n);
+        winManager.notify(id,n);
       }else showSignal(gap?"GAP NAVY":ml?"ML":purple?"STRONG + SILVER":red?"STRONG":power?"GG POWER":gold?"GOLDEN TICKET":"GOLD RUSH",
         id,fixture,gap?("🔵 GAP NAVY · X "+String.format(Locale.US,"%.2f",row.optDouble("px",0))+" · GAP +"+String.format(Locale.US,"%.2f",row.optDouble("gap50_pp",0))+" pp\n"+body):body,path,row.optString("model_version","")+" "+code+(gap?" GAP_NAVY":""),false);
       prefs.edit().putBoolean(key,true).apply();
-      if(!win){try{
+      if(win)ackNativeWin(token,betId);
+      else {try{
         JSONObject ack=new JSONObject();ack.put("event_id",event);ack.put("stage","BET_NOW");
         MainActivity.readHttp(MainActivity.BASE+"/api/mobile/ack",token,ack.toString());
       }catch(Exception ignored){}}
