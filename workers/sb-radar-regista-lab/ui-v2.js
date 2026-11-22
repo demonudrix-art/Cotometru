@@ -76,6 +76,22 @@ const STYLE=String.raw`
 @media(max-width:380px){#sbRegistaLab .rl-head strong{font-size:12px}#sbRegistaLab .rl-stat b{font-size:13px}}
 @media(prefers-reduced-motion:reduce){#sbRegistaLab>details[open]>.rl-body,#sbRegistaLab .rl-observations[open]>.rl-observe-content{animation:none}}
 
+/* PENDING TICKET: owner-confirmed Slip state, not Regista prediction */
+#sbRegistaLab .rl-pending{border:1px solid #508e81;border-radius:12px;background:linear-gradient(120deg,#153439,#183044);margin:9px 0 11px;overflow:hidden}
+#sbRegistaLab .rl-pending>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;justify-content:space-between;padding:10px 11px;font-size:12px;font-weight:900;color:#b5f4d4}
+#sbRegistaLab .rl-pending>summary::-webkit-details-marker{display:none}
+#sbRegistaLab .rl-pending>summary small{font-size:9px;color:#a7bac8;font-weight:650}
+#sbRegistaLab .rl-pending>summary b{font-size:10px;color:#e1fff1;background:#22554d;padding:5px 8px;border-radius:11px;white-space:nowrap}
+#sbRegistaLab .rl-pending[open] .rl-pending-body{animation:rl-reveal .24s ease both}
+#sbRegistaLab .rl-pending-body{padding:1px 9px 9px;display:grid;gap:7px}
+#sbRegistaLab .rl-pending-card{border:1px solid #4b827e;background:#122c3a;border-radius:10px;padding:10px;display:grid;gap:6px}
+#sbRegistaLab .rl-pending-top{display:flex;justify-content:space-between;gap:8px;align-items:center;color:#d2f6e9;font-size:12px}
+#sbRegistaLab .rl-pending-status{font-size:9px;color:#aef0cc;border-radius:8px;background:#215747;padding:4px 6px;text-align:right;max-width:50%}
+#sbRegistaLab .rl-pending-meta{color:#a4c4cb;font-size:10px;line-height:1.45}
+#sbRegistaLab .rl-pending-actions{display:flex;flex-wrap:wrap;gap:7px}
+#sbRegistaLab .rl-pending-actions button{border:1px solid #6ab59c;border-radius:9px;padding:7px 10px;color:#e5fff1;background:#225a4b;font-size:11px;font-weight:800;cursor:pointer}
+#sbRegistaLab .rl-pending-empty{padding:10px;color:#a8c7c9;font-size:10px}
+
 /* REGISTA V4 compact Golden/GAP archive-inspired 24h/7d result blocks */
 #sbRegistaLab .rl-period-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:11px 0 9px}
 #sbRegistaLab .rl-period{display:grid;place-items:center;gap:4px;min-width:0;border:1px solid #5a7779;border-radius:15px;background:linear-gradient(125deg,#111c2d,#162336);padding:11px 4px}
@@ -161,7 +177,7 @@ section.style.setProperty('opacity','1','important');
 section.style.setProperty('grid-column','1 / -1','important');
 section.style.setProperty('width','100%','important');
 section.removeAttribute('hidden');
-section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-period-grid"><div class="rl-period"><small>ULTIMELE 24H</small><strong id="rl24">—</strong><b id="rl24Wl">—</b><em id="rl24Roi">ROI —</em></div><div class="rl-period"><small>ULTIMELE 7 ZILE</small><strong id="rl7d">—</strong><b id="rl7dWl">—</b><em id="rl7dRoi">ROI —</em></div></div><div class="rl-totals"><span>WIN / LOSS <b id="rlWl">—</b></span><span>ROI REAL <b id="rlRoiReal">—</b></span><span>ROI SIM 50 LEI <b id="rlRoi">—</b></span></div><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW · ALERTE EMISE <small>Se păstrează după start. LIVE înseamnă bilet în curs; BET NOW e doar înaintea meciului.</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-goals" id="rlGoalsLab"><summary><span>⚽ OVER 2,5 · BET NOW CONDIȚIONAT / GG · AUDIT</span><b id="rlGoalsCount">—</b></summary><div id="rlGoalsBody">Se analizează meciurile și cotele…</div><div class="rl-goals-warning">BET NOW pentru Over 2,5 este activat doar condiționat: Regista ≥85%, cotă Over reală, proaspătă și avantaj pozitiv. GG și Under rămân în audit.</div><a class="rl-goals-source" href="https://www.registacalcio.it/schedina/statistiche" target="_blank" rel="noopener noreferrer">Istoricul public Regista</a></details><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
+section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-period-grid"><div class="rl-period"><small>ULTIMELE 24H</small><strong id="rl24">—</strong><b id="rl24Wl">—</b><em id="rl24Roi">ROI —</em></div><div class="rl-period"><small>ULTIMELE 7 ZILE</small><strong id="rl7d">—</strong><b id="rl7dWl">—</b><em id="rl7dRoi">ROI —</em></div></div><div class="rl-totals"><span>WIN / LOSS <b id="rlWl">—</b></span><span>ROI REAL <b id="rlRoiReal">—</b></span><span>ROI SIM 50 LEI <b id="rlRoi">—</b></span></div><details class="rl-pending" id="rlPendingTickets"><summary><span>▤ PENDING TICKETS <small>· bilete din Slip, nu alerte</small></span><b id="rlPendingCount">0</b></summary><div class="rl-pending-body" id="rlPendingBody"></div></details><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW · ALERTE EMISE <small>Se păstrează după start. LIVE înseamnă bilet în curs; BET NOW e doar înaintea meciului.</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-goals" id="rlGoalsLab"><summary><span>⚽ OVER 2,5 · BET NOW CONDIȚIONAT / GG · AUDIT</span><b id="rlGoalsCount">—</b></summary><div id="rlGoalsBody">Se analizează meciurile și cotele…</div><div class="rl-goals-warning">BET NOW pentru Over 2,5 este activat doar condiționat: Regista ≥85%, cotă Over reală, proaspătă și avantaj pozitiv. GG și Under rămân în audit.</div><a class="rl-goals-source" href="https://www.registacalcio.it/schedina/statistiche" target="_blank" rel="noopener noreferrer">Istoricul public Regista</a></details><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
 if(section.parentElement!==live)live.insertBefore(section,live.firstChild);
 else if(section!==live.firstElementChild)live.insertBefore(section,live.firstChild);
 section.querySelectorAll('.rl-tab').forEach(b=>b.onclick=()=>{section.querySelectorAll('.rl-tab').forEach(x=>x.classList.toggle('active',x===b));current=b.dataset.rlt;render();});
@@ -170,6 +186,48 @@ return true;
 }
 let current='LEAGUE',model={items:[],counts:{},sync:null},busy=false,lastAt=0;
 function txt(el,s){if(el)el.textContent=String(s);}
+function registaTicketFor(item){
+ const selection=String(item?.market||'').toUpperCase()==='OVER25'?'Peste 2.5':String(item?.market||'');
+ return (model.performance?.real?.tickets||[]).find(x=>Number(x.event_id)===Number(item?.event_id)&&String(x.selection)===selection)||null;
+}
+function registaTicketLabel(ticket){
+ if(!ticket)return '';
+ if(ticket.status==='WON')return '✓ WIN · BILET #'+ticket.id;
+ if(ticket.status==='LOST')return '✕ LOSS · BILET #'+ticket.id;
+ if(ticket.status!=='OPEN')return 'BILET #'+ticket.id+' · '+String(ticket.status||'DECONTAT');
+ if(ticket.ticket_state==='PENDING_SETTLEMENT')return '◷ PENDING TICKET #'+ticket.id+' · DECONTARE';
+ if(ticket.live)return '● PENDING TICKET #'+ticket.id+' · LIVE '+ticket.minute+'′'+(ticket.score?' · '+ticket.score:'');
+ if(ticket.ticket_state==='PREMATCH_PENDING')return '◷ PENDING TICKET #'+ticket.id+' · PRE-MECI';
+ return '◷ PENDING TICKET #'+ticket.id+' · LIVE NECONFIRMAT';
+}
+function registaOpenTicket(ticket){
+ if(!ticket||!Number.isSafeInteger(Number(ticket.id)))return;
+ if(typeof openTicketDetails==='function'){openTicketDetails(Number(ticket.id));return;}
+ if(typeof tab==='function'){tab('slip');return;}
+ const el=document.getElementById('slip');if(el)el.scrollIntoView({block:'start',behavior:'smooth'});
+}
+function renderRegistaPending(){
+ const panel=document.getElementById('sbRegistaLab'),list=panel?.querySelector('#rlPendingBody'),count=panel?.querySelector('#rlPendingCount');
+ if(!list)return;
+ const real=model.performance?.real||{},tickets=Array.isArray(real.tickets)?real.tickets:[],pending=tickets.filter(x=>x.status==='OPEN');
+ if(count)count.textContent=pending.length+' PENDING'+(Number(real.live)>0?' · '+Number(real.live)+' LIVE':'');
+ list.replaceChildren();
+ if(!pending.length){const el=document.createElement('div');el.className='rl-pending-empty';el.textContent='Niciun Pending Ticket înregistrat în Slip. Alertele BET NOW nu sunt bilete până le înregistrezi.';list.append(el);return;}
+ for(const t of pending.slice(0,12)){
+  const card=document.createElement('article');card.className='rl-pending-card';
+  const header=document.createElement('div');header.className='rl-pending-top';
+  const fixture=document.createElement('strong');fixture.textContent=String(t.fixture||'Meci')+' · #'+String(t.id);
+  const state=document.createElement('span');state.className='rl-pending-status';
+  state.textContent=t.ticket_state==='PENDING_SETTLEMENT'?'AȘTEAPTĂ DECONTAREA':t.live?'LIVE '+t.minute+'′'+(t.score?' · '+t.score:''):t.ticket_state==='PREMATCH_PENDING'?'PRE-MECI':'LIVE NECONFIRMAT';
+  header.append(fixture,state);
+  const detail=document.createElement('div');detail.className='rl-pending-meta';
+  detail.textContent=String(t.selection)==='Peste 2.5'?'OVER 2,5 · '+Number(t.odds).toFixed(2)+' · '+Number(t.stake_lei).toFixed(2)+' lei':String(t.selection)+' @'+Number(t.odds).toFixed(2)+' · '+Number(t.stake_lei).toFixed(2)+' lei';
+  const actions=document.createElement('div');actions.className='rl-pending-actions';
+  const slip=document.createElement('button');slip.type='button';slip.textContent='▤ Vezi biletul';slip.onclick=()=>registaOpenTicket(t);actions.append(slip);
+  if(Number(t.event_id)>0){const match=document.createElement('button');match.type='button';match.textContent='Fișa meciului';match.onclick=()=>registaOpenMatch(Number(t.event_id));actions.append(match);}
+  card.append(header,detail,actions);list.append(card);
+ }
+}
 function resultName(item){if(item.result_status==='WIN')return '✓ WIN';if(item.result_status==='LOSS')return '✕ LOSS';if(item.signal_emitted){if(item.status==='BET_NOW')return '● BET NOW ACTIV · notificare emisă';if(item.status==='PRICE_CHANGED')return '◷ BET NOW EMIS · cota s-a schimbat';if(item.status==='QUOTE_STALE')return '◷ BET NOW EMIS · captură actuală lipsă';return '◷ BET NOW EMIS · fereastra închisă';}if(item.status==='MATCHED')return item.price_status==='NO_VALUE'?'PRONOSTIC · fără avantaj la cotă':item.price_status==='VALUE_CANDIDATE'?'PRONOSTIC VALUE · în observație':'PRONOSTIC · în observație';return item.status==='UNVERIFIED_SOURCE'?'Sursă neconfirmată':'Pronostic informativ · neconfirmat';}
 function fillRegistaSlip(item){
  const eventId=Number(item?.event_id),market=String(item?.market||'').toUpperCase(),selection=market==='OVER25'?'Peste 2.5':market,odds=Number(item?.odds_at_signal);
@@ -247,11 +305,12 @@ function card(item){
   el.append(live);
  }
  const result=document.createElement('div');result.className='rl-result';
- result.textContent=resultName(item)+(item.result_status==='WIN'||item.result_status==='LOSS'?' · '+(item.final_home??'—')+'–'+(item.final_away??'—'):'');el.append(result);
+ const ticket=registaTicketFor(item);
+ result.textContent=ticket?registaTicketLabel(ticket):resultName(item)+(item.result_status==='WIN'||item.result_status==='LOSS'?' · '+(item.final_home??'—')+'–'+(item.final_away??'—'):'');el.append(result);
  const actions=document.createElement('div');actions.className='rl-actions';
  if(item.signal_emitted&&Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0&&['1','X','2','OVER25'].includes(market)&&Number(item.odds_at_signal)>1){
   const btn=document.createElement('button');btn.className='rl-bet';btn.type='button';
-  btn.textContent='▤ În Slip · '+(market==='OVER25'?'OVER 2,5':market)+' @'+Number(item.odds_at_signal).toFixed(2)+' · 50 lei';btn.onclick=()=>fillRegistaSlip(item);actions.append(btn);
+  btn.textContent=ticket?'▤ Vezi biletul #'+ticket.id:'▤ În Slip · '+(market==='OVER25'?'OVER 2,5':market)+' @'+Number(item.odds_at_signal).toFixed(2)+' · 50 lei';btn.onclick=()=>ticket?registaOpenTicket(ticket):fillRegistaSlip(item);actions.append(btn);
  }
  if(Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0){
   const btn=document.createElement('button');btn.className='rl-bet';btn.type='button';btn.textContent='Fișa';
@@ -281,8 +340,9 @@ function renderRegistaChecklist(){
    Number.isFinite(at)&&at<=now&&at>=now-48*3600000&&['1','X','2','OVER25'].includes(String(x.market||'').toUpperCase());
  }).sort((a,b)=>Date.parse(b.signal_utc)-Date.parse(a.signal_utc))
   .filter(x=>{const key=String(x.event_id)+':'+String(x.market);if(seen.has(key))return false;seen.add(key);return true;});
- const betList=(typeof dashboard!=='undefined'&&Array.isArray(dashboard?.bets))?dashboard.bets:[];
- const sig=items.map(x=>[x.event_id,x.market,x.status,x.result_status,x.signal_utc,x.odds_at_signal,betList.find(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===(x.market==='OVER25'?'Peste 2.5':String(x.market)))?.id||0]).join('|');
+ const realTickets=Array.isArray(model.performance?.real?.tickets)?model.performance.real.tickets:[];
+ const betList=realTickets.length?realTickets:((typeof dashboard!=='undefined'&&Array.isArray(dashboard?.bets))?dashboard.bets:[]);
+ const sig=items.map(x=>[x.event_id,x.market,x.status,x.result_status,x.signal_utc,x.odds_at_signal,betList.find(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===(x.market==='OVER25'?'Peste 2.5':String(x.market)))?.id||0,betList.find(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===(x.market==='OVER25'?'Peste 2.5':String(x.market)))?.ticket_state||'']).join('|');
  const existing=[...root.querySelectorAll('[data-regista-checklist]')];
  if(root.dataset.sbRegistaSignature===sig&&existing.length===items.length)return;
  existing.forEach(el=>el.remove());
@@ -305,12 +365,12 @@ function renderRegistaChecklist(){
   const fixture=document.createElement('div');fixture.className='sb-pending-fixture';fixture.textContent=String(item.fixture);
   const meta=document.createElement('div');meta.className='sb-pending-meta';meta.textContent='Se detectează '+String(item.market)+' @ '+Number(item.odds_at_signal).toFixed(2)+' · '+Number(item.probability_pct).toFixed(0)+'% Regista · EV estimat '+(Number(item.ev_pct)>=0?'+':'')+Number(item.ev_pct||0).toFixed(1)+'%';
   const state=document.createElement('div');state.className='sb-pending-state';
-  state.textContent=inSlip?'✓ ÎN SLIP · bilet #'+String(inSlip.id):manually?'✓ BIFAT MANUAL · neconfirmat în Slip':item.result_status?'Rezultat '+item.result_status:'○ NEÎNREGISTRAT ÎN SLIP · cotă salvată';
+  state.textContent=inSlip?registaTicketLabel(inSlip)||'✓ ÎN SLIP · bilet #'+String(inSlip.id):manually?'✓ BIFAT MANUAL · neconfirmat în Slip':item.result_status?'Rezultat '+item.result_status:'○ NEÎNREGISTRAT ÎN SLIP · cotă salvată';
   body.append(head,fixture,meta,state);
   const actions=document.createElement('div');actions.className='sb-pending-actions';
   const show=document.createElement('button');show.type='button';show.textContent='Fișa meciului';show.onclick=()=>registaOpenMatch(id);
   const slip=document.createElement('button');slip.type='button';slip.textContent=inSlip?'✓ În Slip':'＋ În SLIP';
-  slip.onclick=()=>{if(inSlip&&typeof openTicketDetails==='function')openTicketDetails(Number(inSlip.id));else fillRegistaSlip(item);};
+  slip.onclick=()=>inSlip?registaOpenTicket(inSlip):fillRegistaSlip(item);
   actions.append(show,slip);row.append(check,body,actions);
   root.prepend(row);
  }
@@ -525,12 +585,13 @@ function render(){
  txt(panel.querySelector('#rlRoiReal'),real==null?'—':(real>=0?'+':'')+Number(real).toFixed(1)+'%');
  const liveTickets=Number(perf.real?.live||0),openTickets=Number(perf.real?.open||0);
  const badgeParts=[emitted.length+' EMIS'];
- if(liveTickets>0)badgeParts.push(liveTickets+' LIVE');
+ if(openTickets>0)badgeParts.push(openTickets+' PENDING');
  if(activeNow.length>0)badgeParts.push(activeNow.length+' BET NOW');
- if(liveTickets===0&&activeNow.length===0)badgeParts.push('0 PRE-MECI');
+ if(!openTickets&&!activeNow.length)badgeParts.push('0 PENDING');
  txt(panel.querySelector('#rlSummaryCount'),badgeParts.join(' · '));
  const badge=panel.querySelector('#rlSummaryCount');
- if(badge)badge.title='EMIS = alerte istorice 24h · LIVE = bilete personale în joc cu date confirmate · PRE-MECI/BET NOW = oportunități încă disponibile înainte de start';
+ if(badge)badge.title='EMIS = semnale trimise, nu bilete · PENDING = bilete reale înregistrate în Slip care nu sunt decontate · LIVE = meci în joc, confirmat recent · BET NOW = fereastră pre-meci';
+ renderRegistaPending();
  const status=panel.querySelector('#rlSourceStatus'),sync=model.sync;
  if(sync?.stored_rows>0){status.style.display='none';}
  else{status.style.display='block';status.textContent=sync?.error?'Import Regista nevalidat: '+String(sync.error).slice(0,130):'Sursa Regista nu are încă date verificate.';}
