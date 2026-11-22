@@ -55,31 +55,68 @@ return true;
 let current='FULL',model={items:[],counts:{},sync:null},busy=false,lastAt=0;
 function txt(el,s){if(el)el.textContent=String(s);}
 function resultName(item){if(item.result_status==='WIN')return '✓ WIN';if(item.result_status==='LOSS')return '✕ LOSS';if(item.status==='BET_NOW')return 'BET NOW · CANDIDAT VALUE (experimental)';if(item.status==='MATCHED')return item.price_status==='NO_VALUE'?'PRONOSTIC · fără avantaj la cotă':item.price_status==='VALUE_CANDIDATE'?'PRONOSTIC VALUE · încă în observație':'PRONOSTIC · în observație';return item.status==='UNVERIFIED_SOURCE'?'Sursă neconfirmată':'În observație';}
+function fillRegistaSlip(item){
+ const eventId=Number(item?.event_id),selection=String(item?.market||'').toUpperCase(),odds=Number(item?.odds_at_signal);
+ if(!Number.isSafeInteger(eventId)||eventId<1||!['1','X','2'].includes(selection)||!Number.isFinite(odds)||odds<=1)return false;
+ const old=document.getElementById('fixture');
+ if(old&&old.value.trim()&&old.value.trim()!==String(item.fixture||'').trim()&&typeof sbBetSaved!=='undefined'&&!sbBetSaved){
+  if(!window.confirm('Înlocuiești biletul incomplet din Slip cu selecția Regista?'))return false;
+ }
+ if(typeof selectBet==='function')selectBet({event_id:eventId,fixture:item.fixture,px:null,fresh:false});
+ else if(typeof tab==='function')tab('slip');
+ const sel=document.getElementById('selection');
+ if(sel){
+  if(!Array.from(sel.options).some(o=>o.value===selection)){
+   const opt=document.createElement('option');opt.value=selection;opt.textContent=selection==='1'?'1 • Victorie gazde':selection==='2'?'2 • Victorie oaspeți':'X • Egal';sel.append(opt);
+  }
+  sel.value=selection;sel.dispatchEvent(new Event('change',{bubbles:true}));
+ }
+ const ev=document.getElementById('eventId'),fi=document.getElementById('fixture'),price=document.getElementById('odds'),stake=document.getElementById('stake');
+ if(ev)ev.value=String(eventId);if(fi)fi.value=String(item.fixture||'');if(price)price.value=odds.toFixed(2);
+ if(stake)stake.value='50';
+ const info=document.getElementById('betmsg');
+ if(info){info.className='sub sb-bet-message';info.textContent='♜ REGISTA '+String(item.list_code||'')+' · '+selection+' · '+odds.toFixed(2)+' este COTA SALVATĂ LA SEMNAL, nu confirmarea cotei de pe biletul tău. Completează cota și ORA REALĂ ale pariului deja plasat înainte de Înregistrează. Nu se plasează un nou pariu.';}
+ if(typeof sbUpdateBetPreview==='function')sbUpdateBetPreview();
+ const sc=document.getElementById('slip');if(sc)sc.scrollIntoView({block:'start',behavior:'smooth'});
+ return true;
+}
+function registaMatchPanel(eventId){
+ const id=Number(eventId),root=document.getElementById('routeBody');
+ if(!Number.isSafeInteger(id)||id<1||!root||document.getElementById('routeBackdrop')?.classList.contains('hidden'))return;
+ const candidates=(model.items||[]).filter(x=>Number(x.event_id)===id&&x.signal_utc&&['1','X','2'].includes(String(x.market||'').toUpperCase())&&Number(x.odds_at_signal)>1);
+ if(!candidates.length)return;
+ const seq={LEAGUE:0,FULL:1,TOP10:2},item=candidates.sort((a,b)=>(seq[a.list_code]??9)-(seq[b.list_code]??9))[0];
+ const existing=root.querySelector('[data-regista-event]');
+ if(existing&&existing.dataset.registaEvent===String(id))return;
+ if(existing)existing.remove();
+ const panel=document.createElement('section');panel.dataset.registaEvent=String(id);
+ panel.style.cssText='margin:10px 0;padding:12px;border:1px solid #51b899;border-radius:13px;background:linear-gradient(120deg,#123d3b,#142634);color:#e4fff3;box-shadow:0 5px 18px #0003';
+ const title=document.createElement('strong');title.textContent='♜ REGISTA · SELECȚIA SALVATĂ LA ALERTĂ';
+ title.style.cssText='display:block;font-size:12px;letter-spacing:.04em';
+ const info=document.createElement('div');info.textContent=String(item.fixture||'')+' · '+String(item.market)+' @ '+Number(item.odds_at_signal).toFixed(2)+' · estimare '+Number(item.probability_pct).toFixed(0)+'%';
+ info.style.cssText='margin:7px 0;font-size:14px;font-weight:750';
+ const stamp=document.createElement('small');stamp.textContent='Cota la semnal '+(item.quote_captured_utc?new Date(item.quote_captured_utc).toLocaleString('ro-RO',{timeZone:'Europe/Bucharest',hour:'2-digit',minute:'2-digit'}):'—')+'; nu este neapărat cota actuală sau cea acceptată pe bilet.';
+ stamp.style.cssText='display:block;color:#b5d8cb;margin-bottom:9px';
+ const button=document.createElement('button');button.type='button';button.className='rl-bet';button.textContent='▤ Înregistrează în Slip · miză 50 lei';button.onclick=()=>fillRegistaSlip(item);
+ panel.append(title,info,stamp,button);
+ root.insertBefore(panel,root.firstChild?.nextSibling||root.firstChild);
+}
+let lastOpenedRegistaEvent=0;
+document.addEventListener('sb-regista-match-open',event=>{
+ const id=Number(event.detail?.event_id);if(!Number.isSafeInteger(id)||id<1)return;
+ lastOpenedRegistaEvent=id;
+ if((model.items||[]).length){registaMatchPanel(id);return;}
+ // Authentication and Regista polling can finish after the match sheet opens.
+ const retry=()=>registaMatchPanel(id);setTimeout(retry,1200);setTimeout(retry,3500);
+});
 function card(item){const el=document.createElement('article');el.className='rl-card';const name=document.createElement('div');name.className='rl-fixture';name.textContent=String(item.fixture||'Meci necunoscut').replace(/[·•]/g,' – ');
 const title=document.createElement('div');title.className='rl-top';const prob=document.createElement('strong');prob.className='rl-pct';prob.textContent=Number.isFinite(Number(item.probability_pct))?Number(item.probability_pct).toFixed(0)+'%':'—';
 title.append(name,prob);el.append(title);
 const meta=document.createElement('div');meta.className='rl-meta';meta.textContent=(item.market||'SELECȚIE NECUNOSCUTĂ')+(item.odds_at_signal?' · Cotă SB '+Number(item.odds_at_signal).toFixed(2):' · Cotă neconfirmată')+(item.ev_pct!=null?' · EV model '+(item.ev_pct>=0?'+':'')+Number(item.ev_pct).toFixed(1)+'% · Edge '+(item.edge_pp>=0?'+':'')+Number(item.edge_pp).toFixed(1)+' pp':'');el.append(meta);
 const result=document.createElement('div');result.className='rl-result';result.textContent=resultName(item)+(item.result_status==='WIN'||item.result_status==='LOSS'?' · '+(item.final_home??'—')+'–'+(item.final_away??'—'):'');el.append(result);
 const actions=document.createElement('div');actions.className='rl-actions';
-if(item.status==='BET_NOW'&&Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0&&Number(item.odds_at_signal)>1){
-const b=document.createElement('button');b.className='rl-bet';b.textContent='BET NOW · pregătește Slip';b.onclick=()=>{
- const eventId=Number(item.event_id),selection=String(item.market||'').toUpperCase(),odds=Number(item.odds_at_signal);
- if(!Number.isSafeInteger(eventId)||eventId<1||!['1','X','2'].includes(selection)||!(odds>1))return;
- if(typeof selectBet==='function')selectBet({event_id:eventId,fixture:item.fixture,px:null,fresh:false});
- else if(typeof tab==='function')tab('slip');
- const sel=document.getElementById('selection');
- if(sel){
-   if(!Array.from(sel.options).some(o=>o.value===selection)){
-     const opt=document.createElement('option');opt.value=selection;opt.textContent=selection==='1'?'1 • Victorie gazde':selection==='2'?'2 • Victorie oaspeți':'X • Egal';
-     sel.append(opt);
-   }
-   sel.value=selection;
- }
- const ev=document.getElementById('eventId'),fi=document.getElementById('fixture'),price=document.getElementById('odds');
- if(ev)ev.value=eventId;if(fi)fi.value=item.fixture;if(price)price.value=odds.toFixed(2);
- const info=document.getElementById('betmsg');if(info)info.textContent='REGISTA '+item.list_code+' · '+selection+' · cotă arhivată '+odds.toFixed(2)+'. Verifică prețul real pe Superbet și înregistrează biletul doar după plasarea lui.';
- if(typeof sbUpdateBetPreview==='function')sbUpdateBetPreview();
-};actions.append(b);
+if(Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0&&['1','X','2'].includes(String(item.market||'').toUpperCase())&&Number(item.odds_at_signal)>1&&(item.status==='BET_NOW'||(item.signal_utc&&Date.now()-Date.parse(item.signal_utc)<48*3600000))){
+const b=document.createElement('button');b.className='rl-bet';b.textContent=item.status==='BET_NOW'?'BET NOW · pregătește Slip':'Înregistrează în Slip un bilet deja plasat';b.onclick=()=>fillRegistaSlip(item);actions.append(b);
 }
 if(item.source_url&&/^https:\/\/(?:www\.)?registacalcio\.it\//.test(item.source_url)){const a=document.createElement('a');a.href=item.source_url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Regista ↗';actions.append(a);}
 el.append(actions);return el;
@@ -88,7 +125,7 @@ function render(){const panel=document.getElementById('sbRegistaLab');if(!panel)
 const items=(model.items||[]).filter(x=>x.list_code===current),cards=panel.querySelector('#rlCards'),arch=panel.querySelector('#rlArchiveBody');
 cards.replaceChildren();arch.replaceChildren();const active=items.filter(x=>x.status==='BET_NOW'||x.status==='MATCHED').slice(0,20);
 if(!active.length){const x=document.createElement('div');x.className='rl-warning';x.textContent='Niciun semnal verificat pentru '+(current==='TOP10'?'TOP 10':current)+'. BET NOW apare doar la 1 / 2, cotă verificată, EV estimat ≥8% și avantaj ≥5 pp. Nu reprezintă profit validat.';cards.append(x);}else active.forEach(x=>cards.append(card(x)));
-const historical=items.filter(x=>x.result_status==='WIN'||x.result_status==='LOSS'||x.status==='EXPIRED').slice(0,60);
+const historical=items.filter(x=>x.result_status==='WIN'||x.result_status==='LOSS'||x.status==='EXPIRED'||(x.signal_utc&&x.status!=='BET_NOW')).slice(0,60);
 if(!historical.length)arch.textContent='Arhiva este goală. Se vor contoriza numai pronosticuri salvate înaintea meciurilor.';else historical.forEach(x=>arch.append(card(x)));
 const c=model.counts?.[current]||{};txt(panel.querySelector('#rl24'),c.last24h??0);txt(panel.querySelector('#rl7d'),c.last7d??0);txt(panel.querySelector('#rlWl'),(c.wins??0)+' / '+(c.losses??0));
 txt(panel.querySelector('#rlSummaryCount'),(c.betnow??0)+' BET NOW');
@@ -112,11 +149,13 @@ function localPulse(rows){
     }
   }catch(_){}
 }
-async function poll(force){if(busy||!document.getElementById('sbRegistaLab')||(!force&&Date.now()-lastAt<30000))return;if(typeof api!=='function')return;busy=true;try{const d=await api('/api/mobile/regista/summary');if(!d?.items)throw Error('No data');model=d;lastAt=Date.now();render();localPulse(d.items);}catch(e){const s=document.getElementById('rlSourceStatus');if(s){s.style.display='block';s.textContent='Regista indisponibil momentan. Nu se emit semnale fără date verificate.';}}finally{busy=false;}}
+async function poll(force){if(busy||!document.getElementById('sbRegistaLab')||(!force&&Date.now()-lastAt<30000))return;if(typeof api!=='function')return;busy=true;try{const d=await api('/api/mobile/regista/summary');if(!d?.items)throw Error('No data');model=d;const initial=!lastAt;lastAt=Date.now();if(initial){const hot=d.items.find(x=>x.status==='BET_NOW');if(hot){current=hot.list_code;document.querySelectorAll('#sbRegistaLab .rl-tab').forEach(x=>x.classList.toggle('active',x.dataset.rlt===current));}}render();if(lastOpenedRegistaEvent)registaMatchPanel(lastOpenedRegistaEvent);localPulse(d.items);}catch(e){const s=document.getElementById('rlSourceStatus');if(s){s.style.display='block';s.textContent='Regista indisponibil momentan. Nu se emit semnale fără date verificate.';}}finally{busy=false;}}
 function boot(){
  if(!mount())return;
+ const deepEvent=Number(new URLSearchParams(location.search).get('event_id'));if(Number.isSafeInteger(deepEvent)&&deepEvent>0)lastOpenedRegistaEvent=deepEvent;
  setTimeout(()=>poll(true),500);
  setInterval(()=>{if(!document.hidden)poll(false)},30000);
+ setTimeout(()=>{if(lastOpenedRegistaEvent)registaMatchPanel(lastOpenedRegistaEvent)},4800);
  // Some legacy home scripts rebuild the Live subtree: recover the card if removed.
  setInterval(()=>{const root=document.getElementById('live');if(root&&!document.getElementById('sbRegistaLab')){if(mount()){render();poll(true);}}},5000);
 }
