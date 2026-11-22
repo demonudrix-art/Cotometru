@@ -153,6 +153,31 @@ body.sb-peek-home-v1 #sbGlobalSearch.sb-peek-search-open{display:block!important
 @media(max-width:370px){#sbPeekHub .sb-peek-tile{padding:8px 6px;min-height:89px}#sbPeekHub .sb-peek-tile span{font-size:9px}#sbPeekHub .sb-peek-tile strong{font-size:11px}#sbPeekRoadDrawer>summary{font-size:10px}}
 @media(prefers-reduced-motion:reduce){#sbPeekRadarNotice .sb-peek-radar-dot{animation:none}#live #sbPeekRoadDrawer[open] #sb57TopDuo{animation:none}}
 #sbPeekHub .sb-peek-ticker{font-size:10px;font-weight:750;line-height:1.4;color:#bbdcd6;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;padding:1px 2px}
+
+/* Goal-market research is intentionally visually distinct from actionable 1X2 BET NOW. */
+#sbRegistaLab .rl-goals{border:1px solid #416a79;border-radius:12px;background:linear-gradient(120deg,#142936,#1a2639);overflow:hidden;margin:10px 0}
+#sbRegistaLab .rl-goals>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none;min-height:42px;padding:11px;color:#c6eaf0;font-size:11px;font-weight:900}
+#sbRegistaLab .rl-goals>summary:after{content:"⌄";font-size:13px;color:#83c4b3}
+#sbRegistaLab .rl-goals>summary b{font-size:10px;background:#235360;border-radius:10px;padding:4px 6px;margin-left:auto;white-space:nowrap}
+#sbRegistaLab .rl-goals[open]>#rlGoalsBody{animation:rl-reveal .25s ease both}
+#sbRegistaLab .rl-goals-intro{margin:0 9px 9px;padding:10px;border-radius:9px;background:#1c3544;color:#bfdddb;font-size:10px;line-height:1.6}
+#sbRegistaLab .rl-goal-market{margin:8px 10px;border:1px solid #47677a;border-radius:11px;background:#132638;padding:11px;display:grid;gap:8px}
+#sbRegistaLab .rl-goal-market.priority{background:linear-gradient(135deg,#16423b,#182d44);border:1px solid #77c7a9}
+#sbRegistaLab .rl-goal-market-head{display:flex;align-items:center;gap:7px;justify-content:space-between}
+#sbRegistaLab .rl-goal-market-head strong{font-size:12px;color:#eaffed}
+#sbRegistaLab .rl-goal-market-head small{font-size:9px;color:#c6dbc8;white-space:nowrap}
+#sbRegistaLab .rl-goal-market-stats{display:flex;gap:5px;flex-wrap:wrap;align-items:center;justify-content:space-between;color:#abc7c8;font-size:10px}
+#sbRegistaLab .rl-goal-market-stats strong{font-size:14px;color:#ebfff7}
+#sbRegistaLab .rl-goal-market-stats small{font-size:9px;color:#95b8b8}
+#sbRegistaLab .rl-goal-market-note{font-size:10px;color:#9ac8c8;line-height:1.5}
+#sbRegistaLab .rl-goals-upcoming{margin:12px 10px;padding:10px;border-radius:10px;border:1px solid #496d75;background:#142b39;display:grid;gap:7px}
+#sbRegistaLab .rl-goals-upcoming>strong{font-size:11px;color:#b8f1d5}
+#sbRegistaLab .rl-goals-upcoming>p{font-size:10px;color:#a8c9cf}
+#sbRegistaLab .rl-goals-next{display:grid;gap:3px;padding:7px 0;border-bottom:1px solid #385666;font-size:11px;color:#e4fdf4}
+#sbRegistaLab .rl-goals-next:last-child{border:0}
+#sbRegistaLab .rl-goals-next small{font-size:10px;color:#9abdc2}
+#sbRegistaLab .rl-goals-warning{padding:8px 11px;margin:4px 8px 7px;border:1px solid #71694a;background:#2d2d2d;border-radius:9px;font-size:10px;color:#e7dabe;line-height:1.55}
+#sbRegistaLab .rl-goals-source{display:block;font-size:10px;padding:6px 11px 12px;color:#94ddc7}
 `;
 const css=document.createElement('style');css.id='sbRegistaLabV2Css';css.textContent=STYLE;document.head.append(css);
 function mount(){
@@ -165,7 +190,7 @@ section.style.setProperty('opacity','1','important');
 section.style.setProperty('grid-column','1 / -1','important');
 section.style.setProperty('width','100%','important');
 section.removeAttribute('hidden');
-section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-period-grid"><div class="rl-period"><small>ULTIMELE 24H</small><strong id="rl24">—</strong><b id="rl24Wl">—</b><em id="rl24Roi">ROI —</em></div><div class="rl-period"><small>ULTIMELE 7 ZILE</small><strong id="rl7d">—</strong><b id="rl7dWl">—</b><em id="rl7dRoi">ROI —</em></div></div><div class="rl-totals"><span>WIN / LOSS <b id="rlWl">—</b></span><span>ROI REAL <b id="rlRoiReal">—</b></span><span>ROI SIM 50 LEI <b id="rlRoi">—</b></span></div><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW · ALERTE EMISE <small>Se păstrează după start. LIVE înseamnă bilet în curs; BET NOW e doar înaintea meciului.</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
+section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-period-grid"><div class="rl-period"><small>ULTIMELE 24H</small><strong id="rl24">—</strong><b id="rl24Wl">—</b><em id="rl24Roi">ROI —</em></div><div class="rl-period"><small>ULTIMELE 7 ZILE</small><strong id="rl7d">—</strong><b id="rl7dWl">—</b><em id="rl7dRoi">ROI —</em></div></div><div class="rl-totals"><span>WIN / LOSS <b id="rlWl">—</b></span><span>ROI REAL <b id="rlRoiReal">—</b></span><span>ROI SIM 50 LEI <b id="rlRoi">—</b></span></div><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW · ALERTE EMISE <small>Se păstrează după start. LIVE înseamnă bilet în curs; BET NOW e doar înaintea meciului.</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-goals" id="rlGoalsLab"><summary><span>⚽ OVER 2,5 · GG · UNDER · CERCETARE</span><b id="rlGoalsCount">—</b></summary><div id="rlGoalsBody">Se analizează meciurile și cotele…</div><div class="rl-goals-warning">Mod SHADOW: fără BET NOW, vibrații sau bilete pentru piețele fără cote Superbet confirmate. Nu folosim cote 1/X/2 ca substitut.</div><a class="rl-goals-source" href="https://www.registacalcio.it/schedina/statistiche" target="_blank" rel="noopener noreferrer">Istoricul public Regista</a></details><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
 if(section.parentElement!==live)live.insertBefore(section,live.firstChild);
 else if(section!==live.firstElementChild)live.insertBefore(section,live.firstChild);
 section.querySelectorAll('.rl-tab').forEach(b=>b.onclick=()=>{section.querySelectorAll('.rl-tab').forEach(x=>x.classList.toggle('active',x===b));current=b.dataset.rlt;render();});
@@ -482,6 +507,52 @@ function sbPeekUpdate(){
  }
 }
 
+
+function renderRegistaGoals(){
+ const lab=document.getElementById('rlGoalsLab'),body=document.getElementById('rlGoalsBody'),count=document.getElementById('rlGoalsCount');
+ if(!lab||!body)return;
+ const data=model.goals_lab||{},marketData=data.markets||{},markets=['OVER25','BTTS','UNDER25','NO_BTTS'];
+ const map={'OVER25':'OVER 2,5','BTTS':'GG · AMBELE MARCHEAZĂ','UNDER25':'UNDER 2,5','NO_BTTS':'NG · NU MARCHEAZĂ AMBELE'};
+ if(count)count.textContent=(Number(data.distinct_picks)||0)+' PRONOSTICURI';
+ body.replaceChildren();
+ const intro=document.createElement('div');intro.className='rl-goals-intro';
+ intro.textContent='OVER 2,5 are prioritate de cercetare; GG și Under rămân sub observație. Contorizăm doar semnalele văzute înainte de meci și rezultatele verificate.';
+ body.append(intro);
+ for(const type of markets){
+  const stat=marketData[type]||{},box=document.createElement('section');
+  box.className='rl-goal-market'+(type==='OVER25'?' priority':'');
+  const head=document.createElement('div');head.className='rl-goal-market-head';
+  const title=document.createElement('strong');title.textContent=(type==='OVER25'?'⚽ ':'◈ ')+(map[type]||type);
+  const badge=document.createElement('small');badge.textContent=type==='OVER25'?'PRIORITATE · RESEARCH':'DOAR OBSERVAȚIE';
+  head.append(title,badge);box.append(head);
+  const stats=document.createElement('div');stats.className='rl-goal-market-stats';
+  const a=document.createElement('div');a.textContent='DIN D1 · '+Number(stat.forward_seen||0)+' urmărite înainte de start';
+  const b=document.createElement('strong');b.textContent=Number(stat.forward_wins||0)+'W / '+Number(stat.forward_losses||0)+'L';
+  const c=document.createElement('small');c.textContent='ROI — · cotă piață neconfirmată';
+  stats.append(a,b,c);box.append(stats);
+  if(type==='OVER25'){
+   const note=document.createElement('div');note.className='rl-goal-market-note';
+   note.textContent='Prag de observare: probabilitate Regista ≥85%. Nu este o regulă BET NOW; trebuie cota Over 2,5, EV și rezultate prospective suficiente.';
+   box.append(note);
+  }else if(type==='BTTS'){
+   const note=document.createElement('div');note.className='rl-goal-market-note';
+   note.textContent='GG are rată publică de reușită mai redusă; nu declanșează alerte de pariere.';
+   box.append(note);
+  }
+  body.append(box);
+ }
+ const upcoming=Array.isArray(data.upcoming)?data.upcoming:[],future=document.createElement('div');future.className='rl-goals-upcoming';
+ const heading=document.createElement('strong');heading.textContent='Urmează în programul Regista';future.append(heading);
+ if(!upcoming.length){const note=document.createElement('p');note.textContent='Nu există acum pronosticuri de goluri viitoare validate în sursă.';future.append(note);}
+ for(const x of upcoming.slice(0,6)){
+  const row=document.createElement('div');row.className='rl-goals-next';
+  const left=document.createElement('span');left.textContent=sbPeekTime(x.kickoff_utc)+' · '+String(x.fixture||'Meci');
+  const right=document.createElement('small');right.textContent=(map[x.market]||x.market)+' · '+String(x.probability_pct)+'% · '+(x.market==='OVER25'&&x.probability_pct>=85?'candidat RESEARCH':'observare');
+  row.append(left,right);future.append(row);
+ }
+ body.append(future);
+}
+
 function render(){
  const panel=document.getElementById('sbRegistaLab');if(!panel)return;
  const items=(model.items||[]).filter(x=>x.list_code===current);
@@ -523,6 +594,7 @@ function render(){
  if(sync?.stored_rows>0){status.style.display='none';}
  else{status.style.display='block';status.textContent=sync?.error?'Import Regista nevalidat: '+String(sync.error).slice(0,130):'Sursa Regista nu are încă date verificate.';}
  renderRegistaChecklist();
+ renderRegistaGoals();
  sbPeekUpdate();
 }
 function localPulse(rows){
