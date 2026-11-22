@@ -8,10 +8,20 @@ const h=Number(row.final_home),a=Number(row.final_away),m=String(row.market||'')
 const win=m==='1'?h>a:m==='X'?h===a:m==='2'?a>h:m==='BTTS'?h>0&&a>0:m==='NO_BTTS'?h===0||a===0:m==='OVER25'||m==='OVER2.5'?h+a>=3:m==='UNDER25'||m==='UNDER2.5'?h+a<=2:null;
 return win===null?null:win?'WIN':'LOSS';
 }
+function priceMetric(row){
+ const odds=Number(row.odds_at_signal),prob=Number(row.probability_pct)/100;
+ const supported=['1','2'].includes(String(row.market||'').toUpperCase());
+ if(!supported||!Number.isFinite(odds)||odds<=1||!Number.isFinite(prob)||prob<=0||prob>1)
+  return {break_even_pct:null,edge_pp:null,ev_pct:null,value_candidate:false,price_status:supported?'NO_PRICE':'UNSUPPORTED_MARKET'};
+ const breakEven=1/odds,edgePP=100*(prob-breakEven),evPct=100*(prob*odds-1);
+ return {break_even_pct:Math.round(breakEven*10000)/100,edge_pp:Math.round(edgePP*100)/100,
+  ev_pct:Math.round(evPct*100)/100,value_candidate:edgePP>=5-1e-8&&evPct>=8-1e-8,
+  price_status:edgePP>=5-1e-8&&evPct>=8-1e-8?'VALUE_CANDIDATE':'NO_VALUE'};
+}
 function ready(row,now){
 if(row.status!=='BET_NOW')return false;
 const id=Number(row.event_id),k=Date.parse(row.kickoff_utc),cap=Date.parse(row.quote_captured_utc),seen=Date.parse(row.source_first_seen_utc),last=Date.parse(row.source_last_seen_utc);
-return Number.isSafeInteger(id)&&id>0&&Number(row.match_confidence)>=.98&&['1','X','2'].includes(row.market)&&Number(row.odds_at_signal)>1&&Number.isFinite(k)&&Number.isFinite(cap)&&Number.isFinite(seen)&&Number.isFinite(last)&&seen<=k-300000&&cap<=now&&now-cap<=20*60000&&last<=now&&now-last<=60*60000&&k-now>0&&k-now<=45*60000;
+return priceMetric(row).value_candidate&&Number.isSafeInteger(id)&&id>0&&Number(row.match_confidence)>=.98&&['1','2'].includes(row.market)&&Number(row.odds_at_signal)>1&&Number.isFinite(k)&&Number.isFinite(cap)&&Number.isFinite(seen)&&Number.isFinite(last)&&seen<=k-300000&&cap<=now&&now-cap<=20*60000&&last<=now&&now-last<=60*60000&&k-now>0&&k-now<=45*60000;
 }
 export async function registaMobileApi(req,env,who,path){
 try{
@@ -29,7 +39,7 @@ const [records,sync]=await Promise.all([
  env.DB.prepare('SELECT started_utc,source_status,stored_rows,error FROM sb_regista_sync_runs_v1 ORDER BY id DESC LIMIT 1').first()
 ]);
 const now=Date.now();
-const rows=(records.results||[]).map(s=>({...s,result_status:finish(s),status:ready(s,now)?'BET_NOW':s.status==='BET_NOW'?'EXPIRED':s.status})); // Expired never alerts.
+const rows=(records.results||[]).map(s=>({...s,...priceMetric(s),result_status:finish(s),status:ready(s,now)?'BET_NOW':s.status==='BET_NOW'?(Date.parse(s.kickoff_utc)>now?'MATCHED':'EXPIRED'):s.status})); // Gate active signals by expected value; no false alerts.
 if(path.endsWith('/alerts')){
  // One vibration per match, not one per Full/League/Top10 membership.
  const precedence={FULL:0,LEAGUE:1,TOP10:2};
@@ -50,7 +60,7 @@ for(const typ of Object.keys(counts)){
   wins:r.filter(s=>s.result_status==='WIN').length,
   losses:r.filter(s=>s.result_status==='LOSS').length,
   pending:r.filter(s=>!s.result_status).length,
-  roi:null // Cannot claim ROI without captured market-specific odds at each betting opportunity.
+  roi:null // Observed prospective ROI not proven; retrospective source imports cannot validate profit.
  };
 }
 return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,server_utc:NOW()});
