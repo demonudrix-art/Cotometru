@@ -46,6 +46,8 @@ export async function collectGoalMarketQuotes(env){
  if(previous){
   const age=now-Date.parse(previous.checked_utc);
   if(age>=0&&age<24*3600000&&(previous.source_http_status===401||previous.source_http_status===403))return {status:'BLOCKED_24H_BACKOFF'};
+  // A 400 indicates unsupported/invalid market parameters. Do not hammer the provider every 20 minutes.
+  if(age>=0&&age<3*3600000&&previous.source_http_status===400)return {status:'INVALID_MARKET_REQUEST_BACKOFF'};
   if(age>=0&&age<18*60000)return {status:'THROTTLED'};
  }
  const from=new Date(now+10*60000).toISOString(),to=new Date(now+90*60000).toISOString();
