@@ -164,6 +164,68 @@ if(item.source_url&&/^https:\/\/(?:www\.)?registacalcio\.it\//.test(item.source_
 el.append(actions);return el;
 }
 
+
+function registaOpenMatch(eventId){
+ const id=Number(eventId);
+ if(!Number.isSafeInteger(id)||id<=0)return;
+ lastOpenedRegistaEvent=id;
+ if(typeof focusEvent==='function'){
+  try{const promise=focusEvent(id);if(promise?.then)promise.then(()=>registaMatchPanel(id)).catch(()=>{});}
+  catch(e){console.warn('REGISTA_OPEN_MATCH',String(e));}
+ }
+ setTimeout(()=>registaMatchPanel(id),600);
+ setTimeout(()=>registaMatchPanel(id),1800);
+}
+function renderRegistaChecklist(){
+ const box=document.getElementById('sbRadarLast'),root=document.getElementById('sbPendingAlertList');
+ if(!box||!root)return;
+ const now=Date.now(),seen=new Set();
+ const items=(model.items||[]).filter(x=>{
+  const at=Date.parse(x.signal_utc||'');
+  return Number.isSafeInteger(Number(x.event_id))&&Number(x.event_id)>0&&Number(x.odds_at_signal)>1&&
+   Number.isFinite(at)&&at<=now&&at>=now-48*3600000&&['1','X','2'].includes(String(x.market||'').toUpperCase());
+ }).sort((a,b)=>Date.parse(b.signal_utc)-Date.parse(a.signal_utc))
+  .filter(x=>{const key=String(x.event_id)+':'+String(x.market);if(seen.has(key))return false;seen.add(key);return true;});
+ const betList=(typeof dashboard!=='undefined'&&Array.isArray(dashboard?.bets))?dashboard.bets:[];
+ const sig=items.map(x=>[x.event_id,x.market,x.status,x.result_status,x.signal_utc,x.odds_at_signal,betList.find(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===String(x.market))?.id||0]).join('|');
+ const existing=[...root.querySelectorAll('[data-regista-checklist]')];
+ if(root.dataset.sbRegistaSignature===sig&&existing.length===items.length)return;
+ existing.forEach(el=>el.remove());
+ root.dataset.sbRegistaSignature=sig;
+ if(items.length){
+  root.querySelectorAll(':scope > .sb-pending-empty').forEach(el=>{el.style.display='none';});
+ }
+ for(const item of items){
+  const id=Number(item.event_id),inSlip=betList.find(b=>Number(b.event_id)===id&&String(b.selection)===String(item.market)),key='sb_regista_manual_check_'+id+':'+String(item.market);
+  let manually=false;try{manually=localStorage.getItem(key)==='1'}catch(_){}
+  const row=document.createElement('div');row.className='sb-pending-entry regista'+(inSlip||manually?' checked':'');row.dataset.registaChecklist=String(id);row.dataset.registaSelection=String(item.market);
+  const check=document.createElement('input');check.type='checkbox';check.className='sb-pending-checkbox';check.checked=!!inSlip||manually;check.disabled=!!inSlip;
+  check.title=inSlip?'Înregistrat în Slip':'Marchează doar dacă ai plasat personal biletul; această bifă nu îl înregistrează în Slip.';
+  check.onchange=()=>{try{if(check.checked)localStorage.setItem(key,'1');else localStorage.removeItem(key);}catch(_){} row.classList.toggle('checked',check.checked);const state=row.querySelector('.sb-pending-state');if(state)state.textContent=check.checked?'✓ BIFAT MANUAL · neconfirmat în Slip':'○ NEÎNREGISTRAT ÎN SLIP';};
+  const body=document.createElement('div');body.className='sb-pending-content';
+  const head=document.createElement('div');head.className='sb-pending-top';
+  const badge=document.createElement('span');badge.className='sb-pending-filter';badge.textContent='♜ REGISTA · VALUE';
+  const time=document.createElement('time');time.className='sb-pending-time';time.textContent=new Date(item.signal_utc).toLocaleString('ro-RO',{timeZone:'Europe/Bucharest',hour:'2-digit',minute:'2-digit'});
+  head.append(badge,time);
+  const fixture=document.createElement('div');fixture.className='sb-pending-fixture';fixture.textContent=String(item.fixture);
+  const meta=document.createElement('div');meta.className='sb-pending-meta';meta.textContent='Se detectează '+String(item.market)+' @ '+Number(item.odds_at_signal).toFixed(2)+' · '+Number(item.probability_pct).toFixed(0)+'% Regista · EV estimat '+(Number(item.ev_pct)>=0?'+':'')+Number(item.ev_pct||0).toFixed(1)+'%';
+  const state=document.createElement('div');state.className='sb-pending-state';
+  state.textContent=inSlip?'✓ ÎN SLIP · bilet #'+String(inSlip.id):manually?'✓ BIFAT MANUAL · neconfirmat în Slip':item.result_status?'Rezultat '+item.result_status:'○ NEÎNREGISTRAT ÎN SLIP · cotă salvată';
+  body.append(head,fixture,meta,state);
+  const actions=document.createElement('div');actions.className='sb-pending-actions';
+  const show=document.createElement('button');show.type='button';show.textContent='Fișa meciului';show.onclick=()=>registaOpenMatch(id);
+  const slip=document.createElement('button');slip.type='button';slip.textContent=inSlip?'✓ În Slip':'＋ În SLIP';
+  slip.onclick=()=>{if(inSlip&&typeof openTicketDetails==='function')openTicketDetails(Number(inSlip.id));else fillRegistaSlip(item);};
+  actions.append(show,slip);row.append(check,body,actions);
+  root.prepend(row);
+ }
+ const clock=box.querySelector('.sb-radar-last-head time');
+ if(clock){
+  const base=(clock.textContent||'').replace(/ · ♜ \d+ REGISTA(?:.*)?$/,'');
+  clock.textContent=base+(items.length?' · ♜ '+items.filter(x=>!betList.some(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===String(x.market))).length+' REGISTA':'');
+ }
+}
+
 function render(){
  const panel=document.getElementById('sbRegistaLab');if(!panel)return;
  const items=(model.items||[]).filter(x=>x.list_code===current);
@@ -221,7 +283,14 @@ function boot(){
  const deepEvent=Number(new URLSearchParams(location.search).get('event_id'));if(Number.isSafeInteger(deepEvent)&&deepEvent>0)lastOpenedRegistaEvent=deepEvent;
  setTimeout(()=>poll(true),500);
  setInterval(()=>{if(!document.hidden)poll(false)},30000);
+ setInterval(()=>{if(!document.hidden)renderRegistaChecklist()},4000);
  setTimeout(()=>{if(lastOpenedRegistaEvent)registaMatchPanel(lastOpenedRegistaEvent)},4800);
+ const route=document.getElementById('routeBody');
+ if(route){let pending=false;new MutationObserver(()=>{
+  if(!lastOpenedRegistaEvent||pending||route.querySelector('[data-regista-event]')||document.getElementById('routeBackdrop')?.classList.contains('hidden'))return;
+  pending=true;setTimeout(()=>{pending=false;registaMatchPanel(lastOpenedRegistaEvent);},80);
+ }).observe(route,{childList:true,subtree:false});}
+
  // Some legacy home scripts rebuild the Live subtree: recover the card if removed.
  setInterval(()=>{const root=document.getElementById('live');if(root&&!document.getElementById('sbRegistaLab')){if(mount()){render();poll(true);}}},5000);
 }
