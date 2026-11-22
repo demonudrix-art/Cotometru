@@ -23,7 +23,7 @@ if(row.status!=='BET_NOW')return false;
 const id=Number(row.event_id),k=Date.parse(row.kickoff_utc),cap=Date.parse(row.quote_captured_utc),seen=Date.parse(row.source_first_seen_utc),last=Date.parse(row.source_last_seen_utc);
 return priceMetric(row).value_candidate&&Number.isSafeInteger(id)&&id>0&&Number(row.match_confidence)>=.98&&['1','2'].includes(row.market)&&Number(row.odds_at_signal)>1&&Number.isFinite(k)&&Number.isFinite(cap)&&Number.isFinite(seen)&&Number.isFinite(last)&&seen<=k-300000&&cap<=now&&now-cap<=20*60000&&last<=now&&now-last<=60*60000&&k-now>0&&k-now<=45*60000;
 }
-export async function registaMobileApi(req,env,who,path){
+export async function registaMobileApi(req,env,who,path,slipDeviceFor){
 try{
 if(path==='/api/mobile/regista/ack'&&req.method==='POST'){
  const input=await req.json().catch(()=>({})),id=String(input.signal_id||'').slice(0,128);
@@ -68,6 +68,19 @@ function performance(rows,now,filter=()=>true){
    roi_sim_pct:graded.length?Math.round((net/(50*graded.length))*10000)/100:null,
    roi_verified:false, note:'Simulare prospectivă cu miză fixă 50 lei pe selecție distinctă; nu este ROI real la Superbet.'};
 }
+
+let actual={tickets_total:0,open:0,settled:0,wins:0,losses:0,stake_lei:0,net_lei:null,roi_pct:null,source:'SLIP_REGISTA_VERIFIED'};
+try{
+ const slipDevice=typeof slipDeviceFor==='function'?await slipDeviceFor(env,who.device_id):who.device_id;
+ const records=await env.DB.prepare("SELECT status,stake_lei,returned_lei FROM ghost_equal_bets WHERE device_id=? AND notes LIKE 'REGISTA_VALUE_V1:%' ORDER BY id DESC LIMIT 300").bind(slipDevice).all();
+ const all=records.results||[],finished=all.filter(x=>['WON','LOST','VOID','CASHOUT'].includes(String(x.status||'')));
+ const stake=finished.reduce((n,x)=>n+Number(x.stake_lei||0),0);
+ const net=finished.reduce((n,x)=>n+Number(x.returned_lei||0)-Number(x.stake_lei||0),0);
+ actual={tickets_total:all.length,open:all.filter(x=>x.status==='OPEN').length,settled:finished.length,
+  wins:finished.filter(x=>x.status==='WON').length,losses:finished.filter(x=>x.status==='LOST').length,
+  stake_lei:Math.round(stake*100)/100,net_lei:finished.length?Math.round(net*100)/100:null,
+  roi_pct:stake>0?Math.round((net/stake)*10000)/100:null,source:'SLIP_REGISTA_VERIFIED'};
+}catch(e){console.warn('REGISTA_REAL_ROI_READ',String(e).slice(0,120));}
 const counts={FULL:{},LEAGUE:{},TOP10:{}};
 for(const typ of Object.keys(counts)){
  const r=rows.filter(s=>s.list_code===typ),readyNow=r.filter(s=>s.status==='BET_NOW');
@@ -82,6 +95,6 @@ for(const typ of Object.keys(counts)){
   prospective:performance(rows,now,s=>s.list_code===typ)
  };
 }
-return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,performance:performance(rows,now),server_utc:NOW()});
+return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,performance:{...performance(rows,now),real:actual},server_utc:NOW()});
 }catch(e){console.error('REGISTA_READ_FAIL',String(e).slice(0,170));return response({error:'REGISTA_LAB_UNAVAILABLE',items:[],counts:{},sync:null},503);}
 }
