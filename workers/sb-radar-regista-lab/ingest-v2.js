@@ -86,7 +86,7 @@ export async function syncRegistaV2(env){
     if(quote)odds=Number(p.market==='1'?quote.p1:p.market==='X'?quote.px:quote.p2);
    }else if(e&&p.market==='OVER25'){
     // Only the exact Superbet OVER 2.5 market. Never reuse 1X2 or GG price.
-    quote=await env.DB.prepare("SELECT captured_utc,price FROM sb_regista_goal_prices_v1 WHERE event_id=? AND market='OVER25' AND captured_utc<=? AND captured_utc<? AND captured_utc>=? ORDER BY captured_utc DESC LIMIT 1").bind(eventId,now,p.kickoff,now).first();
+    quote=await env.DB.prepare("SELECT captured_utc,price FROM sb_regista_goal_prices_v1 WHERE event_id=? AND market='OVER25' AND captured_utc<=? AND captured_utc<? AND captured_utc>=? ORDER BY captured_utc DESC LIMIT 1").bind(eventId,now,p.kickoff,new Date(nowMs-20*60000).toISOString()).first();
     if(quote)odds=Number(quote.price);
    }
    const quoteOk=quote&&Number.isFinite(odds)&&odds>1&&nowMs-Date.parse(quote.captured_utc)>=0&&nowMs-Date.parse(quote.captured_utc)<=20*60000;
