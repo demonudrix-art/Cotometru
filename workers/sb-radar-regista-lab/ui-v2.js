@@ -48,7 +48,7 @@ const STYLE=String.raw`
 @keyframes rl-reveal{from{opacity:.12;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 #sbRegistaLab .rl-head strong{font-size:14px;letter-spacing:.05em}
 #sbRegistaLab .rl-head small{font-size:10px}
-#sbRegistaLab .rl-statline{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+#sbRegistaLab .rl-statline{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
 #sbRegistaLab .rl-stat{padding:8px 2px;background:linear-gradient(145deg,#173748,#1c3140);border-color:#396779}
 #sbRegistaLab .rl-stat b{font-size:15px;line-height:1.35}
 #sbRegistaLab .rl-stat small{font-size:9px}
@@ -87,7 +87,7 @@ section.style.setProperty('opacity','1','important');
 section.style.setProperty('grid-column','1 / -1','important');
 section.style.setProperty('width','100%','important');
 section.removeAttribute('hidden');
-section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-statline"><div class="rl-stat"><b id="rl24">—</b><small>24h</small></div><div class="rl-stat"><b id="rl7d">—</b><small>7 zile</small></div><div class="rl-stat"><b id="rlWl">—</b><small>WIN / LOSS</small></div><div class="rl-stat rl-roi" id="rlRoiBox"><b id="rlRoi">—</b><small>ROI SIM 50 LEI</small></div></div><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW CONFIRMATE <small>Doar cote cu edge estimat ≥5 pp · EV ≥8%</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
+section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-statline"><div class="rl-stat"><b id="rl24">—</b><small>24h</small></div><div class="rl-stat"><b id="rl7d">—</b><small>7 zile</small></div><div class="rl-stat"><b id="rlWl">—</b><small>WIN / LOSS</small></div><div class="rl-stat rl-roi" id="rlRoiRealBox"><b id="rlRoiReal">—</b><small>ROI REAL</small></div><div class="rl-stat rl-roi" id="rlRoiBox"><b id="rlRoi">—</b><small>ROI SIM 50 LEI</small></div></div><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW CONFIRMATE <small>Doar cote cu edge estimat ≥5 pp · EV ≥8%</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
 if(section.parentElement!==live)live.insertBefore(section,live.firstChild);
 else if(section!==live.firstElementChild)live.insertBefore(section,live.firstChild);
 section.querySelectorAll('.rl-tab').forEach(b=>b.onclick=()=>{section.querySelectorAll('.rl-tab').forEach(x=>x.classList.toggle('active',x===b));current=b.dataset.rlt;render();});
@@ -104,7 +104,7 @@ function fillRegistaSlip(item){
  if(old&&old.value.trim()&&old.value.trim()!==String(item.fixture||'').trim()&&typeof sbBetSaved!=='undefined'&&!sbBetSaved){
   if(!window.confirm('Înlocuiești biletul incomplet din Slip cu selecția Regista?'))return false;
  }
- if(typeof selectBet==='function')selectBet({event_id:eventId,fixture:item.fixture,px:null,fresh:false});
+ if(typeof selectBet==='function')selectBet({event_id:eventId,fixture:item.fixture,px:null,fresh:false,sb_regista:true});
  else if(typeof tab==='function')tab('slip');
  const sel=document.getElementById('selection');
  if(sel){
@@ -116,6 +116,7 @@ function fillRegistaSlip(item){
  const ev=document.getElementById('eventId'),fi=document.getElementById('fixture'),price=document.getElementById('odds'),stake=document.getElementById('stake');
  if(ev)ev.value=String(eventId);if(fi)fi.value=String(item.fixture||'');if(price)price.value=odds.toFixed(2);
  if(stake)stake.value='50';
+ window.__sbRegistaSlipContext={signal_id:String(item.signal_id||''),event_id:eventId,selection};
  const info=document.getElementById('betmsg');
  if(info){info.className='sub sb-bet-message';info.textContent='♜ REGISTA '+String(item.list_code||'')+' · '+selection+' · '+odds.toFixed(2)+' este COTA SALVATĂ LA SEMNAL, nu confirmarea cotei de pe biletul tău. Completează cota și ORA REALĂ ale pariului deja plasat înainte de Înregistrează. Nu se plasează un nou pariu.';}
  if(typeof sbUpdateBetPreview==='function')sbUpdateBetPreview();
@@ -252,6 +253,8 @@ function render(){
  txt(panel.querySelector('#rlWl'),(perf.wins??0)+' / '+(perf.losses??0));
  const roiBox=panel.querySelector('#rlRoiBox'),sim=perf.roi_sim_pct;
  txt(panel.querySelector('#rlRoi'),sim==null?'—':(sim>=0?'+':'')+Number(sim).toFixed(1)+'%');
+ const real=perf.real?.roi_pct;txt(panel.querySelector('#rlRoiReal'),real==null?'—':(real>=0?'+':'')+Number(real).toFixed(1)+'%');
+ const realBox=panel.querySelector('#rlRoiRealBox');if(realBox){realBox.classList.toggle('rl-roi-good',real!=null&&real>=0);realBox.classList.toggle('rl-roi-bad',real!=null&&real<0);realBox.title='ROI real numai din bilete Regista înregistrate în Slip, decontate oficial.';}
  if(roiBox){roiBox.classList.toggle('rl-roi-good',sim!=null&&sim>=0);roiBox.classList.toggle('rl-roi-bad',sim!=null&&sim<0);
   roiBox.title='ROI simulat cu 50 lei per semnal unic emis înainte de meci; '+String(perf.settled??0)+' rezultate decontate; nu este profit real.';}
  txt(panel.querySelector('#rlSummaryCount'),live.length+' BET NOW');
