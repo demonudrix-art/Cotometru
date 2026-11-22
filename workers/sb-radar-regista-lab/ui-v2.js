@@ -80,7 +80,7 @@ function localPulse(rows){
     if(v.length===3&&v[0]===2&&v[1]===3&&v[2]>=51)return; // New APK uses OS notifications.
     for(const item of rows){
       if(item.status!=='BET_NOW'||Number(item.event_id)<=0||Number(item.odds_at_signal)<=1)continue;
-      const key='sb_regista_web_vibrate_'+String(item.signal_id||'');
+      const key='sb_regista_web_vibrate_event_'+String(item.event_id);
       if(localStorage.getItem(key))continue;
       localStorage.setItem(key,'1');
       navigator.vibrate([260,140,260,170,550]);
