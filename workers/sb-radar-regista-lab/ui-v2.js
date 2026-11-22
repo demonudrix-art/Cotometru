@@ -398,7 +398,7 @@ function sbPeekMount(){
   drawer.querySelector('#sbMiniRoadSub').open=false;
   drawer.querySelector('#sbMiniFuture').open=false;
  }
- if(drawer&&drawer.parentElement===live&&live.firstElementChild!==drawer)live.insertBefore(drawer,live.firstChild);
+ if(drawer&&drawer.parentElement!==live)live.insertBefore(drawer,live.firstChild);else if(drawer&&live.firstElementChild!==drawer)live.insertBefore(drawer,live.firstChild);
  const radar=document.querySelector('#live .radar-card');
  if(radar){
   let badge=document.getElementById('sbPeekRadarNotice');
