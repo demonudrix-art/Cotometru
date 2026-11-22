@@ -30,9 +30,16 @@ const [records,sync]=await Promise.all([
 ]);
 const now=Date.now();
 const rows=(records.results||[]).map(s=>({...s,result_status:finish(s),status:ready(s,now)?'BET_NOW':s.status==='BET_NOW'?'EXPIRED':s.status})); // Expired never alerts.
-if(path.endsWith('/alerts'))return response({mode:'LOCAL_VIBRATE_NO_FCM',alerts:rows.filter(s=>s.status==='BET_NOW').map(s=>({
- signal_id:s.signal_id,event_id:s.event_id,fixture:s.fixture,market:s.market,probability_pct:s.probability_pct,odds:s.odds_at_signal,kickoff_utc:s.kickoff_utc,stage:'BET_NOW',source:'REGISTA'
-})).slice(0,30)});
+if(path.endsWith('/alerts')){
+ // One vibration per match, not one per Full/League/Top10 membership.
+ const precedence={FULL:0,LEAGUE:1,TOP10:2};
+ const selected=[],seenEvents=new Set();
+ for(const s of rows.filter(r=>r.status==='BET_NOW').sort((a,b)=>(precedence[a.list_code]??9)-(precedence[b.list_code]??9))){
+  if(seenEvents.has(s.event_id))continue;seenEvents.add(s.event_id);
+  selected.push({signal_id:s.signal_id,event_id:s.event_id,fixture:s.fixture,list_code:s.list_code,market:s.market,probability_pct:s.probability_pct,odds:s.odds_at_signal,kickoff_utc:s.kickoff_utc,stage:'BET_NOW',source:'REGISTA'});
+ }
+ return response({mode:'LOCAL_VIBRATE_NO_FCM',alerts:selected.slice(0,30)});
+}
 const counts={FULL:{},LEAGUE:{},TOP10:{}};
 for(const typ of Object.keys(counts)){
  const r=rows.filter(s=>s.list_code===typ),readyNow=r.filter(s=>s.status==='BET_NOW');
