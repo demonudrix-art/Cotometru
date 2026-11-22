@@ -156,18 +156,37 @@ function performance(rows,now,filter=()=>true){
    roi_verified:false, note:'Simulare prospectivă cu miză fixă 50 lei pe selecție distinctă; nu este ROI real la Superbet.'};
 }
 
-let actual={tickets_total:0,open:0,live:0,settled:0,wins:0,losses:0,stake_lei:0,net_lei:null,roi_pct:null,source:'SLIP_REGISTA_VERIFIED'};
+let actual={tickets_total:0,open:0,pending:0,live:0,awaiting_settlement:0,settled:0,wins:0,losses:0,stake_lei:0,net_lei:null,roi_pct:null,tickets:[],source:'SLIP_REGISTA_VERIFIED'};
 try{
  const slipDevice=typeof slipDeviceFor==='function'?await slipDeviceFor(env,who.device_id):who.device_id;
- const records=await env.DB.prepare("SELECT b.status,b.stake_lei,b.returned_lei,b.event_id,l.event_status AS live_status,l.observed_utc AS live_observed_utc,l.minute AS live_minute FROM ghost_equal_bets b LEFT JOIN sb_ticket_live_state l ON l.event_id=b.event_id WHERE b.device_id=? AND b.notes LIKE 'REGISTA_VALUE_V1:%' ORDER BY b.id DESC LIMIT 300").bind(slipDevice).all();
+ const records=await env.DB.prepare("SELECT b.id,b.status,b.event_id,b.fixture,b.selection,b.odds,b.stake_lei,b.returned_lei,b.placed_utc,b.settled_utc,l.event_status AS live_status,l.observed_utc AS live_observed_utc,l.minute AS live_minute,l.home_score AS live_home,l.away_score AS live_away,e.kickoff_utc AS kickoff_utc,m.event_status AS result_status,m.verified AS result_verified FROM ghost_equal_bets b LEFT JOIN sb_ticket_live_state l ON l.event_id=b.event_id LEFT JOIN event_catalog e ON e.event_id=b.event_id LEFT JOIN match_results m ON m.event_id=b.event_id WHERE b.device_id=? AND b.notes LIKE 'REGISTA_VALUE_V1:%' ORDER BY b.id DESC LIMIT 300").bind(slipDevice).all();
  const all=records.results||[],finished=all.filter(x=>['WON','LOST','VOID','CASHOUT'].includes(String(x.status||'')));
  const stake=finished.reduce((n,x)=>n+Number(x.stake_lei||0),0);
  const net=finished.reduce((n,x)=>n+Number(x.returned_lei||0)-Number(x.stake_lei||0),0);
- const live=all.filter(x=>x.status==='OPEN'&&x.live_status==='STARTED'&&x.live_minute!=null&&Date.parse(x.live_observed_utc)<=now&&now-Date.parse(x.live_observed_utc)<=125000&&Number(x.live_minute)>=0).length;
- actual={tickets_total:all.length,open:all.filter(x=>x.status==='OPEN').length,live,settled:finished.length,
-  wins:finished.filter(x=>x.status==='WON').length,losses:finished.filter(x=>x.status==='LOST').length,
+ const classify=x=>{
+  const isOpen=x.status==='OPEN',observed=Date.parse(x.live_observed_utc);
+  const fresh=Number.isFinite(observed)&&observed<=now&&now-observed<=125000;
+  const live=isOpen&&x.live_status==='STARTED'&&fresh&&Number.isInteger(Number(x.live_minute))&&x.live_minute!=null;
+  const finishedMatch=String(x.result_status||'')==='FINISHED'&&Number(x.result_verified)===1;
+  const awaiting=isOpen&&(finishedMatch||x.live_status==='FINISHED');
+  return {id:Number(x.id),event_id:Number(x.event_id),fixture:String(x.fixture||''),selection:String(x.selection||''),
+   odds:Number(x.odds),stake_lei:Number(x.stake_lei),status:String(x.status||''),placed_utc:x.placed_utc,
+   settled_utc:x.settled_utc||null,returned_lei:x.returned_lei==null?null:Number(x.returned_lei),
+   live:!!live,minute:live?Number(x.live_minute):null,
+   score:live&&x.live_home!=null&&x.live_away!=null?String(x.live_home)+'–'+String(x.live_away):null,
+   live_observed_utc:live?x.live_observed_utc:null,
+   ticket_state:!isOpen?'SETTLED':awaiting?'PENDING_SETTLEMENT':live?'LIVE_PENDING':
+    Date.parse(x.kickoff_utc)>now?'PREMATCH_PENDING':'PENDING_LIVE_UNVERIFIED'};
+ };
+ const tickets=all.map(classify),pendingTickets=tickets.filter(x=>x.status==='OPEN');
+ const live=pendingTickets.filter(x=>x.live).length;
+ actual={tickets_total:all.length,open:pendingTickets.length,pending:pendingTickets.length,live,
+  awaiting_settlement:pendingTickets.filter(x=>x.ticket_state==='PENDING_SETTLEMENT').length,
+  settled:finished.length,wins:finished.filter(x=>x.status==='WON').length,losses:finished.filter(x=>x.status==='LOST').length,
   stake_lei:Math.round(stake*100)/100,net_lei:finished.length?Math.round(net*100)/100:null,
-  roi_pct:stake>0?Math.round((net/stake)*10000)/100:null,source:'SLIP_REGISTA_VERIFIED'};
+  roi_pct:stake>0?Math.round((net/stake)*10000)/100:null,
+  tickets:[...pendingTickets,...tickets.filter(x=>x.status!=='OPEN')].slice(0,25),
+  source:'SLIP_REGISTA_VERIFIED'};
 }catch(e){console.warn('REGISTA_REAL_ROI_READ',String(e).slice(0,120));}
 const counts={FULL:{},LEAGUE:{},TOP10:{}};
 for(const typ of Object.keys(counts)){
