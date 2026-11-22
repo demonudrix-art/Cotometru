@@ -84,13 +84,19 @@ export async function syncRegistaV2(env){
    if(e&&['1','X','2'].includes(p.market)){
     quote=await env.DB.prepare('SELECT captured_utc,p1,px,p2 FROM quote_snapshots WHERE event_id=? AND captured_utc<=? AND captured_utc<? ORDER BY captured_utc DESC LIMIT 1').bind(eventId,now,p.kickoff).first();
     if(quote)odds=Number(p.market==='1'?quote.p1:p.market==='X'?quote.px:quote.p2);
+   }else if(e&&p.market==='OVER25'){
+    // Only the exact Superbet OVER 2.5 market. Never reuse 1X2 or GG price.
+    quote=await env.DB.prepare("SELECT captured_utc,price FROM sb_regista_goal_prices_v1 WHERE event_id=? AND market='OVER25' AND captured_utc<=? AND captured_utc<? AND captured_utc>=? ORDER BY captured_utc DESC LIMIT 1").bind(eventId,now,p.kickoff,now).first();
+    if(quote)odds=Number(quote.price);
    }
-   const quoteOk=quote&&Number.isFinite(odds)&&odds>1&&nowMs-Date.parse(quote.captured_utc)<=20*60000;
+   const quoteOk=quote&&Number.isFinite(odds)&&odds>1&&nowMs-Date.parse(quote.captured_utc)>=0&&nowMs-Date.parse(quote.captured_utc)<=20*60000;
    let status=nowMs>=kick?'HISTORICAL_IMPORT':!e?'UNMATCHED':!sourceOk?'SOURCE_TIME_UNVERIFIED':'MATCHED';
    const pModel=p.pct/100,breakEven=quoteOk?1/odds:NaN,edgePP=100*(pModel-breakEven),evPct=100*(pModel*odds-1);
-   // Experimental VALUE gate. The Regista estimate is not calibrated to actual Superbet returns.
-   // 1X2 only: X has no verified Regista sample, while O/U and BTTS have no market-specific odds here.
-   const valueCandidate=['1','2'].includes(p.market)&&quoteOk&&edgePP>=5-1e-8&&evPct>=8-1e-8;
+   // Regista November 22 global thresholds: away 2 >=70%, Over2.5 >=85%.
+   // Home 1 remains legacy source-listed and value-gated; GG/Under/X are NOT BetNow.
+   // Value always requires a fresh book-specific quote; no historical accuracy alone.
+   const eligibleMarket=p.market==='1'||p.market==='2'&&p.pct>=70||p.market==='OVER25'&&p.pct>=85;
+   const valueCandidate=eligibleMarket&&quoteOk&&edgePP>=5-1e-8&&evPct>=8-1e-8;
    if(e&&sourceOk&&nowMs<=kick-300000&&kick-nowMs<=45*60000&&valueCandidate)status='BET_NOW';
    const signalId='regista:'+p.list+':'+p.match_id+':'+p.market;
    await env.DB.prepare(UPSERT).bind(signalId,p.list,p.url,p.match_id,p.fixture,p.market,p.pct,now,now,p.source_updated,p.kickoff,eventId,e?1:null,quoteOk&&sourceOk?quote.captured_utc:null,quoteOk&&sourceOk?odds:null,status==='BET_NOW'?now:null,status,now).run();
