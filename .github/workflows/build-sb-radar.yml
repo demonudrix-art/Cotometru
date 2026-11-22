@@ -27,6 +27,12 @@ jobs:
           mkdir -p android/sb-radar/app/src/main/res/drawable-nodpi
           base64 --decode android/sb-radar/assets/sb_radar_launcher.webp.base64 > android/sb-radar/app/src/main/res/drawable-nodpi/sb_radar_icon.webp
           echo 'c2b85e0e5227527ca4dd86eada8ce9c5ca91dc2a8eae70c18ec10f0c62cb8d51  android/sb-radar/app/src/main/res/drawable-nodpi/sb_radar_icon.webp' | sha256sum -c -
+      - name: Validate Regista source modules
+        run: |
+          node --check workers/sb-radar-regista-lab/backend-api.js
+          node --check workers/sb-radar-regista-lab/ingest-v2.js
+          node --check workers/sb-radar-regista-lab/goal-quotes.js
+          node --check workers/sb-radar-regista-lab/ui-v2.js
       - name: Build APK
         run: gradle --no-daemon -p android/sb-radar :app:assembleRelease
       - name: Package Android APK signer (public tool, no private keys)
@@ -42,7 +48,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         id: apk_upload
         with:
-          name: SB-Radar-v2.3.41-Unsigned-Release-Build
+          name: SB-Radar-Unsigned-Release-APK
           path: android/sb-radar/app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 30
       - name: Save build artifact pointer
