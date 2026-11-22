@@ -97,31 +97,34 @@ const STYLE=String.raw`
 #sbRegistaLab .rl-live-price{font-size:10px;color:#9bd6cf;margin:3px 0 7px}
 #sbRegistaLab .rl-bet{min-height:38px;border-radius:10px}
 
-/* COMPACT RADAR HEADER 2026-11-22: one line, no duplicate big card */
+/* HOME MINIMAL V3: a single-line compact status, never duplicate live dashboard or heartbeats */
 body.sb-peek-home-v1 #sbGlobalSearch:not(.sb-peek-search-open){display:none!important}
-body.sb-peek-home-v1 #sbGlobalSearch.sb-peek-search-open{display:block!important;margin:7px 0 10px!important}
+body.sb-peek-home-v1 #sbGlobalSearch.sb-peek-search-open{display:block!important;margin:5px 0 9px!important}
 #sbPeekHub{display:none!important}
-#live #sbPeekRoadDrawer{position:relative;display:block;margin:5px 0 10px!important;border:1px solid #315d68;border-radius:13px;background:linear-gradient(110deg,#112b37,#16283a);box-shadow:inset 0 1px #ffffff18;overflow:hidden}
-#live #sbPeekRoadDrawer>summary{display:grid!important;gap:4px;list-style:none;cursor:pointer;padding:9px 77px 9px 12px;min-height:46px}
+#live #sbPeekRoadDrawer{display:block;position:relative;margin:2px 0 9px!important;background:#112735;border:1px solid #345e69;border-radius:11px;overflow:hidden;box-shadow:none!important}
+#live #sbPeekRoadDrawer>summary{display:flex!important;align-items:center;min-height:39px;padding:6px 9px!important;gap:9px;list-style:none;cursor:pointer}
 #live #sbPeekRoadDrawer>summary::-webkit-details-marker{display:none}
-#sbPeekRoadDrawer .sb-mini-first{display:flex;gap:11px;align-items:center;white-space:nowrap;overflow:hidden}
-#sbPeekRoadDrawer .sb-mini-title{color:#8caeb9;font-size:10px;font-weight:950;letter-spacing:.055em}
-#sbPeekRoadDrawer .sb-mini-signal{font-size:11px;font-weight:950;color:#e7fbf3}
-#sbPeekRoadDrawer .sb-mini-regista{color:#91ddc4;font-size:10px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#sbPeekRoadDrawer .sb-mini-search{position:absolute;right:35px;top:10px;z-index:2;width:28px;height:28px;border:1px solid #447b7d;border-radius:9px;background:#1b3c46;color:#d5ffef;display:grid;place-items:center;cursor:pointer;font-size:18px}
-#sbPeekRoadDrawer .sb-mini-arrow{position:absolute;right:14px;top:15px;color:#8ec4b6;transition:transform .2s}
+#sbPeekRoadDrawer .sb-mini-first{display:flex;align-items:center;gap:10px;white-space:nowrap;flex:0 0 auto;min-width:0}
+#sbPeekRoadDrawer .sb-mini-title{font-size:9px;color:#9caebb;font-weight:900;letter-spacing:.03em}
+#sbPeekRoadDrawer .sb-mini-signal{font-size:11px;font-weight:900;color:#f0f9f5;white-space:nowrap}
+#sbPeekRoadDrawer .sb-mini-regista{color:#91dcc3;font-size:10px;font-weight:850;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sbPeekRoadDrawer .sb-mini-search{display:grid;place-items:center;flex:0 0 27px;min-height:26px;padding:0!important;border-radius:7px;border:1px solid #436e75;background:#1c3b46;color:#d3faee;font-size:17px;cursor:pointer}
+#sbPeekRoadDrawer .sb-mini-arrow{flex:0 0 auto;font-size:13px;color:#83bead;transition:transform .15s}
 #sbPeekRoadDrawer[open] .sb-mini-arrow{transform:rotate(180deg)}
-#sbPeekRoadDrawer #sbMiniCheck{margin:7px 8px;padding:9px 10px;background:#173c3b;border:1px solid #3d7a6d;border-radius:9px;color:#afe7d4;font-size:10px;line-height:1.4}
-#sbPeekRoadDrawer #sbMiniFuture{margin:6px 8px 9px;background:#132b37;border:1px solid #315866;border-radius:9px}
-#sbMiniFuture>summary{padding:10px;color:#c7ecdf;font-size:11px;font-weight:850;cursor:pointer}
-#sbMiniFutureList{padding:0 10px 8px;display:grid;gap:5px}
-#sbMiniFutureList>div{font-size:10px;color:#c7e4df;border-top:1px solid #325663;padding:6px 0}
-#live #sbPeekRoadDrawer #sb57TopDuo{margin:7px 8px!important}
-#live #sbPeekRadarNotice{display:flex;gap:7px;align-items:center;margin:6px 4px;width:calc(100% - 8px);padding:7px 9px;background:#143638;border:1px solid #38856f;border-radius:9px;color:#c5ecdf;text-align:left;font-size:10px;cursor:pointer}
+#sbPeekRoadDrawer .sb-mini-pane{padding:1px 9px 8px;border-top:1px solid #2e4c5c;display:grid;gap:5px}
+#sbPeekRoadDrawer .sb-mini-pane>div{font-size:10px;color:#a8dfce;line-height:1.4;padding:7px 2px 4px}
+#sbPeekRoadDrawer .sb-mini-pane>details{margin:1px 0 2px;border:1px solid #365567;border-radius:9px;background:#142b3a;overflow:hidden}
+#sbPeekRoadDrawer .sb-mini-pane>details>summary{padding:9px 11px;font-size:11px;font-weight:800;color:#c4e8df;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between}
+#sbPeekRoadDrawer .sb-mini-pane>details>summary:after{content:"⌄";color:#9dc9bc}
+#sbPeekRoadDrawer .sb-mini-pane>details[open]>summary:after{content:"⌃"}
+#sbPeekRoadDrawer #sbMiniFutureList{display:grid;gap:1px;padding:2px 10px 8px}
+#sbPeekRoadDrawer #sbMiniFutureList>div{font-size:10px;color:#bddfd7;border-top:1px solid #315365;padding:8px 0;line-height:1.5}
+#sbPeekRoadDrawer #sbMiniRoadSub #sb57TopDuo{margin:7px!important}
+#live #sbPeekRadarNotice{display:inline-flex;align-items:center;gap:3px;flex:0 0 auto;margin-left:auto;padding:4px 7px;border:1px solid #4a9b7b;border-radius:8px;background:#184338;color:#b6f3d1;cursor:pointer;min-height:26px;max-width:92px;font-size:10px;box-shadow:none}
 #sbPeekRadarNotice[hidden]{display:none!important}
-#sbPeekRadarText{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#sbPeekRadarNotice .sb-peek-radar-dot{font-size:17px;color:#9ef0c8}
-@media(max-width:360px){#sbPeekRoadDrawer .sb-mini-first{gap:7px}#sbPeekRoadDrawer .sb-mini-title{font-size:9px}#sbPeekRoadDrawer .sb-mini-signal{font-size:10px}}
+#sbPeekRadarNotice .sb-peek-radar-dot{font-size:13px;line-height:1}
+#sbPeekRadarText{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+@media(max-width:390px){#sbPeekRoadDrawer .sb-mini-first{gap:6px}#sbPeekRoadDrawer .sb-mini-title{display:none}#sbPeekRoadDrawer .sb-mini-signal{font-size:10px}#live #sbPeekRoadDrawer>summary{gap:7px}}
 /* Goal-market research is intentionally visually distinct from actionable 1X2 BET NOW. */
 #sbRegistaLab .rl-goals{border:1px solid #416a79;border-radius:12px;background:linear-gradient(120deg,#142936,#1a2639);overflow:hidden;margin:10px 0}
 #sbRegistaLab .rl-goals>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none;min-height:42px;padding:11px;color:#c6eaf0;font-size:11px;font-weight:900}
@@ -372,46 +375,73 @@ function sbPeekMount(){
  let drawer=document.getElementById('sbPeekRoadDrawer');
  if(road&&!drawer){
   drawer=document.createElement('details');drawer.id='sbPeekRoadDrawer';drawer.open=false;
-  drawer.innerHTML='<summary><div class="sb-mini-first"><span class="sb-mini-title">◈ URMEAZĂ</span><span id="sbMiniGolden" class="sb-mini-signal">🟡 57′</span><span id="sbMiniGap" class="sb-mini-signal">🔵 50′</span></div><div id="sbMiniRegista" class="sb-mini-regista">♜ REGISTA · se verifică programul</div></summary><button id="sbPeekSearchToggle" class="sb-mini-search" type="button" aria-label="Caută meci sau echipă" aria-expanded="false">⌕</button><span class="sb-mini-arrow">⌄</span><div id="sbMiniCheck">♜ Regista · următoarea verificare 1/2</div><details id="sbMiniFuture"><summary>♜ Următoarele meciuri Regista</summary><div id="sbMiniFutureList"></div></details>';
-  road.parentNode.insertBefore(drawer,road);drawer.append(road);
-  drawer.querySelector('#sbPeekSearchToggle').addEventListener('click',e=>{
-   e.stopPropagation();const search=document.getElementById('sbGlobalSearch');if(!search)return;
-   const open=!search.classList.contains('sb-peek-search-open');search.classList.toggle('sb-peek-search-open',open);e.currentTarget.setAttribute('aria-expanded',String(open));
-   if(open){search.scrollIntoView({block:'nearest',behavior:'smooth'});setTimeout(()=>document.getElementById('historicFind')?.focus(),75);}
+  drawer.innerHTML='<summary aria-label="Rezumat Golden, GAP și Regista; apasă pentru detalii">'+
+   '<span class="sb-mini-first"><span class="sb-mini-title">URMEAZĂ</span><span id="sbMiniGolden" class="sb-mini-signal">🟡 57′</span><span id="sbMiniGap" class="sb-mini-signal">🔵 50′</span></span>'+
+   '<span id="sbMiniRegista" class="sb-mini-regista">♜ Regista · program</span>'+
+   '<button class="sb-mini-search" id="sbPeekSearchToggle" type="button" aria-label="Deschide căutarea" aria-expanded="false">⌕</button>'+
+   '<span aria-hidden="true" class="sb-mini-arrow">⌄</span></summary>'+
+   '<div class="sb-mini-pane"><div id="sbMiniCheck">♜ Regista · verificările sunt separate de BET NOW</div>'+
+   '<details id="sbMiniFuture"><summary>♜ Meciuri Regista programate</summary><div id="sbMiniFutureList"></div></details>'+
+   '<details id="sbMiniRoadSub"><summary>🟡 Golden / 🔵 GAP · monitorizare detaliată</summary></details></div>';
+  road.parentNode.insertBefore(drawer,road);
+  drawer.querySelector('#sbMiniRoadSub').append(road);
+  const search=drawer.querySelector('#sbPeekSearchToggle');
+  search.addEventListener('click',e=>{
+   e.preventDefault();e.stopPropagation();
+   const el=document.getElementById('sbGlobalSearch');if(!el)return;
+   const open=!el.classList.contains('sb-peek-search-open');
+   el.classList.toggle('sb-peek-search-open',open);
+   search.setAttribute('aria-expanded',String(open));
+   if(open){el.scrollIntoView({block:'nearest',behavior:'smooth'});setTimeout(()=>document.getElementById('historicFind')?.focus(),65);}
   });
+  // No automatic expansion of Road or Heartbeats; only users open technical details.
+  drawer.querySelector('#sbMiniRoadSub').open=false;
+  drawer.querySelector('#sbMiniFuture').open=false;
  }
  if(drawer&&drawer.parentElement===live&&live.firstElementChild!==drawer)live.insertBefore(drawer,live.firstChild);
  const radar=document.querySelector('#live .radar-card');
- if(radar&&!document.getElementById('sbPeekRadarNotice')){
-  const btn=document.createElement('button');btn.id='sbPeekRadarNotice';btn.type='button';btn.innerHTML='<span class="sb-peek-radar-dot">♜</span><span id="sbPeekRadarText">Regista · următorul meci</span>';
-  btn.addEventListener('click',()=>{const panel=document.getElementById('sbPeekRoadDrawer');if(panel){panel.open=true;document.getElementById('sbMiniFuture').open=true;panel.scrollIntoView({block:'start',behavior:'smooth'});}});
-  const head=radar.querySelector('.radar-top');if(head)head.insertAdjacentElement('afterend',btn);else radar.prepend(btn);
+ if(radar){
+  let badge=document.getElementById('sbPeekRadarNotice');
+  const head=radar.querySelector('.radar-top');
+  if(!badge){
+   badge=document.createElement('button');badge.id='sbPeekRadarNotice';badge.type='button';
+   badge.setAttribute('aria-label','Deschide programul Regista; acestea nu sunt alerte BET NOW');
+   badge.innerHTML='<span class="sb-peek-radar-dot">♜</span><span id="sbPeekRadarText">Regista</span>';
+   badge.addEventListener('click',()=>{const dr=document.getElementById('sbPeekRoadDrawer');if(dr){dr.open=true;document.getElementById('sbMiniFuture').open=true;dr.scrollIntoView({block:'start',behavior:'smooth'});}});
+  }
+  if(head&&badge.parentElement!==head)head.append(badge);
  }
  return true;
 }
 function sbPeekUpdate(){
  if(!sbPeekMount())return;
- const put=(id,value)=>{const el=document.getElementById(id);if(el&&el.textContent!==value)el.textContent=value;};
- const g=sbPeekWatchState('golden'),p=sbPeekWatchState('gap');
- const label=(v,standard)=>v.urgent?'● ALERTĂ':v.title.includes('până')?String(v.title).split('′')[0].trim()+'′':standard;
- put('sbMiniGolden','🟡 '+label(g,'57′'));
- put('sbMiniGap','🔵 '+label(p,'50′'));
- const list=sbPeekUpcoming(),soon=list[0],next=sbPeekFutureOneTwo(list),now=Date.now();
- put('sbMiniRegista',soon?'♜ '+sbPeekTime(soon.kickoff_utc)+' · '+String(soon.fixture||'Meci')+' · '+String(soon.market)+' (informativ)':'♜ Regista · fără program viitor verificat');
- const target=next?Date.parse(next.kickoff_utc)-45*60000:NaN;
- const checking=next?(now<target?'posibilă verificare '+sbPeekTime(new Date(target).toISOString())+' (în '+sbPeekCountdown(target-now)+')':now<Date.parse(next.kickoff_utc)-300000?'fereastra de verificare, NU BET NOW':'verificare închisă'):'fără selecție 1/2 programată';
- put('sbMiniCheck',next?'♜ REGISTA · '+String(next.fixture||'Meci')+' · '+checking:'♜ Regista · '+checking);
+ const set=(id,value)=>{const el=document.getElementById(id);if(el&&el.textContent!==value)el.textContent=value;};
+ const golden=sbPeekWatchState('golden'),gap=sbPeekWatchState('gap');
+ const label=(x,base)=>x.urgent?'ALERTĂ':x.title.includes('până')?String(x.title).split('′')[0].trim()+'′':base;
+ set('sbMiniGolden','🟡 '+label(golden,'57′'));
+ set('sbMiniGap','🔵 '+label(gap,'50′'));
+ const list=sbPeekUpcoming(),next=list[0],next12=sbPeekFutureOneTwo(list),now=Date.now();
+ // One small Regista timestamp; fixture details stay inside the disclosure only.
+ set('sbMiniRegista',next?'♜ '+sbPeekTime(next.kickoff_utc)+' · '+String(next.market||''):'♜ fără meci nou');
+ const checkStart=next12?Date.parse(next12.kickoff_utc)-45*60000:NaN;
+ const nextCheck=next12?(now<checkStart?'verificare posibilă la '+sbPeekTime(new Date(checkStart).toISOString()):now<Date.parse(next12.kickoff_utc)-300000?'fereastră în verificare':'fereastră închisă'):'fără verificare 1/2 programată';
+ set('sbMiniCheck','♜ Regista · '+nextCheck+' · niciun BET NOW anticipat');
  const rows=document.getElementById('sbMiniFutureList');
  if(rows){
-  const sig=list.slice(0,5).map(x=>x.event_id+':'+x.market+':'+x.kickoff_utc).join('|');
-  if(rows.dataset.sig!==sig){rows.dataset.sig=sig;rows.replaceChildren();
-   if(!list.length){const empty=document.createElement('div');empty.textContent='Nu există meciuri programate confirmate.';rows.append(empty);}
-   for(const item of list.slice(0,5)){const row=document.createElement('div');row.textContent=sbPeekTime(item.kickoff_utc)+' · '+String(item.fixture||'Meci')+' · '+String(item.market)+' · '+String(item.probability_pct)+'% · OBSERVAȚIE';rows.append(row);}
+  const signature=list.slice(0,5).map(x=>[x.event_id,x.market,x.kickoff_utc].join(':')).join('|');
+  if(rows.dataset.signature!==signature){
+   rows.dataset.signature=signature;rows.replaceChildren();
+   if(!list.length){const empty=document.createElement('div');empty.textContent='Niciun pronostic viitor confirmat în import.';rows.append(empty);}
+   for(const item of list.slice(0,5)){
+    const row=document.createElement('div');
+    row.textContent=sbPeekTime(item.kickoff_utc)+' · '+String(item.fixture||'Meci')+' · '+String(item.market||'')+' · '+String(item.probability_pct||'—')+'% (observație)';
+    rows.append(row);
+   }
   }
  }
- const radar=document.getElementById('sbPeekRadarNotice');
- if(radar)radar.hidden=!soon;
- if(soon)put('sbPeekRadarText','♜ '+sbPeekTime(soon.kickoff_utc)+' · '+String(soon.fixture||'Meci')+' · pronostic, nu BET NOW');
+ const badge=document.getElementById('sbPeekRadarNotice');
+ if(badge)badge.hidden=!next;
+ if(next)set('sbPeekRadarText',sbPeekTime(next.kickoff_utc));
 }
 function renderRegistaGoals(){
  const lab=document.getElementById('rlGoalsLab'),body=document.getElementById('rlGoalsBody'),count=document.getElementById('rlGoalsCount');
