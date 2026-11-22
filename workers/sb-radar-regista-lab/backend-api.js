@@ -95,14 +95,15 @@ function performance(rows,now,filter=()=>true){
    roi_verified:false, note:'Simulare prospectivă cu miză fixă 50 lei pe selecție distinctă; nu este ROI real la Superbet.'};
 }
 
-let actual={tickets_total:0,open:0,settled:0,wins:0,losses:0,stake_lei:0,net_lei:null,roi_pct:null,source:'SLIP_REGISTA_VERIFIED'};
+let actual={tickets_total:0,open:0,live:0,settled:0,wins:0,losses:0,stake_lei:0,net_lei:null,roi_pct:null,source:'SLIP_REGISTA_VERIFIED'};
 try{
  const slipDevice=typeof slipDeviceFor==='function'?await slipDeviceFor(env,who.device_id):who.device_id;
- const records=await env.DB.prepare("SELECT status,stake_lei,returned_lei FROM ghost_equal_bets WHERE device_id=? AND notes LIKE 'REGISTA_VALUE_V1:%' ORDER BY id DESC LIMIT 300").bind(slipDevice).all();
+ const records=await env.DB.prepare("SELECT b.status,b.stake_lei,b.returned_lei,b.event_id,l.event_status AS live_status,l.observed_utc AS live_observed_utc,l.minute AS live_minute FROM ghost_equal_bets b LEFT JOIN sb_ticket_live_state l ON l.event_id=b.event_id WHERE b.device_id=? AND b.notes LIKE 'REGISTA_VALUE_V1:%' ORDER BY b.id DESC LIMIT 300").bind(slipDevice).all();
  const all=records.results||[],finished=all.filter(x=>['WON','LOST','VOID','CASHOUT'].includes(String(x.status||'')));
  const stake=finished.reduce((n,x)=>n+Number(x.stake_lei||0),0);
  const net=finished.reduce((n,x)=>n+Number(x.returned_lei||0)-Number(x.stake_lei||0),0);
- actual={tickets_total:all.length,open:all.filter(x=>x.status==='OPEN').length,settled:finished.length,
+ const live=all.filter(x=>x.status==='OPEN'&&x.live_status==='STARTED'&&x.live_minute!=null&&Date.parse(x.live_observed_utc)<=now&&now-Date.parse(x.live_observed_utc)<=125000&&Number(x.live_minute)>=0).length;
+ actual={tickets_total:all.length,open:all.filter(x=>x.status==='OPEN').length,live,settled:finished.length,
   wins:finished.filter(x=>x.status==='WON').length,losses:finished.filter(x=>x.status==='LOST').length,
   stake_lei:Math.round(stake*100)/100,net_lei:finished.length?Math.round(net*100)/100:null,
   roi_pct:stake>0?Math.round((net/stake)*10000)/100:null,source:'SLIP_REGISTA_VERIFIED'};
