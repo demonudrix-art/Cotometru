@@ -53,7 +53,7 @@ final class RegistaNotifier {
         double odds=signal.optDouble("odds",0),prob=signal.optDouble("probability_pct",-1);
         String id=signal.optString("signal_id",""),market=signal.optString("market","").toUpperCase(Locale.ROOT);
         if(eventId<=0||id.length()<8||id.length()>128||
-           !("1".equals(market)||"X".equals(market)||"2".equals(market))||
+           !("1".equals(market)||"X".equals(market)||"2".equals(market)||"OVER25".equals(market))||
            !Double.isFinite(odds)||odds<=1||!Double.isFinite(prob)||prob<0||prob>100)continue;
         String key="regista_native_seen_v1_"+id;
         if(prefs.getBoolean(key,false))continue;
@@ -61,14 +61,15 @@ final class RegistaNotifier {
         final String family=signal.optString("list_code","REGISTA");
         final String path="/app?tab=live&event_id="+eventId+"&regista=1";
         final int notificationId=650000+(id.hashCode()&0x7fffffff)%300000;
-        final String text=fixture+"\n"+family+" · selecția "+market+
+        final String displayMarket="OVER25".equals(market)?"OVER 2,5":market;
+        final String text=fixture+"\n"+family+" · selecția "+displayMarket+
           " · "+String.format(Locale.US,"%.0f",prob)+"%"+
           " · cotă Superbet "+String.format(Locale.US,"%.2f",odds)+
           "\nVerifică piața și decide manual dacă pregătești un bilet.";
         Notification n=new Notification.Builder(context,CHANNEL)
           .setSmallIcon(R.drawable.sbr_alert_regista)
           .setContentTitle("♜ REGISTA · BET NOW")
-          .setContentText(fixture+" · "+market+" @ "+String.format(Locale.US,"%.2f",odds))
+          .setContentText(fixture+" · "+displayMarket+" @ "+String.format(Locale.US,"%.2f",odds))
           .setStyle(new Notification.BigTextStyle().bigText(text))
           .setContentIntent(AlertService.open(context,notificationId,path))
           .addAction(R.drawable.sbr_alert_regista,
