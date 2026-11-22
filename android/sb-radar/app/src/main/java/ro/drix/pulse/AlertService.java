@@ -139,12 +139,12 @@ public class AlertService extends Service {
     Notification foreground=builder(this,CH_MONITOR)
       .setSmallIcon(R.drawable.sbr_status_idle)
       .setContentTitle("SB Radar • LIVE INTELLIGENCE")
-      .setContentText("🔵 GAP NAVY 40′/50′ • 🟡 Golden 57′ • 🧠 ML 57′–59′")
+      .setContentText("🔵 GAP NAVY 50′ • 🟡 Golden 57′ • ♜ Regista local")
       .setSubText("MONITORIZARE ACTIVĂ")
       .setStyle(new Notification.BigTextStyle().bigText(
         "🟡 Golden Classic • 0–0 la 57′\n" +
-        "🧠 ML LogReg V1 • 57′–59′\n" +
         "🔵 GAP NAVY • observație 40′, confirmare 50′\n" +
+        "♜ Regista • predicții pre-meci, vibrate local\n" +
         "Alertele depind de conexiune și de restricțiile Android."))
       .setCategory(Notification.CATEGORY_SERVICE)
       .setColor(0xff6de7c7)
@@ -172,6 +172,7 @@ public class AlertService extends Service {
         // Uses the EXISTING foreground monitor; no new Android service or permission.
         SystemPulse.heartbeat(this,MainActivity.isAppForeground());
         try{checkAlerts();}catch(Exception e){android.util.Log.w("SB_Radar","Monitor temporarily unavailable");}
+        try{RegistaNotifier.poll(this);}catch(Exception e){android.util.Log.w("SB_Radar","Regista monitor temporarily unavailable");}
         try{Thread.sleep(25000);}catch(InterruptedException ignored){break;}
       }
     },"SB-Radar-monitor");
@@ -233,6 +234,7 @@ public class AlertService extends Service {
       boolean power="GG POWER".equals(category)||row.optString("model_version","").contains("GG_POWER")||row.optBoolean("gg_power",false);
       boolean ml="ML".equals(category)&&"SB_RADAR_ML_LOGREG_V1".equals(row.optString("model_version",""));
       boolean gap=row.optBoolean("gap_pattern_match",false)||"GAP NAVY".equals(category)||row.optString("gap_model_version","").contains("SB_RADAR_GAP");
+      if(ml&&!gap)continue; // ML SELECT and ML GENERAL are retired from user alerts; preserve D1 history.
       boolean rush="GOLD RUSH".equals(category);
       if(!win&&!gold&&!ml&&!gap&&!rush&&!power&&!purple&&!red)continue; // Silver-only and retired filters never ring.
       String key="notified_"+event+"_"+(win?"win":"betnow");
