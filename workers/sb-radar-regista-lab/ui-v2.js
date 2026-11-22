@@ -96,6 +96,56 @@ const STYLE=String.raw`
 #sbRegistaLab .rl-alert-meta{font-size:11px;line-height:1.6;margin:8px 0;color:#d6f8ed}
 #sbRegistaLab .rl-live-price{font-size:10px;color:#9bd6cf;margin:3px 0 7px}
 #sbRegistaLab .rl-bet{min-height:38px;border-radius:10px}
+
+/* HOME SNEAK PEEK V1: narrow, fast, all three filters without inventing advance BET NOW. */
+body.sb-peek-home-v1 #sbGlobalSearch:not(.sb-peek-search-open){display:none!important}
+body.sb-peek-home-v1 #sbGlobalSearch.sb-peek-search-open{display:block!important;margin:7px 0 12px!important;animation:sb-peek-in .23s ease both}
+#live #sbPeekHub{position:relative;display:grid;gap:8px;margin:5px 0 12px!important;padding:11px 9px;background:linear-gradient(130deg,#102535,#132739 72%,#142735);border:1px solid #377b78;border-radius:17px;box-shadow:inset 0 1px #ffffff16,0 5px 21px #0003;color:#e8faf8}
+#sbPeekHub .sb-peek-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 2px}
+#sbPeekHub .sb-peek-eye{font-weight:1000;color:#e9ffef;letter-spacing:.065em;font-size:12px}
+#sbPeekHub .sb-peek-eye small{font-size:9px;color:#8cbdb7;letter-spacing:0;margin-left:5px}
+#sbPeekSearchToggle{cursor:pointer;min-height:31px;border:1px solid #43847f;background:#183b46;border-radius:9px;padding:5px 11px;color:#d4fff6;font-size:11px;font-weight:850}
+#sbPeekHub .sb-peek-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#sbPeekHub .sb-peek-tile{display:flex;flex-direction:column;align-items:flex-start;gap:5px;cursor:pointer;min-width:0;min-height:86px;padding:10px 8px;text-align:left;background:#132231;border:1px solid #4f6277;border-radius:13px;transition:transform .18s ease,background .18s ease}
+#sbPeekHub .sb-peek-tile:active{transform:scale(.97)}
+#sbPeekHub .sb-peek-tile span{font-size:10px;font-weight:950;letter-spacing:.035em;white-space:nowrap}
+#sbPeekHub .sb-peek-tile strong{font-size:12px;font-weight:950;color:#e8fff7;line-height:1.25;min-height:26px;max-width:100%;overflow-wrap:break-word}
+#sbPeekHub .sb-peek-tile small{font-size:9px;line-height:1.35;font-weight:650;color:#c1d3d8;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#sbPeekHub .sb-peek-gold{border-color:#987747;background:linear-gradient(130deg,#28231e,#222332)}
+#sbPeekHub .sb-peek-gold span{color:#f4ce88}
+#sbPeekHub .sb-peek-navy{border-color:#3166a2;background:linear-gradient(130deg,#142945,#172437)}
+#sbPeekHub .sb-peek-navy span{color:#93caff}
+#sbPeekHub .sb-peek-regista{border-color:#379e80;background:linear-gradient(130deg,#123b39,#1b303e)}
+#sbPeekHub .sb-peek-regista span{color:#92efc2}
+#sbPeekUpcoming{border:1px solid #355e67;border-radius:10px;background:#122431;overflow:hidden}
+#sbPeekUpcoming>summary{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:9px 10px;cursor:pointer;color:#c7ede6;font-size:11px;font-weight:850;list-style:none}
+#sbPeekUpcoming>summary:after{content:"⌄";color:#7acfb1}
+#sbPeekUpcoming>summary b{font-size:10px;color:#8ddfcb;margin-left:auto}
+#sbPeekUpcoming[open]>summary{border-bottom:1px solid #3b6269}
+#sbPeekUpcomingList{display:grid;padding:4px 8px}
+.sb-peek-upcoming-row{background:none!important;border:0!important;border-bottom:1px solid #33525f!important;box-shadow:none!important;border-radius:0!important;padding:10px 4px!important;display:flex!important;gap:9px;align-items:flex-start;text-align:left!important;width:100%;color:#e5fbf4;cursor:pointer}
+.sb-peek-upcoming-row:last-child{border-bottom:0!important}
+.sb-peek-upcoming-row>strong{white-space:nowrap;flex:0 0 43px;color:#a5eec9;font-size:11px}
+.sb-peek-upcoming-row>span{min-width:0;display:grid;gap:4px}
+.sb-peek-upcoming-row b{font-size:11px;font-weight:850}
+.sb-peek-upcoming-row small{font-size:10px;color:#a9ccd4;line-height:1.35}
+.sb-peek-disclaimer{font-size:9px;color:#a1bfc0;line-height:1.45;margin:3px 10px 12px}
+#live #sbPeekRoadDrawer{display:block;margin:8px 0 10px;border:1px solid #526878;border-radius:14px;background:linear-gradient(120deg,#152937,#152238);overflow:hidden}
+#live #sbPeekRoadDrawer>summary{display:flex!important;gap:7px;align-items:center;justify-content:space-between;min-height:42px;padding:11px 12px;list-style:none;cursor:pointer;color:#e4eefe;font-size:12px;font-weight:900}
+#sbPeekRoadDrawer>summary #sbPeekRoadHint{font-size:10px;color:#a3cddd;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sbPeekRoadDrawer .sb-peek-separator{opacity:.4}
+#sbPeekRoadDrawer .sb-peek-chevron{color:#7ecbb5;transition:transform .2s}
+#sbPeekRoadDrawer[open] .sb-peek-chevron{transform:rotate(180deg)}
+#live #sbPeekRoadDrawer #sb57TopDuo{margin:6px 8px 10px!important}
+#live #sbPeekRoadDrawer[open] #sb57TopDuo{animation:sb-peek-in .25s ease both}
+#live #sbPeekRadarNotice{display:flex;align-items:center;gap:8px;width:calc(100% - 8px);max-width:100%;margin:10px 4px 2px;padding:9px 10px;border:1px solid #438d75;border-radius:12px;background:linear-gradient(95deg,#153e36,#142e43);color:#cef8e4;text-align:left;cursor:pointer;min-height:40px;font-size:10px;font-weight:800}
+#sbPeekRadarNotice[hidden]{display:none!important}
+#sbPeekRadarNotice .sb-peek-radar-dot{display:grid;place-items:center;width:22px;height:22px;background:#255e48;border:1px solid #55b890;border-radius:50%;color:#d9ffe5;box-shadow:0 0 12px #60e6a63c;animation:sb-peek-breathe 2.5s infinite ease-in-out}
+#sbPeekRadarText{flex:1;min-width:0;line-height:1.35}
+@keyframes sb-peek-in{from{opacity:.1;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes sb-peek-breathe{0%,100%{box-shadow:0 0 5px #60e6a63a}50%{box-shadow:0 0 15px #60e6a69d}}
+@media(max-width:370px){#sbPeekHub .sb-peek-tile{padding:8px 6px;min-height:89px}#sbPeekHub .sb-peek-tile span{font-size:9px}#sbPeekHub .sb-peek-tile strong{font-size:11px}#sbPeekRoadDrawer>summary{font-size:10px}}
+@media(prefers-reduced-motion:reduce){#sbPeekRadarNotice .sb-peek-radar-dot{animation:none}#live #sbPeekRoadDrawer[open] #sb57TopDuo{animation:none}}
 `;
 const css=document.createElement('style');css.id='sbRegistaLabV2Css';css.textContent=STYLE;document.head.append(css);
 function mount(){
@@ -268,6 +318,152 @@ function renderRegistaChecklist(){
  }
 }
 
+
+/* HOME SNEAK PEEK V1 — UI only, never grants BET NOW or emits alerts. */
+function sbPeekTime(ts){
+ const n=Date.parse(ts||'');
+ return Number.isFinite(n)?new Date(n).toLocaleTimeString('ro-RO',{timeZone:'Europe/Bucharest',hour:'2-digit',minute:'2-digit',hour12:false}):'—';
+}
+function sbPeekCountdown(ms){
+ if(!Number.isFinite(ms))return '—';
+ if(ms<=0)return 'ACUM';
+ const m=Math.ceil(ms/60000),h=Math.floor(m/60);
+ return h>0?h+'h '+String(m%60).padStart(2,'0')+'m':m+' min';
+}
+function sbPeekUpcoming(){
+ const now=Date.now(),seen=new Set();
+ return (model.items||[]).filter(x=>{
+  const k=Date.parse(x.kickoff_utc),observed=Date.parse(x.source_last_seen_utc||'');
+  return k>now+3*60000&&k<now+7*86400000&&Number(x.event_id)>0&&Number(x.match_confidence)>=.98&&
+   Number.isFinite(observed)&&observed<=now+60000&&now-observed<3*3600000&&
+   x.result_status!=='WIN'&&x.result_status!=='LOSS';
+ }).sort((a,b)=>Date.parse(a.kickoff_utc)-Date.parse(b.kickoff_utc))
+ .filter(x=>{
+  const key=String(x.event_id)+':'+String(x.market);
+  if(seen.has(key))return false;seen.add(key);return true;
+ }).slice(0,16);
+}
+function sbPeekFutureOneTwo(rows){
+ // This is a candidate to RECHECK, not an early BET NOW decision.
+ return rows.find(x=>['1','2'].includes(String(x.market||'').toUpperCase()))||null;
+}
+function sbPeekWatchState(kind){
+ const d=(typeof dashboard!=='undefined'&&dashboard&&typeof dashboard==='object')?dashboard:{};
+ const alerts=kind==='golden'?(d.alerts||[]).filter(a=>/GOLDEN/i.test(String(a.signal_source||a.source||a.model_version||''))):d.gapNavy||[];
+ const now=Date.now(),fresh=alerts.filter(x=>{const t=Date.parse(x.triggered_utc||'');return Number.isFinite(t)&&t<=now&&now-t<20*60000;});
+ if(fresh.length)return {title:fresh.length+' confirmat',note:String(fresh[0]?.fixture||'Semnal emis'),urgent:true};
+ const unique=new Set(),all=[...(d.radar||[]),...(d.watchlist||[])],watch=[];
+ for(const x of all){
+  const id=Number(x.event_id),min=Number(x.minute);
+  if(!Number.isSafeInteger(id)||id<1||unique.has(id)||!x.fresh||!Number.isFinite(min))continue;
+  const z=String(x.score||'').replace(/[–—−]/g,'-').replace(/\s/g,'')==='0-0'||(x.home_score!=null&&x.away_score!=null&&Number(x.home_score)===0&&Number(x.away_score)===0);
+  const check=kind==='golden'?min>=45&&min<57:min>=39&&min<50;
+  if(z&&check){unique.add(id);watch.push({remaining:(kind==='golden'?57:50)-min,name:String(x.fixture||'Meci monitorizat')});}
+ }
+ watch.sort((a,b)=>a.remaining-b.remaining);
+ if(watch.length)return {title:watch[0].remaining+'′ până la '+(kind==='golden'?'57′':'50′'),note:watch[0].name,urgent:false};
+ return {title:kind==='golden'?'La minutul 57′':'La minutul 50′',note:'Fără candidat prioritar acum',urgent:false};
+}
+function sbPeekMount(){
+ const live=document.getElementById('live');if(!live)return false;
+ document.body.classList.add('sb-peek-home-v1');
+ let hub=document.getElementById('sbPeekHub');
+ if(!hub){
+  hub=document.createElement('section');hub.id='sbPeekHub';hub.setAttribute('aria-label','Rezumat rapid Golden GAP Regista');
+  hub.innerHTML='<div class="sb-peek-head"><span class="sb-peek-eye">◈ SNEAK PEEK <small>CE URMEAZĂ</small></span><button id="sbPeekSearchToggle" type="button" aria-expanded="false" aria-controls="sbGlobalSearch">⌕ Caută</button></div>'+
+   '<div class="sb-peek-tiles">'+
+     '<button type="button" class="sb-peek-tile sb-peek-gold" id="sbPeekGolden"><span>🟡 GOLDEN</span><strong id="sbPeekGoldenTime">57′</strong><small id="sbPeekGoldenMatch">Monitorizare</small></button>'+
+     '<button type="button" class="sb-peek-tile sb-peek-navy" id="sbPeekGap"><span>🔵 GAP</span><strong id="sbPeekGapTime">50′</strong><small id="sbPeekGapMatch">Monitorizare</small></button>'+
+     '<button type="button" class="sb-peek-tile sb-peek-regista" id="sbPeekRegista"><span>♜ REGISTA</span><strong id="sbPeekRegTime">Se verifică…</strong><small id="sbPeekRegMatch">Program pre-meci</small></button>'+
+   '</div>'+
+   '<details id="sbPeekUpcoming"><summary><span>♜ Următoarele meciuri Regista</span><b id="sbPeekUpcomingCount">—</b></summary><div id="sbPeekUpcomingList">Se citesc pronosticurile Regista…</div><p class="sb-peek-disclaimer">Pronosticurile viitoare NU sunt BET NOW. Confirmarea necesită cotă 1/2 recentă și control de valoare în fereastra pre-meci.</p></details>';
+  live.prepend(hub);
+  hub.querySelector('#sbPeekGolden').addEventListener('click',()=>{const drawer=document.getElementById('sbPeekRoadDrawer');if(drawer)drawer.open=true;(drawer||document.getElementById('sb57TopDuo'))?.scrollIntoView({behavior:'smooth',block:'start'});});
+  hub.querySelector('#sbPeekGap').addEventListener('click',()=>{const drawer=document.getElementById('sbPeekRoadDrawer');if(drawer)drawer.open=true;(drawer||document.getElementById('sb57TopDuo'))?.scrollIntoView({behavior:'smooth',block:'start'});});
+  hub.querySelector('#sbPeekRegista').addEventListener('click',()=>{const d=document.getElementById('rlDetails');if(d)d.open=true;document.getElementById('sbRegistaLab')?.scrollIntoView({behavior:'smooth',block:'start'});});
+  hub.querySelector('#sbPeekSearchToggle').addEventListener('click',()=>{
+   const search=document.getElementById('sbGlobalSearch');if(!search)return;
+   const open=!search.classList.contains('sb-peek-search-open');
+   search.classList.toggle('sb-peek-search-open',open);
+   hub.querySelector('#sbPeekSearchToggle').setAttribute('aria-expanded',String(open));
+   if(open){search.scrollIntoView({behavior:'smooth',block:'nearest'});setTimeout(()=>document.getElementById('historicFind')?.focus(),90);}
+  });
+ }
+ // Preserve existing road-to-57 DOM and events, simply fold the large section.
+ const road=document.getElementById('sb57TopDuo');
+ if(road&&!road.closest('#sbPeekRoadDrawer')){
+  let drawer=document.getElementById('sbPeekRoadDrawer');
+  if(!drawer){
+   drawer=document.createElement('details');drawer.id='sbPeekRoadDrawer';drawer.open=false;
+   drawer.innerHTML='<summary><span>🟡 GOLDEN 57′ <span class="sb-peek-separator">/</span> 🔵 GAP 50′</span><strong id="sbPeekRoadHint">Monitorizare</strong><span class="sb-peek-chevron">⌄</span></summary>';
+   road.parentNode.insertBefore(drawer,road);
+  }
+  drawer.append(road);
+ }
+ const radarCard=document.querySelector('#live .radar-card');
+ if(radarCard&&!document.getElementById('sbPeekRadarNotice')){
+  const note=document.createElement('button');note.id='sbPeekRadarNotice';note.type='button';
+  note.setAttribute('aria-label','Vezi următorul meci Regista pe radar; informație programată, nu semnal BET NOW');
+  note.innerHTML='<span class="sb-peek-radar-dot">♜</span><span id="sbPeekRadarText">REGISTA · încărcare program</span><span aria-hidden="true">⌄</span>';
+  note.addEventListener('click',()=>{document.getElementById('sbPeekHub')?.scrollIntoView({behavior:'smooth',block:'start'});const list=document.getElementById('sbPeekUpcoming');if(list)list.open=true;});
+  const header=radarCard.querySelector('.radar-top');if(header)header.insertAdjacentElement('afterend',note);else radarCard.prepend(note);
+ }
+ return true;
+}
+function sbPeekUpdate(){
+ if(!sbPeekMount())return;
+ const hub=document.getElementById('sbPeekHub');if(!hub)return;
+ const set=(id,value)=>{const n=document.getElementById(id);if(n&&n.textContent!==value)n.textContent=value;};
+ const g=sbPeekWatchState('golden'),n=sbPeekWatchState('gap');
+ set('sbPeekGoldenTime',g.title);set('sbPeekGoldenMatch',g.note);
+ set('sbPeekGapTime',n.title);set('sbPeekGapMatch',n.note);
+ const roadHint=document.getElementById('sbPeekRoadHint');
+ if(roadHint)roadHint.textContent=g.urgent||n.urgent?'● ALERTĂ CONFIRMATĂ':g.title.includes('până')?'Golden '+g.title:n.title.includes('până')?'GAP '+n.title:'Deschide monitorizarea';
+ const now=Date.now(),arr=sbPeekUpcoming(),soon=arr[0],next=sbPeekFutureOneTwo(arr);
+ const target=next?Date.parse(next.kickoff_utc)-45*60000:NaN,until=target-now;
+ const nextTime=next?sbPeekTime(next.kickoff_utc):null;
+ const windowLabel=next?(until>0?'Verificare în '+sbPeekCountdown(until):now<Date.parse(next.kickoff_utc)-5*60000?'În verificare, NU BET NOW':'Start '+nextTime):'Fără 1/2 viitor';
+ const nextFixture=next?String(next.fixture||'Meci'):'Nicio selecție 1/2 disponibilă';
+ set('sbPeekRegTime',windowLabel);
+ set('sbPeekRegMatch',next?nextFixture+' · '+nextTime:'Așteptăm importul Regista');
+ set('sbPeekUpcomingCount',arr.length+' programate');
+ const more=document.getElementById('sbPeekUpcomingList');
+ if(more){
+  const sig=arr.slice(0,5).map(x=>[x.event_id,x.market,x.list_code,x.kickoff_utc].join('|')).join(';');
+  if(more.dataset.signature!==sig){
+   more.dataset.signature=sig;more.replaceChildren();
+   if(!arr.length){const empty=document.createElement('p');empty.textContent='Nu există pronosticuri viitoare asociate cu certitudine unor meciuri din Superbet.';more.append(empty);}
+   for(const item of arr.slice(0,5)){
+    const row=document.createElement('button');row.type='button';row.className='sb-peek-upcoming-row';
+    const time=document.createElement('strong');time.textContent=sbPeekTime(item.kickoff_utc);
+    const textWrap=document.createElement('span'),title=document.createElement('b'),meta=document.createElement('small');
+    title.textContent=String(item.fixture||'Meci programat');
+    const market=String(item.market||'').toUpperCase(),supported=['1','2'].includes(market);
+    const label=market==='1'?'Victorie gazde':market==='2'?'Victorie oaspeți':market==='BTTS'?'Ambele marchează':market;
+    meta.textContent=label+' · '+String(item.probability_pct??'—')+'% Regista · '+(supported?'1/2: reevaluare cotă în ultimele 45′':'Informativ; fără BET NOW pe această piață');
+    textWrap.append(title,meta);row.append(time,textWrap);
+    row.addEventListener('click',()=>{
+     const details=document.getElementById('rlDetails');if(details)details.open=true;
+     const observation=document.getElementById('rlObservations');if(observation)observation.open=true;
+     if(['FULL','LEAGUE','TOP10'].includes(item.list_code))current=item.list_code;
+     document.querySelectorAll('#sbRegistaLab .rl-tab').forEach(t=>t.classList.toggle('active',t.dataset.rlt===current));
+     render();
+     document.getElementById('sbRegistaLab')?.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+    more.append(row);
+   }
+  }
+ }
+ const radar=document.getElementById('sbPeekRadarNotice'),rtext=document.getElementById('sbPeekRadarText');
+ if(radar&&rtext){
+  radar.hidden=!soon;
+  if(soon){
+   const label=next?'♜ REGISTA · '+sbPeekTime(next.kickoff_utc)+' · '+windowLabel:'♜ REGISTA · '+sbPeekTime(soon.kickoff_utc)+' · pronostic programat';
+   if(rtext.textContent!==label)rtext.textContent=label;
+  }
+ }
+}
+
 function render(){
  const panel=document.getElementById('sbRegistaLab');if(!panel)return;
  const items=(model.items||[]).filter(x=>x.list_code===current);
@@ -309,6 +505,7 @@ function render(){
  if(sync?.stored_rows>0){status.style.display='none';}
  else{status.style.display='block';status.textContent=sync?.error?'Import Regista nevalidat: '+String(sync.error).slice(0,130):'Sursa Regista nu are încă date verificate.';}
  renderRegistaChecklist();
+ sbPeekUpdate();
 }
 function localPulse(rows){
   if(document.hidden||!Array.isArray(rows)||typeof navigator.vibrate!=='function')return;
@@ -329,10 +526,12 @@ function localPulse(rows){
 async function poll(force){if(busy||!document.getElementById('sbRegistaLab')||(!force&&Date.now()-lastAt<30000))return;if(typeof api!=='function')return;busy=true;try{const d=await api('/api/mobile/regista/summary');if(!d?.items)throw Error('No data');model=d;const initial=!lastAt;lastAt=Date.now();if(initial){const hot=d.items.find(x=>x.status==='BET_NOW');if(hot){current=hot.list_code;document.querySelectorAll('#sbRegistaLab .rl-tab').forEach(x=>x.classList.toggle('active',x.dataset.rlt===current));}}render();if(lastOpenedRegistaEvent)registaMatchPanel(lastOpenedRegistaEvent);localPulse(d.items);}catch(e){const s=document.getElementById('rlSourceStatus');if(s){s.style.display='block';s.textContent='Regista indisponibil momentan. Nu se emit semnale fără date verificate.';}}finally{busy=false;}}
 function boot(){
  if(!mount())return;
+ sbPeekMount();sbPeekUpdate();
  const deepEvent=Number(new URLSearchParams(location.search).get('event_id'));if(Number.isSafeInteger(deepEvent)&&deepEvent>0)lastOpenedRegistaEvent=deepEvent;
  setTimeout(()=>poll(true),500);
  setInterval(()=>{if(!document.hidden)poll(false)},30000);
  setInterval(()=>{if(!document.hidden)renderRegistaChecklist()},4000);
+ setInterval(()=>{if(!document.hidden)sbPeekUpdate()},8000);
  setTimeout(()=>{if(lastOpenedRegistaEvent)registaMatchPanel(lastOpenedRegistaEvent)},4800);
  const route=document.getElementById('routeBody');
  if(route){let pending=false;new MutationObserver(()=>{
