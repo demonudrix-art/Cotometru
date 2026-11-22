@@ -83,7 +83,13 @@ function performance(rows,now,filter=()=>true){
  const graded=picks.filter(x=>['WIN','LOSS'].includes(x.result_status)&&Number(x.odds_at_signal)>1);
  const wins=graded.filter(x=>x.result_status==='WIN').length,losses=graded.length-wins;
  const net=graded.reduce((acc,x)=>acc+(x.result_status==='WIN'?50*(Number(x.odds_at_signal)-1):-50),0);
- return {betnow:picks.filter(x=>x.status==='BET_NOW').length,emitted_24h:last24h,emitted_7d:last7d,signals_24h:last24h,signals_7d:last7d,signals_total:picks.length,wins,losses,
+ const period=ms=>{
+  const a=picks.filter(x=>Date.parse(x.signal_utc)>=now-ms),g=a.filter(x=>['WIN','LOSS'].includes(x.result_status));
+  const w=g.filter(x=>x.result_status==='WIN').length,l=g.length-w;
+  const v=g.reduce((n,x)=>n+(x.result_status==='WIN'?50*(Number(x.odds_at_signal)-1):-50),0);
+  return {emitted:a.length,active:a.filter(x=>x.status==='BET_NOW').length,wins:w,losses:l,pending:a.length-g.length,roi_sim_pct:g.length?Math.round((v/(50*g.length))*10000)/100:null,settled:g.length};
+ };
+ return {periods:{last24h:period(86400000),last7d:period(7*86400000)},betnow:picks.filter(x=>x.status==='BET_NOW').length,emitted_24h:last24h,emitted_7d:last7d,signals_24h:last24h,signals_7d:last7d,signals_total:picks.length,wins,losses,
    pending:picks.length-graded.length,settled:graded.length,stake_unit_lei:50,net_sim_lei:graded.length?Math.round(net*100)/100:null,
    roi_sim_pct:graded.length?Math.round((net/(50*graded.length))*10000)/100:null,
    roi_verified:false, note:'Simulare prospectivă cu miză fixă 50 lei pe selecție distinctă; nu este ROI real la Superbet.'};
