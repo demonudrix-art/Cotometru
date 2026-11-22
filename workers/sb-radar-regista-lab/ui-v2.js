@@ -55,7 +55,24 @@ const meta=document.createElement('div');meta.className='rl-meta';meta.textConte
 const result=document.createElement('div');result.className='rl-result';result.textContent=resultName(item)+(item.result_status==='WIN'||item.result_status==='LOSS'?' · '+(item.final_home??'—')+'–'+(item.final_away??'—'):'');el.append(result);
 const actions=document.createElement('div');actions.className='rl-actions';
 if(item.status==='BET_NOW'&&Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0&&Number(item.odds_at_signal)>1){
-const b=document.createElement('button');b.className='rl-bet';b.textContent='BET NOW · fișa meciului';b.onclick=()=>{const eventId=Number(item.event_id);if(typeof window.SBRadarOpenAlert==='function')window.SBRadarOpenAlert('live',null,eventId);else location.assign('/app?tab=live&event_id='+eventId)};actions.append(b);
+const b=document.createElement('button');b.className='rl-bet';b.textContent='BET NOW · pregătește Slip';b.onclick=()=>{
+ const eventId=Number(item.event_id),selection=String(item.market||'').toUpperCase(),odds=Number(item.odds_at_signal);
+ if(!Number.isSafeInteger(eventId)||eventId<1||!['1','X','2'].includes(selection)||!(odds>1))return;
+ if(typeof selectBet==='function')selectBet({event_id:eventId,fixture:item.fixture,px:null,fresh:false});
+ else if(typeof tab==='function')tab('slip');
+ const sel=document.getElementById('selection');
+ if(sel){
+   if(!Array.from(sel.options).some(o=>o.value===selection)){
+     const opt=document.createElement('option');opt.value=selection;opt.textContent=selection==='1'?'1 • Victorie gazde':selection==='2'?'2 • Victorie oaspeți':'X • Egal';
+     sel.append(opt);
+   }
+   sel.value=selection;
+ }
+ const ev=document.getElementById('eventId'),fi=document.getElementById('fixture'),price=document.getElementById('odds');
+ if(ev)ev.value=eventId;if(fi)fi.value=item.fixture;if(price)price.value=odds.toFixed(2);
+ const info=document.getElementById('betmsg');if(info)info.textContent='REGISTA '+item.list_code+' · '+selection+' · cotă arhivată '+odds.toFixed(2)+'. Verifică prețul real pe Superbet și înregistrează biletul doar după plasarea lui.';
+ if(typeof sbUpdateBetPreview==='function')sbUpdateBetPreview();
+};actions.append(b);
 }
 if(item.source_url&&/^https:\/\/(?:www\.)?registacalcio\.it\//.test(item.source_url)){const a=document.createElement('a');a.href=item.source_url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Regista ↗';actions.append(a);}
 el.append(actions);return el;
