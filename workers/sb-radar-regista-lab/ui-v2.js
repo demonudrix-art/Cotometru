@@ -72,7 +72,23 @@ const status=panel.querySelector('#rlSourceStatus'),s=model.sync;
 if(s?.stored_rows>0){status.style.display='none';}
 else{status.style.display='block';status.textContent=s?.error?'Regista: import nevalidat ('+String(s.error).replace('Error: ','')+'). Nu există alerte până la verificarea sursei.':'Sursa Regista încă nu are predicții importate și potrivite cu Superbet.';}
 }
-async function poll(force){if(busy||!document.getElementById('sbRegistaLab')||(!force&&Date.now()-lastAt<30000))return;if(typeof api!=='function')return;busy=true;try{const d=await api('/api/mobile/regista/summary');if(!d?.items)throw Error('No data');model=d;lastAt=Date.now();render();}catch(e){const s=document.getElementById('rlSourceStatus');if(s){s.style.display='block';s.textContent='Regista indisponibil momentan. Nu se emit semnale fără date verificate.';}}finally{busy=false;}}
+function localPulse(rows){
+  if(document.hidden||!Array.isArray(rows)||typeof navigator.vibrate!=='function')return;
+  try{
+    const installed=String(window.DrixNative?.getAppVersion?.()||'');
+    const v=installed.split('.').map(Number);
+    if(v.length===3&&v[0]===2&&v[1]===3&&v[2]>=51)return; // New APK uses OS notifications.
+    for(const item of rows){
+      if(item.status!=='BET_NOW'||Number(item.event_id)<=0||Number(item.odds_at_signal)<=1)continue;
+      const key='sb_regista_web_vibrate_'+String(item.signal_id||'');
+      if(localStorage.getItem(key))continue;
+      localStorage.setItem(key,'1');
+      navigator.vibrate([260,140,260,170,550]);
+      break; // one vibration for this polling cycle
+    }
+  }catch(_){}
+}
+async function poll(force){if(busy||!document.getElementById('sbRegistaLab')||(!force&&Date.now()-lastAt<30000))return;if(typeof api!=='function')return;busy=true;try{const d=await api('/api/mobile/regista/summary');if(!d?.items)throw Error('No data');model=d;lastAt=Date.now();render();localPulse(d.items);}catch(e){const s=document.getElementById('rlSourceStatus');if(s){s.style.display='block';s.textContent='Regista indisponibil momentan. Nu se emit semnale fără date verificate.';}}finally{busy=false;}}
 function boot(){if(!mount())return;setTimeout(()=>poll(true),500);setInterval(()=>{if(!document.hidden)poll(false)},30000);}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
