@@ -211,7 +211,7 @@ public class AlertService extends Service {
     if(!quiet&&(Build.VERSION.SDK_INT<34||manager.canUseFullScreenIntent()))b.setFullScreenIntent(full,true);
     getSharedPreferences(MainActivity.PREF_NAME,MODE_PRIVATE).edit().remove("dismissed_alert_"+id).commit();
     manager.notify(id,b.build());
-    if(!quiet)AlertAttention.start(this,category); // Soft original nature tone; respects silent mode and notification volume.
+    if(!quiet)AlertAttention.start(this); // OWNER VIBRATE-ONLY: no generated nature audio; respect dismissal and DND.
   }
    private void checkAlerts()throws Exception {
     if(!notificationsAllowed())return; // Never mark an alert delivered when notifications are blocked.
@@ -236,7 +236,7 @@ public class AlertService extends Service {
       boolean gap=row.optBoolean("gap_pattern_match",false)||"GAP NAVY".equals(category)||row.optString("gap_model_version","").contains("SB_RADAR_GAP");
       if(ml&&!gap)continue; // ML SELECT and ML GENERAL are retired from user alerts; preserve D1 history.
       boolean rush="GOLD RUSH".equals(category);
-      if(!win&&!gold&&!ml&&!gap&&!rush&&!power&&!purple&&!red)continue; // Silver-only and retired filters never ring.
+      if(!win&&!gold&&!gap)continue; // OWNER POLICY: only Golden / GAP bet alerts, plus verified ticket WIN.
       String key="notified_"+event+"_"+(win?"win":"betnow");
       if(prefs.getBoolean(key,false))continue;
       String fixture=row.optString("fixture","Meci").replaceFirst("^\\[[^\\]]+\\]\\s*","");
@@ -264,7 +264,7 @@ public class AlertService extends Service {
   // Shared deduplication key prevents duplicate notifications from FCM and the 25-second polling fallback.
   static synchronized void postFromFcm(Context ctx,String category,long event,String fixture,String body,String path,boolean highPriority,String modelVersion){
     boolean strong=category!=null&&category.toUpperCase(Locale.ROOT).contains("STRONG");
-    if(event<=0||!("GOLDEN TICKET".equals(category)||"GOLD RUSH".equals(category)||"GG POWER".equals(category)||"ML".equals(category)||"GAP NAVY".equals(category)||strong))return;
+    if(event<=0||!("GOLDEN TICKET".equals(category)||"GAP NAVY".equals(category)))return; // Fail closed: retired ML/Gold Rush/Strong are never an action alert.
     SharedPreferences prefs=ctx.getSharedPreferences(MainActivity.PREF_NAME,Context.MODE_PRIVATE);
     String key="notified_"+event+"_betnow";
     if(prefs.getBoolean(key,false))return;
@@ -298,7 +298,7 @@ public class AlertService extends Service {
       .putInt("fcm_last_channel_importance",activeChannel==null?0:activeChannel.getImportance()).apply();
     // Start repeating attention immediately after displaying the native notification;
     // getActiveNotifications() may lag by a frame on Samsung when FCM wakes the app.
-    if(!quiet)AlertAttention.start(ctx,category); // Audible, repeating natural tone and vibration until dismiss.
+    if(!quiet)AlertAttention.start(ctx); // OWNER VIBRATE-ONLY: repeating vibration only, no AudioTrack.
     prefs.edit().putBoolean(key,true).apply();
     // High-priority FCM may start a foreground service while the screen is off.
     // It preserves vibration-only attention beyond onMessageReceived().
