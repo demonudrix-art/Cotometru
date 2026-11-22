@@ -39,10 +39,8 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       return;
     }
     // Separate informational and decontated-WIN FCM; never enter BET_NOW pipeline.
-    if("X_COVERAGE_INFO".equals(d.get("stage")) || "BET_WON".equals(d.get("stage"))){
-      RadarInfoWinNotifier.post(this,d);
-      return;
-    }
+    if("X_COVERAGE_INFO".equals(d.get("stage")))return; // Hidden/deactivated by owner.
+    if("BET_WON".equals(d.get("stage"))){RadarInfoWinNotifier.post(this,d);return;}
     if(!"BET_NOW".equals(d.get("stage")))return;
     boolean isTest="true".equalsIgnoreCase(d.getOrDefault("test","false"));
     String label=d.getOrDefault("signal_label","").toUpperCase(Locale.ROOT).trim();
@@ -53,7 +51,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
           boolean classic="SB_GOLDEN_CLASSIC_00_M57_1PP_V1".equals(model);
     boolean gap="true".equalsIgnoreCase(d.getOrDefault("gap_pattern_match","false"))||
       "SB_RADAR_GAP_40_50_X50_V1".equalsIgnoreCase(d.getOrDefault("gap_model_version",""));
-    boolean ml=!gap&&"SB_RADAR_ML_LOGREG_V1".equals(model);
+    boolean ml=false; // Do not re-activate ML SELECT/GENERAL via FCM.
     // Only the restored live models; legacy priority labels must not reactivate retired families.
     String category=gap?"GAP NAVY":classic?"GOLDEN TICKET":ml?"ML":
       isTest&&"GOLDEN TICKET".equals(label)?"GOLDEN TICKET":"";
