@@ -17,7 +17,7 @@ public class AlertService extends Service {
   static final String CH_GOLD="sb_radar_golden_vibration_only_v240";
   static final String CH_ML="sb_radar_purple_vibration_only_v240";
   static final String CH_OCT31_ML="sb_radar_ml_logreg_vibration_only_v240";
-  static final String CH_GAP="sb_radar_gap_navy_soft_nature_v250";
+  static final String CH_GAP="sb_radar_gap_navy_vibration_only_v255";
   static final String CH_NIGHT="sb_radar_vibration_night_v2315";
   static final String CH_WINS="sb_radar_wins_vibration_only_v240";
   static final int FOREGROUND_ID=1310;
@@ -25,7 +25,7 @@ public class AlertService extends Service {
   private static volatile AlertService current;
   private static final Handler MAIN=new Handler(Looper.getMainLooper());
   private static Runnable ringTimeout;
-  static boolean nightQuiet(){return false;} // User enabled urgent purple/red alerts and fullscreen 24/7.
+  static boolean nightQuiet(){return false;} // Vibration-only alerts all day, respecting Android silent mode and DND.
   private Vibrator vibrator;
   volatile boolean running=false;
   Thread thread;
@@ -35,7 +35,7 @@ public class AlertService extends Service {
   private void ensureChannels(){
     NotificationManager mgr=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     NotificationChannel monitor=new NotificationChannel(CH_MONITOR,"SB Radar • Live Intelligence",NotificationManager.IMPORTANCE_LOW);
-    monitor.setDescription("Monitor activ pentru Golden Classic 57′ și ML LogReg V1 57′–59′.");mgr.createNotificationChannel(monitor);
+    monitor.setDescription("Monitor activ pentru Golden Classic, GAP NAVY și Regista local, fără filtre ML.");mgr.createNotificationChannel(monitor);
     ensureUrgentChannels(this);
     NotificationChannel wins=new NotificationChannel(CH_WINS,"Bilete câștigate",NotificationManager.IMPORTANCE_HIGH);
     wins.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);wins.enableVibration(true);wins.setSound(null,null);mgr.createNotificationChannel(wins);
@@ -50,20 +50,12 @@ public class AlertService extends Service {
     gold.setVibrationPattern(new long[]{0,650,350,650,900});
     gold.setSound(null,null);
     mgr.createNotificationChannel(gold);
-    NotificationChannel ml=new NotificationChannel(CH_ML,"SB Radar • Canal mov (fără sunet)",NotificationManager.IMPORTANCE_HIGH);
-    ml.setDescription("Vibrație și afișare, fără sunet.");
-    ml.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-    ml.enableVibration(true);
-    ml.setVibrationPattern(new long[]{0,420,250,420,250,420});
-    ml.setSound(null,null);
-    mgr.createNotificationChannel(ml);
-    NotificationChannel octoberMl=new NotificationChannel(CH_OCT31_ML,"🧠 ML LogReg V1 • 57′–59′",NotificationManager.IMPORTANCE_HIGH);
-    octoberMl.setDescription("ML original din 31 octombrie: 0–0 la minutele 57–59, fără apel telefonic.");
-    octoberMl.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-    octoberMl.enableVibration(true);octoberMl.setVibrationPattern(new long[]{0,500,250,500,350,700});
-    octoberMl.setSound(null,null);mgr.createNotificationChannel(octoberMl);
-    NotificationChannel gap=new NotificationChannel(CH_GAP,"🔵 GAP NAVY • Natură discretă",NotificationManager.IMPORTANCE_HIGH);
-    gap.setDescription("GAP NAVY 40→50: vibrație, ecran și sunet natural delicat redat de aplicație; fără alarmă standard.");
+    // Owner retired ML completely. Remove the old app-owned notification channels
+    // rather than re-registering them on every app/service startup.
+    mgr.deleteNotificationChannel(CH_ML);
+    mgr.deleteNotificationChannel(CH_OCT31_ML);
+    NotificationChannel gap=new NotificationChannel(CH_GAP,"🔵 GAP NAVY • Vibrație fără sunet",NotificationManager.IMPORTANCE_HIGH);
+    gap.setDescription("GAP NAVY 40→50: vibrație fără sunet și ecran de alertă.");
     gap.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
     gap.enableVibration(true);gap.setVibrationPattern(new long[]{0,300,160,300});
     gap.setSound(null,null);mgr.createNotificationChannel(gap);
@@ -155,13 +147,12 @@ public class AlertService extends Service {
       .addAction(R.drawable.sbr_status_ticket,"SLIP",open(this,FOREGROUND_ID+2,"/app?tab=slip"))
       .setOngoing(true).build();
     startForeground(FOREGROUND_ID,foreground);
-    if("TEST_GOLD".equals(action)||"TEST_ML".equals(action)||"TEST_GAP".equals(action)||"TEST_RUSH".equals(action)){
-      boolean golden="TEST_GOLD".equals(action),gap="TEST_GAP".equals(action);
-      String category=golden?"GOLDEN TICKET":gap?"GAP NAVY":"ML";
-      String model=golden?"SB_GOLDEN_CLASSIC_00_M57_1PP_V1":gap?"SB_RADAR_GAP_40_50_X50_V1 GAP_NAVY":"SB_RADAR_ML_LOGREG_V1";
+    if("TEST_GOLD".equals(action)||"TEST_GAP".equals(action)){
+      boolean golden="TEST_GOLD".equals(action);
+      String category=golden?"GOLDEN TICKET":"GAP NAVY";
+      String model=golden?"SB_GOLDEN_CLASSIC_00_M57_1PP_V1":"SB_RADAR_GAP_40_50_X50_V1 GAP_NAVY";
       showSignal(category,0,"TEST LOCAL • "+category,
-        "Test alerte naturale SB Radar, fără pariu real.\\n"+(golden?"Ciripit discret":gap?"Picături discrete":"Adiere discretă")+
-        "\\nVolumul telefonului rămâne nemodificat.", "/app?tab=live",model,true);
+        "Test vibrație fără sunet SB Radar. SIMULARE — nu reprezintă pariu real.", "/app?tab=live",model,true);
     }
     if("RING_FCM".equals(action)&&intent!=null)ringIfActive(this,intent.getIntExtra("notification_id",0));
     if(running)return START_STICKY;
