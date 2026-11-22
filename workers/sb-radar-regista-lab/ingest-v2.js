@@ -62,13 +62,13 @@ async function findEvent(env,p){
 const UPSERT=[
  'INSERT INTO sb_regista_signals_v1 (signal_id,list_code,source_url,source_match_id,fixture,market,probability_pct,source_first_seen_utc,source_last_seen_utc,source_published_utc,kickoff_utc,event_id,match_confidence,quote_captured_utc,odds_at_signal,signal_utc,status,updated_utc)',
  'VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
- 'ON CONFLICT(signal_id) DO UPDATE SET source_last_seen_utc=excluded.source_last_seen_utc,probability_pct=excluded.probability_pct,',
+ "ON CONFLICT(signal_id) DO UPDATE SET source_last_seen_utc=excluded.source_last_seen_utc,probability_pct=CASE WHEN sb_regista_signals_v1.status='BET_NOW' AND sb_regista_signals_v1.signal_utc IS NOT NULL THEN sb_regista_signals_v1.probability_pct ELSE excluded.probability_pct END,",
  'source_published_utc=excluded.source_published_utc,kickoff_utc=excluded.kickoff_utc,event_id=COALESCE(excluded.event_id,sb_regista_signals_v1.event_id),',
  'match_confidence=COALESCE(excluded.match_confidence,sb_regista_signals_v1.match_confidence),',
  "quote_captured_utc=CASE WHEN sb_regista_signals_v1.signal_utc IS NOT NULL THEN sb_regista_signals_v1.quote_captured_utc ELSE COALESCE(excluded.quote_captured_utc,sb_regista_signals_v1.quote_captured_utc) END,",
  "odds_at_signal=CASE WHEN sb_regista_signals_v1.signal_utc IS NOT NULL THEN sb_regista_signals_v1.odds_at_signal ELSE COALESCE(excluded.odds_at_signal,sb_regista_signals_v1.odds_at_signal) END,",
  "signal_utc=CASE WHEN excluded.status='BET_NOW' AND sb_regista_signals_v1.signal_utc IS NULL THEN excluded.signal_utc ELSE sb_regista_signals_v1.signal_utc END,",
- 'status=excluded.status,updated_utc=excluded.updated_utc'
+ "status=CASE WHEN sb_regista_signals_v1.status='BET_NOW' AND sb_regista_signals_v1.signal_utc IS NOT NULL THEN 'BET_NOW' ELSE excluded.status END,updated_utc=excluded.updated_utc"
 ].join(' ');
 export async function syncRegistaV2(env){
  let code=0,count=0,error=null;const now=new Date().toISOString(),nowMs=Date.parse(now);
