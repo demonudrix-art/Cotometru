@@ -50,6 +50,24 @@ if(path.endsWith('/alerts')){
  }
  return response({mode:'LOCAL_VIBRATE_NO_FCM',alerts:selected.slice(0,30)});
 }
+
+function performance(rows,now,filter=()=>true){
+ // Deduplicate the same prediction if Regista lists it in multiple tabs.
+ const map=new Map();
+ for(const x of rows.filter(r=>r.signal_utc&&Number(r.event_id)>0&&filter(r))){
+  const key=String(x.event_id)+':'+String(x.market),prior=map.get(key);
+  if(!prior||Date.parse(x.signal_utc)<Date.parse(prior.signal_utc))map.set(key,x);
+ }
+ const picks=[...map.values()],last24h=picks.filter(x=>Date.parse(x.signal_utc)>=now-86400000).length,
+       last7d=picks.filter(x=>Date.parse(x.signal_utc)>=now-7*86400000).length;
+ const graded=picks.filter(x=>['WIN','LOSS'].includes(x.result_status)&&Number(x.odds_at_signal)>1);
+ const wins=graded.filter(x=>x.result_status==='WIN').length,losses=graded.length-wins;
+ const net=graded.reduce((acc,x)=>acc+(x.result_status==='WIN'?50*(Number(x.odds_at_signal)-1):-50),0);
+ return {betnow:picks.filter(x=>x.status==='BET_NOW').length,signals_24h:last24h,signals_7d:last7d,signals_total:picks.length,wins,losses,
+   pending:picks.length-graded.length,settled:graded.length,stake_unit_lei:50,net_sim_lei:graded.length?Math.round(net*100)/100:null,
+   roi_sim_pct:graded.length?Math.round((net/(50*graded.length))*10000)/100:null,
+   roi_verified:false, note:'Simulare prospectivă cu miză fixă 50 lei pe selecție distinctă; nu este ROI real la Superbet.'};
+}
 const counts={FULL:{},LEAGUE:{},TOP10:{}};
 for(const typ of Object.keys(counts)){
  const r=rows.filter(s=>s.list_code===typ),readyNow=r.filter(s=>s.status==='BET_NOW');
@@ -60,9 +78,10 @@ for(const typ of Object.keys(counts)){
   wins:r.filter(s=>s.result_status==='WIN').length,
   losses:r.filter(s=>s.result_status==='LOSS').length,
   pending:r.filter(s=>!s.result_status).length,
-  roi:null // Observed prospective ROI not proven; retrospective source imports cannot validate profit.
+  roi:null, // Do not substitute the retrospective history with ROI real.
+  prospective:performance(rows,now,s=>s.list_code===typ)
  };
 }
-return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,server_utc:NOW()});
+return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,performance:performance(rows,now),server_utc:NOW()});
 }catch(e){console.error('REGISTA_READ_FAIL',String(e).slice(0,170));return response({error:'REGISTA_LAB_UNAVAILABLE',items:[],counts:{},sync:null},503);}
 }
