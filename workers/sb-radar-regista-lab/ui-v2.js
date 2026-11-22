@@ -150,6 +150,7 @@ body.sb-peek-home-v1 #sbGlobalSearch.sb-peek-search-open{display:block!important
 @keyframes sb-peek-breathe{0%,100%{box-shadow:0 0 5px #60e6a63a}50%{box-shadow:0 0 15px #60e6a69d}}
 @media(max-width:370px){#sbPeekHub .sb-peek-tile{padding:8px 6px;min-height:89px}#sbPeekHub .sb-peek-tile span{font-size:9px}#sbPeekHub .sb-peek-tile strong{font-size:11px}#sbPeekRoadDrawer>summary{font-size:10px}}
 @media(prefers-reduced-motion:reduce){#sbPeekRadarNotice .sb-peek-radar-dot{animation:none}#live #sbPeekRoadDrawer[open] #sb57TopDuo{animation:none}}
+#sbPeekHub .sb-peek-ticker{font-size:10px;font-weight:750;line-height:1.4;color:#bbdcd6;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;padding:1px 2px}
 `;
 const css=document.createElement('style');css.id='sbRegistaLabV2Css';css.textContent=STYLE;document.head.append(css);
 function mount(){
@@ -380,6 +381,7 @@ function sbPeekMount(){
      '<button type="button" class="sb-peek-tile sb-peek-navy" id="sbPeekGap"><span>🔵 GAP</span><strong id="sbPeekGapTime">50′</strong><small id="sbPeekGapMatch">Monitorizare</small></button>'+
      '<button type="button" class="sb-peek-tile sb-peek-regista" id="sbPeekRegista"><span>♜ REGISTA</span><strong id="sbPeekRegTime">Se verifică…</strong><small id="sbPeekRegMatch">Program pre-meci</small></button>'+
    '</div>'+
+   '<div id="sbPeekTicker" class="sb-peek-ticker">♜ Regista · se încarcă următoarele meciuri…</div>'+
    '<details id="sbPeekUpcoming"><summary><span>♜ Următoarele meciuri Regista</span><b id="sbPeekUpcomingCount">—</b></summary><div id="sbPeekUpcomingList">Se citesc pronosticurile Regista…</div><p class="sb-peek-disclaimer">Pronosticurile viitoare NU sunt BET NOW. Confirmarea necesită cotă 1/2 recentă și control de valoare în fereastra pre-meci.</p></details>';
   live.prepend(hub);
   hub.querySelector('#sbPeekGolden').addEventListener('click',()=>{const drawer=document.getElementById('sbPeekRoadDrawer');if(drawer)drawer.open=true;(drawer||document.getElementById('sb57TopDuo'))?.scrollIntoView({behavior:'smooth',block:'start'});});
@@ -424,6 +426,8 @@ function sbPeekUpdate(){
  const roadHint=document.getElementById('sbPeekRoadHint');
  if(roadHint)roadHint.textContent=g.urgent||n.urgent?'● ALERTĂ CONFIRMATĂ':g.title.includes('până')?'Golden '+g.title:n.title.includes('până')?'GAP '+n.title:'Deschide monitorizarea';
  const now=Date.now(),arr=sbPeekUpcoming(),soon=arr[0],next=sbPeekFutureOneTwo(arr);
+ const ticker=arr.slice(0,2).map(x=>sbPeekTime(x.kickoff_utc)+' '+String(x.fixture||'Meci')+' ('+String(x.market||'')+')');
+ set('sbPeekTicker',ticker.length?'♜ URMEAZĂ · '+ticker.join('  ·  '):'♜ REGISTA · niciun meci viitor verificat');
  const target=next?Date.parse(next.kickoff_utc)-45*60000:NaN,until=target-now;
  const nextTime=next?sbPeekTime(next.kickoff_utc):null;
  const windowLabel=next?(until>0?'Verificare în '+sbPeekCountdown(until):now<Date.parse(next.kickoff_utc)-5*60000?'În verificare, NU BET NOW':'Start '+nextTime):'Fără 1/2 viitor';
