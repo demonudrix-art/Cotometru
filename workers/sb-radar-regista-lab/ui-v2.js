@@ -163,18 +163,42 @@ const b=document.createElement('button');b.className='rl-bet';b.textContent=item
 if(item.source_url&&/^https:\/\/(?:www\.)?registacalcio\.it\//.test(item.source_url)){const a=document.createElement('a');a.href=item.source_url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Regista ↗';actions.append(a);}
 el.append(actions);return el;
 }
-function render(){const panel=document.getElementById('sbRegistaLab');if(!panel)return;
-const items=(model.items||[]).filter(x=>x.list_code===current),cards=panel.querySelector('#rlCards'),arch=panel.querySelector('#rlArchiveBody');
-cards.replaceChildren();arch.replaceChildren();const active=items.filter(x=>x.status==='BET_NOW'||x.status==='MATCHED').slice(0,20);
-if(!active.length){const x=document.createElement('div');x.className='rl-warning';x.textContent='Niciun semnal verificat pentru '+(current==='TOP10'?'TOP 10':current)+'. BET NOW apare doar la 1 / 2, cotă verificată, EV estimat ≥8% și avantaj ≥5 pp. Nu reprezintă profit validat.';cards.append(x);}else active.forEach(x=>cards.append(card(x)));
-const historical=items.filter(x=>x.result_status==='WIN'||x.result_status==='LOSS'||x.status==='EXPIRED'||(x.signal_utc&&x.status!=='BET_NOW')).slice(0,60);
-if(!historical.length)arch.textContent='Arhiva este goală. Se vor contoriza numai pronosticuri salvate înaintea meciurilor.';else historical.forEach(x=>arch.append(card(x)));
-const c=model.counts?.[current]||{};txt(panel.querySelector('#rl24'),c.last24h??0);txt(panel.querySelector('#rl7d'),c.last7d??0);txt(panel.querySelector('#rlWl'),(c.wins??0)+' / '+(c.losses??0));
-txt(panel.querySelector('#rlSummaryCount'),(c.betnow??0)+' BET NOW');
-const status=panel.querySelector('#rlSourceStatus'),s=model.sync;
-if(s?.stored_rows>0){status.style.display='none';}
-else{status.style.display='block';status.textContent=s?.error?'Regista: import nevalidat ('+String(s.error).replace('Error: ','')+'). Nu există alerte până la verificarea sursei.':'Sursa Regista încă nu are predicții importate și potrivite cu Superbet.';}
+
+function render(){
+ const panel=document.getElementById('sbRegistaLab');if(!panel)return;
+ const items=(model.items||[]).filter(x=>x.list_code===current);
+ const cards=panel.querySelector('#rlCards'),arch=panel.querySelector('#rlArchiveBody'),featured=panel.querySelector('#rlFeaturedCards');
+ if(!cards||!arch||!featured)return;
+ cards.replaceChildren();arch.replaceChildren();featured.replaceChildren();
+ // Only prospective value-gated and unexpired signals are actionable; duplicate lists collapse into one match.
+ const seen=new Set(),live=(model.items||[]).filter(x=>x.status==='BET_NOW')
+  .sort((a,b)=>Date.parse(b.signal_utc)-Date.parse(a.signal_utc))
+  .filter(x=>{const key=String(x.event_id)+':'+String(x.market);if(seen.has(key))return false;seen.add(key);return true;});
+ if(!live.length){
+  const el=document.createElement('div');el.className='rl-featured-empty';
+  el.textContent='Nu există BET NOW eligibil în acest moment. Următoarea alertă apare doar înaintea meciului, cu selecție 1/2, cotă recentă și avantaj estimat verificat.';
+  featured.append(el);
+ }else live.slice(0,8).forEach(x=>{const item=card(x);item.classList.add('rl-value-card');featured.append(item);});
+ const active=items.filter(x=>x.status==='BET_NOW'||x.status==='MATCHED').slice(0,20);
+ if(!active.length){const x=document.createElement('div');x.className='rl-warning';x.textContent='Fără pronosticuri în observație pentru '+(current==='TOP10'?'TOP 10':current)+'.';cards.append(x);}
+ else active.forEach(x=>cards.append(card(x)));
+ const historical=items.filter(x=>x.result_status==='WIN'||x.result_status==='LOSS'||x.status==='EXPIRED'||(x.signal_utc&&x.status!=='BET_NOW')).slice(0,60);
+ if(!historical.length)arch.textContent='Arhiva prospectivă este goală. Rezultatele retrospective nu dovedesc ROI.';else historical.forEach(x=>arch.append(card(x)));
+ const perf=model.performance||{};
+ txt(panel.querySelector('#rl24'),perf.signals_24h??0);
+ txt(panel.querySelector('#rl7d'),perf.signals_7d??0);
+ txt(panel.querySelector('#rlWl'),(perf.wins??0)+' / '+(perf.losses??0));
+ const roiBox=panel.querySelector('#rlRoiBox'),sim=perf.roi_sim_pct;
+ txt(panel.querySelector('#rlRoi'),sim==null?'—':(sim>=0?'+':'')+Number(sim).toFixed(1)+'%');
+ if(roiBox){roiBox.classList.toggle('rl-roi-good',sim!=null&&sim>=0);roiBox.classList.toggle('rl-roi-bad',sim!=null&&sim<0);
+  roiBox.title='ROI simulat cu 50 lei per semnal unic emis înainte de meci; '+String(perf.settled??0)+' rezultate decontate; nu este profit real.';}
+ txt(panel.querySelector('#rlSummaryCount'),live.length+' BET NOW');
+ const status=panel.querySelector('#rlSourceStatus'),sync=model.sync;
+ if(sync?.stored_rows>0){status.style.display='none';}
+ else{status.style.display='block';status.textContent=sync?.error?'Import Regista nevalidat: '+String(sync.error).slice(0,130):'Regista nu are încă selecții verificate.';}
+ renderRegistaChecklist();
 }
+
 function localPulse(rows){
   if(document.hidden||!Array.isArray(rows)||typeof navigator.vibrate!=='function')return;
   try{
