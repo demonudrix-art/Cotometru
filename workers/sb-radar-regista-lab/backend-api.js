@@ -43,6 +43,48 @@ function visibleStatus(row,now){
  if(!currentPriceMetric(row).value_candidate)return 'PRICE_CHANGED';
  return 'INACTIVE';
 }
+
+/* REGISTA GOALS LAB — prospectively counted goals, no 1X2 odds repurposed.
+   These are predictions for research only. Do not emit BET NOW / FCM or claim ROI. */
+function goalsResearch(rows,now){
+ const typeSet=['OVER25','UNDER25','BTTS','NO_BTTS'];
+ const rank={FULL:0,LEAGUE:1,TOP10:2},byId=new Map();
+ for(const r of rows.filter(x=>typeSet.includes(String(x.market||'').toUpperCase())&&Number(x.event_id)>0)){
+  const key=String(r.event_id)+':'+String(r.market).toUpperCase(),prev=byId.get(key);
+  if(!prev||(rank[r.list_code]??9)<(rank[prev.list_code]??9))byId.set(key,r);
+ }
+ const unique=[...byId.values()];
+ const prospective=r=>{
+  const t=Date.parse(r.kickoff_utc),first=Date.parse(r.source_first_seen_utc);
+  return Number.isFinite(t)&&Number.isFinite(first)&&first<=t-5*60000;
+ };
+ const entries=unique.map(x=>{
+  const pre=prospective(x),market=String(x.market).toUpperCase();
+  const highProb=market==='OVER25'&&Number(x.probability_pct)>=85;
+  return {signal_id:x.signal_id,event_id:x.event_id,fixture:x.fixture,list_code:x.list_code,
+   market,probability_pct:Number(x.probability_pct),kickoff_utc:x.kickoff_utc,
+   source_first_seen_utc:x.source_first_seen_utc,prospective:pre,
+   research_status:!pre?'RETROSPECTIVE_EXCLUDE_FROM_FORWARD':highProb?'OVER25_HIGH_P_RESEARCH':'MARKET_RESEARCH_ONLY',
+   result_status:x.result_status||null,odds_at_market:null,
+   market_price_source:'UNAVAILABLE_IN_D1',betnow:false};
+ });
+ const markets={};
+ for(const market of typeSet){
+  const sub=entries.filter(x=>x.market===market),forward=sub.filter(x=>x.prospective);
+  const settled=forward.filter(x=>['WIN','LOSS'].includes(x.result_status)),wins=settled.filter(x=>x.result_status==='WIN').length;
+  const high=forward.filter(x=>x.research_status==='OVER25_HIGH_P_RESEARCH');
+  markets[market]={total_unique:sub.length,forward_seen:forward.length,forward_settled:settled.length,
+   forward_wins:wins,forward_losses:settled.length-wins,forward_pending:forward.length-settled.length,
+   high_probability_watch:high.length,market_quotes_verified:0,roi_pct:null,
+   market_status:market==='OVER25'?'PRIORITY_RESEARCH_NO_BETNOW':market==='BTTS'?'OBSERVE_ONLY_WEAK_PUBLIC_ACCURACY':'OBSERVE_ONLY_SMALL_SAMPLE'};
+ }
+ const upcoming=entries.filter(x=>x.prospective&&Date.parse(x.kickoff_utc)>now)
+  .sort((a,b)=>Date.parse(a.kickoff_utc)-Date.parse(b.kickoff_utc)).slice(0,15);
+ return {mode:'SHADOW_NO_BETS_NO_ALERTS',version:'GOALS_RESEARCH_V1',
+  why_no_betnow:'No verified Superbet market-specific Over/Under or BTTS price at the source time; 1X2 quotes cannot be reused.',
+  markets,upcoming,distinct_picks:entries.length,
+  note:'Prospective WIN/LOSS is deduplicated by event_id+market. Results are verified by match_results. Historical imports do not enter prospective performance. ROI stays null until market-specific quotes are captured before kickoff.'};
+}
 export async function registaMobileApi(req,env,who,path,slipDeviceFor){
 try{
 if(path==='/api/mobile/regista/ack'&&req.method==='POST'){
@@ -122,6 +164,6 @@ for(const typ of Object.keys(counts)){
   prospective:performance(rows,now,s=>s.list_code===typ)
  };
 }
-return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,performance:{...performance(rows,now),real:actual},server_utc:NOW()});
+return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,goals_lab:goalsResearch(rows,now),performance:{...performance(rows,now),real:actual},server_utc:NOW()});
 }catch(e){console.error('REGISTA_READ_FAIL',String(e).slice(0,170));return response({error:'REGISTA_LAB_UNAVAILABLE',items:[],counts:{},sync:null},503);}
 }
