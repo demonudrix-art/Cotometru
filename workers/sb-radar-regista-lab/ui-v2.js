@@ -516,8 +516,14 @@ function renderRegistaGoals(){
  if(count)count.textContent=(Number(data.distinct_picks)||0)+' PRONOSTICURI';
  body.replaceChildren();
  const intro=document.createElement('div');intro.className='rl-goals-intro';
- intro.textContent='OVER 2,5 are prioritate de cercetare; GG și Under rămân sub observație. Contorizăm doar semnalele văzute înainte de meci și rezultatele verificate.';
+ intro.textContent='OVER 2,5 are prioritate de cercetare; GG și Under rămân sub observație. Doar capturile Superbet ale pieței exacte pot valida ROI, nu cotele 1/X/2.';
  body.append(intro);
+ const probe=data.quote_probe||{};
+ if(['SOURCE_UNAVAILABLE','FETCH_OR_PARSE_ERROR','NO_UNAMBIGUOUS_GOALS_MARKETS'].includes(String(probe.verdict||''))){
+  const note=document.createElement('div');note.className='rl-goal-market-note';note.style.cssText='margin:0 10px 8px;color:#e2c4a2';
+  note.textContent='Cote suplimentare Superbet: sursa încă neverificată ('+String(probe.verdict).replaceAll('_',' ').toLowerCase()+'). Fără BET NOW pentru GG/Over.';
+  body.append(note);
+ }
  for(const type of markets){
   const stat=marketData[type]||{},box=document.createElement('section');
   box.className='rl-goal-market'+(type==='OVER25'?' priority':'');
@@ -526,9 +532,9 @@ function renderRegistaGoals(){
   const badge=document.createElement('small');badge.textContent=type==='OVER25'?'PRIORITATE · RESEARCH':'DOAR OBSERVAȚIE';
   head.append(title,badge);box.append(head);
   const stats=document.createElement('div');stats.className='rl-goal-market-stats';
-  const a=document.createElement('div');a.textContent='DIN D1 · '+Number(stat.forward_seen||0)+' urmărite înainte de start';
+  const a=document.createElement('div');a.textContent='DIN D1 · '+Number(stat.forward_seen||0)+' prospective · '+Number(stat.market_quotes_verified||0)+' cote de piață';
   const b=document.createElement('strong');b.textContent=Number(stat.forward_wins||0)+'W / '+Number(stat.forward_losses||0)+'L';
-  const c=document.createElement('small');c.textContent='ROI — · cotă piață neconfirmată';
+  const c=document.createElement('small');c.textContent=stat.roi_pct==null?'ROI — · fără dovadă suficientă':'ROI cercetare '+(Number(stat.roi_pct)>=0?'+':'')+Number(stat.roi_pct).toFixed(1)+'%';
   stats.append(a,b,c);box.append(stats);
   if(type==='OVER25'){
    const note=document.createElement('div');note.className='rl-goal-market-note';
@@ -547,7 +553,7 @@ function renderRegistaGoals(){
  for(const x of upcoming.slice(0,6)){
   const row=document.createElement('div');row.className='rl-goals-next';
   const left=document.createElement('span');left.textContent=sbPeekTime(x.kickoff_utc)+' · '+String(x.fixture||'Meci');
-  const right=document.createElement('small');right.textContent=(map[x.market]||x.market)+' · '+String(x.probability_pct)+'% · '+(x.market==='OVER25'&&x.probability_pct>=85?'candidat RESEARCH':'observare');
+  const right=document.createElement('small');right.textContent=(map[x.market]||x.market)+' · '+String(x.probability_pct)+'% · '+(x.odds_at_market?'cotă '+Number(x.odds_at_market).toFixed(2)+' · ':'')+(x.market==='OVER25'&&x.probability_pct>=85?'candidat RESEARCH':'observare');
   row.append(left,right);future.append(row);
  }
  body.append(future);
