@@ -45,8 +45,8 @@ for(const typ of Object.keys(counts)){
  const r=rows.filter(s=>s.list_code===typ),readyNow=r.filter(s=>s.status==='BET_NOW');
  counts[typ]={
   total:r.length,betnow:readyNow.length,
-  last24h:r.filter(s=>Date.parse(s.source_first_seen_utc)>=now-86400000).length,
-  last7d:r.filter(s=>Date.parse(s.source_first_seen_utc)>=now-7*86400000).length,
+  last24h:r.filter(s=>Date.parse(s.kickoff_utc)>=now-86400000&&Date.parse(s.kickoff_utc)<=now).length,
+  last7d:r.filter(s=>Date.parse(s.kickoff_utc)>=now-7*86400000&&Date.parse(s.kickoff_utc)<=now).length,
   wins:r.filter(s=>s.result_status==='WIN').length,
   losses:r.filter(s=>s.result_status==='LOSS').length,
   pending:r.filter(s=>!s.result_status).length,
