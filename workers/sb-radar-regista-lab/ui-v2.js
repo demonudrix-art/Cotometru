@@ -131,7 +131,11 @@ body.sb-peek-home-v1 #sbGlobalSearch.sb-peek-search-open{display:block!important
 .sb-peek-upcoming-row small{font-size:10px;color:#a9ccd4;line-height:1.35}
 .sb-peek-disclaimer{font-size:9px;color:#a1bfc0;line-height:1.45;margin:3px 10px 12px}
 #live #sbPeekRoadDrawer{display:block;margin:8px 0 10px;border:1px solid #526878;border-radius:14px;background:linear-gradient(120deg,#152937,#152238);overflow:hidden}
-#live #sbPeekRoadDrawer>summary{display:flex!important;gap:7px;align-items:center;justify-content:space-between;min-height:42px;padding:11px 12px;list-style:none;cursor:pointer;color:#e4eefe;font-size:12px;font-weight:900}
+#live #sbPeekRoadDrawer>summary{display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;align-items:center;min-height:54px;padding:9px 12px;list-style:none;cursor:pointer;color:#e4eefe;font-size:11px;font-weight:900}
+#sbPeekRoadDrawer>summary .sb-peek-road-titles{grid-column:1;min-width:0;white-space:normal;color:#dce9fa}
+#sbPeekRoadDrawer>summary .sb-peek-road-regista{grid-column:1/-1;grid-row:2;min-width:0;font-size:10px;font-weight:800;color:#91dfc9;line-height:1.4}
+#sbPeekRoadDrawer>summary .sb-peek-chevron{grid-column:2;grid-row:1}
+#sbPeekRoadDrawer>summary #sbPeekRoadHint{display:none!important}
 #sbPeekRoadDrawer>summary #sbPeekRoadHint{font-size:10px;color:#a3cddd;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #sbPeekRoadDrawer .sb-peek-separator{opacity:.4}
 #sbPeekRoadDrawer .sb-peek-chevron{color:#7ecbb5;transition:transform .2s}
@@ -395,7 +399,7 @@ function sbPeekMount(){
   let drawer=document.getElementById('sbPeekRoadDrawer');
   if(!drawer){
    drawer=document.createElement('details');drawer.id='sbPeekRoadDrawer';drawer.open=false;
-   drawer.innerHTML='<summary><span>🟡 GOLDEN 57′ <span class="sb-peek-separator">/</span> 🔵 GAP 50′</span><strong id="sbPeekRoadHint">Monitorizare</strong><span class="sb-peek-chevron">⌄</span></summary>';
+   drawer.innerHTML='<summary><span class="sb-peek-road-titles">🟡 GOLDEN 57′ <span class="sb-peek-separator">/</span> 🔵 GAP 50′</span><strong id="sbPeekRoadHint">Monitorizare</strong><span class="sb-peek-road-regista" id="sbPeekRoadRegista">♜ REGISTA · următoarea verificare se calculează</span><span class="sb-peek-chevron">⌄</span></summary>';
    road.parentNode.insertBefore(drawer,road);
   }
   drawer.append(road);
@@ -424,6 +428,7 @@ function sbPeekUpdate(){
  const nextTime=next?sbPeekTime(next.kickoff_utc):null;
  const windowLabel=next?(until>0?'Verificare în '+sbPeekCountdown(until):now<Date.parse(next.kickoff_utc)-5*60000?'În verificare, NU BET NOW':'Start '+nextTime):'Fără 1/2 viitor';
  const nextFixture=next?String(next.fixture||'Meci'):'Nicio selecție 1/2 disponibilă';
+ set('sbPeekRoadRegista',next?'♜ REGISTA · '+nextFixture+' · posibilă verificare '+(until>0?'în '+sbPeekCountdown(until)+' ('+sbPeekTime(new Date(target).toISOString())+')':windowLabel):soon?'♜ REGISTA · '+sbPeekTime(soon.kickoff_utc)+' · '+soon.market+' · informativ':'♜ REGISTA · fără viitor 1/2 confirmat');
  set('sbPeekRegTime',windowLabel);
  set('sbPeekRegMatch',next?nextFixture+' · '+nextTime:'Așteptăm importul Regista');
  set('sbPeekUpcomingCount',arr.length+' programate');
