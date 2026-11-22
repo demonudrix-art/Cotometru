@@ -75,6 +75,27 @@ const STYLE=String.raw`
 #sbPendingAlertList>.sb-pending-entry.regista .sb-pending-actions button{background:#174d43;color:#eafff4;border:1px solid #479b80}
 @media(max-width:380px){#sbRegistaLab .rl-head strong{font-size:12px}#sbRegistaLab .rl-stat b{font-size:13px}}
 @media(prefers-reduced-motion:reduce){#sbRegistaLab>details[open]>.rl-body,#sbRegistaLab .rl-observations[open]>.rl-observe-content{animation:none}}
+
+/* REGISTA V4 compact Golden/GAP archive-inspired 24h/7d result blocks */
+#sbRegistaLab .rl-period-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:11px 0 9px}
+#sbRegistaLab .rl-period{display:grid;place-items:center;gap:4px;min-width:0;border:1px solid #5a7779;border-radius:15px;background:linear-gradient(125deg,#111c2d,#162336);padding:11px 4px}
+#sbRegistaLab .rl-period small{font-size:10px;font-weight:1000;color:#a7ecd5;letter-spacing:.05em}
+#sbRegistaLab .rl-period strong{font-size:11px;color:#a7cbd0}
+#sbRegistaLab .rl-period b{font-size:16px;color:#e3fff1}
+#sbRegistaLab .rl-period em{font-size:11px;font-weight:900;font-style:normal;color:#a5b6bd}
+#sbRegistaLab .rl-totals{display:flex;gap:5px;flex-wrap:wrap;justify-content:space-between;margin:0 0 10px}
+#sbRegistaLab .rl-totals span{display:flex;align-items:center;gap:4px;border:1px solid #335d66;background:#14323f;border-radius:9px;padding:6px 7px;color:#bfdcda;font-size:10px;white-space:nowrap}
+#sbRegistaLab .rl-totals b{color:#d2ffee}
+#sbRegistaLab .rl-featured-title{display:block;color:#baffdf}
+#sbRegistaLab .rl-featured-title small{display:block;margin-top:5px;line-height:1.4}
+#sbRegistaLab .rl-card.rl-alert-emitted{background:linear-gradient(125deg,#173c41,#182c45);border-left:4px solid #62deb4;border-top-color:#51bba4;border-right-color:#346e77;border-bottom-color:#396978;box-shadow:0 6px 17px #0005;padding:12px}
+#sbRegistaLab .rl-card.rl-alert-emitted .rl-fixture{font-size:14px;font-weight:900}
+#sbRegistaLab .rl-card.rl-alert-emitted .rl-pct{font-size:17px;color:#baffda}
+#sbRegistaLab .rl-card.rl-alert-emitted .rl-result{padding:7px 8px;background:#1b4a4c;border-radius:9px;margin:6px 0}
+#sbRegistaLab .rl-card.rl-alert-expired{border-left-color:#65969a}
+#sbRegistaLab .rl-alert-meta{font-size:11px;line-height:1.6;margin:8px 0;color:#d6f8ed}
+#sbRegistaLab .rl-live-price{font-size:10px;color:#9bd6cf;margin:3px 0 7px}
+#sbRegistaLab .rl-bet{min-height:38px;border-radius:10px}
 `;
 const css=document.createElement('style');css.id='sbRegistaLabV2Css';css.textContent=STYLE;document.head.append(css);
 function mount(){
@@ -87,16 +108,16 @@ section.style.setProperty('opacity','1','important');
 section.style.setProperty('grid-column','1 / -1','important');
 section.style.setProperty('width','100%','important');
 section.removeAttribute('hidden');
-section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-statline"><div class="rl-stat"><b id="rl24">—</b><small>24h</small></div><div class="rl-stat"><b id="rl7d">—</b><small>7 zile</small></div><div class="rl-stat"><b id="rlWl">—</b><small>WIN / LOSS</small></div><div class="rl-stat rl-roi" id="rlRoiRealBox"><b id="rlRoiReal">—</b><small>ROI REAL</small></div><div class="rl-stat rl-roi" id="rlRoiBox"><b id="rlRoi">—</b><small>ROI SIM 50 LEI</small></div></div><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW CONFIRMATE <small>Doar cote cu edge estimat ≥5 pp · EV ≥8%</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
+section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-period-grid"><div class="rl-period"><small>ULTIMELE 24H</small><strong id="rl24">—</strong><b id="rl24Wl">—</b><em id="rl24Roi">ROI —</em></div><div class="rl-period"><small>ULTIMELE 7 ZILE</small><strong id="rl7d">—</strong><b id="rl7dWl">—</b><em id="rl7dRoi">ROI —</em></div></div><div class="rl-totals"><span>WIN / LOSS <b id="rlWl">—</b></span><span>ROI REAL <b id="rlRoiReal">—</b></span><span>ROI SIM 50 LEI <b id="rlRoi">—</b></span></div><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW · ALERTE EMISE <small>Active și arhivate · cotele salvate la notificare</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
 if(section.parentElement!==live)live.insertBefore(section,live.firstChild);
 else if(section!==live.firstElementChild)live.insertBefore(section,live.firstChild);
 section.querySelectorAll('.rl-tab').forEach(b=>b.onclick=()=>{section.querySelectorAll('.rl-tab').forEach(x=>x.classList.toggle('active',x===b));current=b.dataset.rlt;render();});
 section.querySelector('#rlDetails').addEventListener('toggle',ev=>{if(ev.target.open)poll(true)});
 return true;
 }
-let current='FULL',model={items:[],counts:{},sync:null},busy=false,lastAt=0;
+let current='LEAGUE',model={items:[],counts:{},sync:null},busy=false,lastAt=0;
 function txt(el,s){if(el)el.textContent=String(s);}
-function resultName(item){if(item.result_status==='WIN')return '✓ WIN';if(item.result_status==='LOSS')return '✕ LOSS';if(item.status==='BET_NOW')return 'BET NOW · CANDIDAT VALUE (experimental)';if(item.status==='MATCHED')return item.price_status==='NO_VALUE'?'PRONOSTIC · fără avantaj la cotă':item.price_status==='VALUE_CANDIDATE'?'PRONOSTIC VALUE · încă în observație':'PRONOSTIC · în observație';return item.status==='UNVERIFIED_SOURCE'?'Sursă neconfirmată':'În observație';}
+function resultName(item){if(item.result_status==='WIN')return '✓ WIN';if(item.result_status==='LOSS')return '✕ LOSS';if(item.signal_emitted){if(item.status==='BET_NOW')return '● BET NOW ACTIV · notificare emisă';if(item.status==='PRICE_CHANGED')return '◷ BET NOW EMIS · cota s-a schimbat';if(item.status==='QUOTE_STALE')return '◷ BET NOW EMIS · captură actuală lipsă';return '◷ BET NOW EMIS · fereastra închisă';}if(item.status==='MATCHED')return item.price_status==='NO_VALUE'?'PRONOSTIC · fără avantaj la cotă':item.price_status==='VALUE_CANDIDATE'?'PRONOSTIC VALUE · în observație':'PRONOSTIC · în observație';return item.status==='UNVERIFIED_SOURCE'?'Sursă neconfirmată':'Pronostic informativ · neconfirmat';}
 function fillRegistaSlip(item){
  const eventId=Number(item?.event_id),selection=String(item?.market||'').toUpperCase(),odds=Number(item?.odds_at_signal);
  if(!Number.isSafeInteger(eventId)||eventId<1||!['1','X','2'].includes(selection)||!Number.isFinite(odds)||odds<=1)return false;
@@ -126,7 +147,7 @@ function fillRegistaSlip(item){
 function registaMatchPanel(eventId){
  const id=Number(eventId),root=document.getElementById('routeBody');
  if(!Number.isSafeInteger(id)||id<1||!root||document.getElementById('routeBackdrop')?.classList.contains('hidden'))return;
- const candidates=(model.items||[]).filter(x=>Number(x.event_id)===id&&x.signal_utc&&['1','X','2'].includes(String(x.market||'').toUpperCase())&&Number(x.odds_at_signal)>1);
+ const candidates=(model.items||[]).filter(x=>Number(x.event_id)===id&&x.signal_emitted&&['1','X','2'].includes(String(x.market||'').toUpperCase())&&Number(x.odds_at_signal)>1);
  if(!candidates.length)return;
  const seq={LEAGUE:0,FULL:1,TOP10:2},item=candidates.sort((a,b)=>(seq[a.list_code]??9)-(seq[b.list_code]??9))[0];
  const existing=root.querySelector('[data-regista-event]');
@@ -152,20 +173,39 @@ document.addEventListener('sb-regista-match-open',event=>{
  // Authentication and Regista polling can finish after the match sheet opens.
  const retry=()=>registaMatchPanel(id);setTimeout(retry,1200);setTimeout(retry,3500);
 });
-function card(item){const el=document.createElement('article');el.className='rl-card';const name=document.createElement('div');name.className='rl-fixture';name.textContent=String(item.fixture||'Meci necunoscut').replace(/[·•]/g,' – ');
-const title=document.createElement('div');title.className='rl-top';const prob=document.createElement('strong');prob.className='rl-pct';prob.textContent=Number.isFinite(Number(item.probability_pct))?Number(item.probability_pct).toFixed(0)+'%':'—';
-title.append(name,prob);el.append(title);
-const meta=document.createElement('div');meta.className='rl-meta';meta.textContent=(item.market||'SELECȚIE NECUNOSCUTĂ')+(item.odds_at_signal?' · Cotă SB '+Number(item.odds_at_signal).toFixed(2):' · Cotă neconfirmată')+(item.ev_pct!=null?' · EV model '+(item.ev_pct>=0?'+':'')+Number(item.ev_pct).toFixed(1)+'% · Edge '+(item.edge_pp>=0?'+':'')+Number(item.edge_pp).toFixed(1)+' pp':'');el.append(meta);
-const result=document.createElement('div');result.className='rl-result';result.textContent=resultName(item)+(item.result_status==='WIN'||item.result_status==='LOSS'?' · '+(item.final_home??'—')+'–'+(item.final_away??'—'):'');el.append(result);
-const actions=document.createElement('div');actions.className='rl-actions';
-if(Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0&&['1','X','2'].includes(String(item.market||'').toUpperCase())&&Number(item.odds_at_signal)>1&&(item.status==='BET_NOW'||(item.signal_utc&&Date.now()-Date.parse(item.signal_utc)<48*3600000))){
-const b=document.createElement('button');b.className='rl-bet';b.textContent=item.status==='BET_NOW'?'BET NOW · pregătește Slip':'Înregistrează în Slip un bilet deja plasat';b.onclick=()=>fillRegistaSlip(item);actions.append(b);
+function card(item){
+ const el=document.createElement('article');el.className='rl-card';
+ if(item.signal_emitted){el.classList.add('rl-alert-emitted');if(item.status!=='BET_NOW')el.classList.add('rl-alert-expired');}
+ const title=document.createElement('div');title.className='rl-top';
+ const name=document.createElement('div');name.className='rl-fixture';
+ name.textContent=String(item.fixture||'Meci necunoscut').replace(/[·•]/g,' – ');
+ const prob=document.createElement('strong');prob.className='rl-pct';
+ prob.textContent=Number.isFinite(Number(item.probability_pct))?Number(item.probability_pct).toFixed(0)+'%':'—';
+ title.append(name,prob);el.append(title);
+ const meta=document.createElement('div');meta.className=item.signal_emitted?'rl-alert-meta':'rl-meta';
+ const market=String(item.market||'').toUpperCase(),markets={'1':'Victorie gazde','2':'Victorie oaspeți','X':'Egal'};
+ meta.textContent=(markets[market]||market||'Selecție')+' · '+market+(Number(item.odds_at_signal)>1?' @ '+Number(item.odds_at_signal).toFixed(2)+' · COTĂ LA SEMNAL':' · cotă neconfirmată');
+ el.append(meta);
+ if(item.signal_emitted){
+  const live=document.createElement('div');live.className='rl-live-price';
+  const at=item.signal_utc?new Date(item.signal_utc).toLocaleString('ro-RO',{timeZone:'Europe/Bucharest',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+  const fresh=Number(item.current_odds)>1&&Date.now()-Date.parse(item.current_quote_utc)<20*60000&&Date.now()<Date.parse(item.kickoff_utc);
+  live.textContent='Alertă '+at+(fresh?' · cota mai recentă '+Number(item.current_odds).toFixed(2)+' (verifică în Superbet)':' · cotă actuală neconfirmată');
+  el.append(live);
+ }
+ const result=document.createElement('div');result.className='rl-result';
+ result.textContent=resultName(item)+(item.result_status==='WIN'||item.result_status==='LOSS'?' · '+(item.final_home??'—')+'–'+(item.final_away??'—'):'');el.append(result);
+ const actions=document.createElement('div');actions.className='rl-actions';
+ if(item.signal_emitted&&Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0&&['1','X','2'].includes(market)&&Number(item.odds_at_signal)>1){
+  const btn=document.createElement('button');btn.className='rl-bet';btn.type='button';
+  btn.textContent='▤ În Slip · '+market+' @'+Number(item.odds_at_signal).toFixed(2)+' · 50 lei';btn.onclick=()=>fillRegistaSlip(item);actions.append(btn);
+ }
+ if(Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0){
+  const btn=document.createElement('button');btn.className='rl-bet';btn.type='button';btn.textContent='Fișa';
+  btn.onclick=()=>registaOpenMatch(Number(item.event_id));actions.append(btn);
+ }
+ el.append(actions);return el;
 }
-if(item.source_url&&/^https:\/\/(?:www\.)?registacalcio\.it\//.test(item.source_url)){const a=document.createElement('a');a.href=item.source_url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Regista ↗';actions.append(a);}
-el.append(actions);return el;
-}
-
-
 function registaOpenMatch(eventId){
  const id=Number(eventId);
  if(!Number.isSafeInteger(id)||id<=0)return;
@@ -182,6 +222,7 @@ function renderRegistaChecklist(){
  if(!box||!root)return;
  const now=Date.now(),seen=new Set();
  const items=(model.items||[]).filter(x=>{
+  if(!x.signal_emitted)return false;
   const at=Date.parse(x.signal_utc||'');
   return Number.isSafeInteger(Number(x.event_id))&&Number(x.event_id)>0&&Number(x.odds_at_signal)>1&&
    Number.isFinite(at)&&at<=now&&at>=now-48*3600000&&['1','X','2'].includes(String(x.market||'').toUpperCase());
@@ -233,37 +274,35 @@ function render(){
  const cards=panel.querySelector('#rlCards'),arch=panel.querySelector('#rlArchiveBody'),featured=panel.querySelector('#rlFeaturedCards');
  if(!cards||!arch||!featured)return;
  cards.replaceChildren();arch.replaceChildren();featured.replaceChildren();
- // Only prospective value-gated and unexpired signals are actionable; duplicate lists collapse into one match.
- const seen=new Set(),live=(model.items||[]).filter(x=>x.status==='BET_NOW')
+ const now=Date.now(),seen=new Set();
+ const emitted=(model.items||[]).filter(x=>x.signal_emitted&&Date.parse(x.signal_utc)>=now-86400000)
   .sort((a,b)=>Date.parse(b.signal_utc)-Date.parse(a.signal_utc))
   .filter(x=>{const key=String(x.event_id)+':'+String(x.market);if(seen.has(key))return false;seen.add(key);return true;});
- if(!live.length){
-  const el=document.createElement('div');el.className='rl-featured-empty';
-  el.textContent='Nu există BET NOW eligibil în acest moment. Următoarea alertă apare doar înaintea meciului, cu selecție 1/2, cotă recentă și avantaj estimat verificat.';
-  featured.append(el);
- }else live.slice(0,8).forEach(x=>{const item=card(x);item.classList.add('rl-value-card');featured.append(item);});
- const active=items.filter(x=>x.status==='BET_NOW'||x.status==='MATCHED').slice(0,20);
- if(!active.length){const x=document.createElement('div');x.className='rl-warning';x.textContent='Fără pronosticuri în observație pentru '+(current==='TOP10'?'TOP 10':current)+'.';cards.append(x);}
- else active.forEach(x=>cards.append(card(x)));
- const historical=items.filter(x=>x.result_status==='WIN'||x.result_status==='LOSS'||x.status==='EXPIRED'||(x.signal_utc&&x.status!=='BET_NOW')).slice(0,60);
- if(!historical.length)arch.textContent='Arhiva prospectivă este goală. Rezultatele retrospective nu dovedesc ROI.';else historical.forEach(x=>arch.append(card(x)));
- const perf=model.performance||{};
- txt(panel.querySelector('#rl24'),perf.signals_24h??0);
- txt(panel.querySelector('#rl7d'),perf.signals_7d??0);
- txt(panel.querySelector('#rlWl'),(perf.wins??0)+' / '+(perf.losses??0));
- const roiBox=panel.querySelector('#rlRoiBox'),sim=perf.roi_sim_pct;
+ const activeNow=emitted.filter(x=>x.status==='BET_NOW');
+ if(!emitted.length){const el=document.createElement('div');el.className='rl-featured-empty';el.textContent='Nicio alertă BET NOW emisă în ultimele 24h. Pronosticurile Regista rămân în observație.';featured.append(el);}
+ else emitted.slice(0,10).forEach(x=>featured.append(card(x)));
+ const observing=items.filter(x=>!x.signal_emitted&&(x.status==='MATCHED'||x.status==='UNMATCHED')).slice(0,20);
+ if(!observing.length)cards.textContent='Nu sunt alte pronosticuri în observație pentru '+(current==='TOP10'?'Top 10':current)+'.';else observing.forEach(x=>cards.append(card(x)));
+ const historic=items.filter(x=>x.signal_emitted&&x.status!=='BET_NOW').slice(0,60);
+ if(!historic.length)arch.textContent='Fără BET NOW expirate sau decontate în această listă.';else historic.forEach(x=>arch.append(card(x)));
+ const perf=model.performance||{},p24=perf.periods?.last24h||{},p7=perf.periods?.last7d||{};
+ txt(panel.querySelector('#rl24'),String(p24.emitted??0)+' EMIS');
+ txt(panel.querySelector('#rl7d'),String(p7.emitted??0)+' EMIS');
+ txt(panel.querySelector('#rl24Wl'),(p24.wins??0)+'W / '+(p24.losses??0)+'L');
+ txt(panel.querySelector('#rl7dWl'),(p7.wins??0)+'W / '+(p7.losses??0)+'L');
+ const fmtRoi=x=>x==null?'ROI —':'ROI '+(x>=0?'+':'')+Number(x).toFixed(1)+'%';
+ txt(panel.querySelector('#rl24Roi'),fmtRoi(p24.roi_sim_pct));
+ txt(panel.querySelector('#rl7dRoi'),fmtRoi(p7.roi_sim_pct));
+ txt(panel.querySelector('#rlWl'),(perf.wins??0)+'W / '+(perf.losses??0)+'L');
+ const sim=perf.roi_sim_pct,real=perf.real?.roi_pct;
  txt(panel.querySelector('#rlRoi'),sim==null?'—':(sim>=0?'+':'')+Number(sim).toFixed(1)+'%');
- const real=perf.real?.roi_pct;txt(panel.querySelector('#rlRoiReal'),real==null?'—':(real>=0?'+':'')+Number(real).toFixed(1)+'%');
- const realBox=panel.querySelector('#rlRoiRealBox');if(realBox){realBox.classList.toggle('rl-roi-good',real!=null&&real>=0);realBox.classList.toggle('rl-roi-bad',real!=null&&real<0);realBox.title='ROI real numai din bilete Regista înregistrate în Slip, decontate oficial.';}
- if(roiBox){roiBox.classList.toggle('rl-roi-good',sim!=null&&sim>=0);roiBox.classList.toggle('rl-roi-bad',sim!=null&&sim<0);
-  roiBox.title='ROI simulat cu 50 lei per semnal unic emis înainte de meci; '+String(perf.settled??0)+' rezultate decontate; nu este profit real.';}
- txt(panel.querySelector('#rlSummaryCount'),live.length+' BET NOW');
+ txt(panel.querySelector('#rlRoiReal'),real==null?'—':(real>=0?'+':'')+Number(real).toFixed(1)+'%');
+ txt(panel.querySelector('#rlSummaryCount'),emitted.length+' EMIS · '+activeNow.length+' ACTIV');
  const status=panel.querySelector('#rlSourceStatus'),sync=model.sync;
  if(sync?.stored_rows>0){status.style.display='none';}
- else{status.style.display='block';status.textContent=sync?.error?'Import Regista nevalidat: '+String(sync.error).slice(0,130):'Regista nu are încă selecții verificate.';}
+ else{status.style.display='block';status.textContent=sync?.error?'Import Regista nevalidat: '+String(sync.error).slice(0,130):'Sursa Regista nu are încă date verificate.';}
  renderRegistaChecklist();
 }
-
 function localPulse(rows){
   if(document.hidden||!Array.isArray(rows)||typeof navigator.vibrate!=='function')return;
   try{
