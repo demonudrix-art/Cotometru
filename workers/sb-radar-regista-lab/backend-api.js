@@ -1,7 +1,7 @@
 /* REGISTA LAB V2 — owner-safe read API. Never creates bets or FCM. */
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const NOW=()=>new Date().toISOString();
-const PICK_SQL="SELECT s.signal_id,s.list_code,s.source_url,s.fixture,s.market,s.probability_pct,s.source_first_seen_utc,s.source_last_seen_utc,s.source_published_utc,s.kickoff_utc,s.event_id,s.match_confidence,s.quote_captured_utc,s.odds_at_signal,s.signal_utc,s.status,r.event_status,r.verified,r.home_score final_home,r.away_score final_away FROM sb_regista_signals_v1 s LEFT JOIN match_results r ON r.event_id=s.event_id ORDER BY s.source_last_seen_utc DESC LIMIT 500";
+const PICK_SQL="SELECT s.signal_id,s.list_code,s.source_url,s.fixture,s.market,s.probability_pct,s.source_first_seen_utc,s.source_last_seen_utc,s.source_published_utc,s.kickoff_utc,s.event_id,s.match_confidence,s.quote_captured_utc,s.odds_at_signal,s.signal_utc,s.status,q.captured_utc AS current_quote_utc, CASE s.market WHEN '1' THEN q.p1 WHEN 'X' THEN q.px WHEN '2' THEN q.p2 ELSE NULL END AS current_odds,r.event_status,r.verified,r.home_score final_home,r.away_score final_away FROM sb_regista_signals_v1 s LEFT JOIN match_results r ON r.event_id=s.event_id LEFT JOIN quote_snapshots q ON q.id=(SELECT q2.id FROM quote_snapshots q2 WHERE q2.event_id=s.event_id AND q2.captured_utc<s.kickoff_utc ORDER BY q2.captured_utc DESC LIMIT 1) ORDER BY s.source_last_seen_utc DESC LIMIT 500";
 function finish(row){
 if(row?.event_status!=='FINISHED'||Number(row.verified)!==1||!Number.isInteger(Number(row.final_home))||!Number.isInteger(Number(row.final_away))||row.final_home==null||row.final_away==null)return null;
 const h=Number(row.final_home),a=Number(row.final_away),m=String(row.market||'').toUpperCase().replace(/\s+/g,'');
@@ -18,10 +18,30 @@ function priceMetric(row){
   ev_pct:Math.round(evPct*100)/100,value_candidate:edgePP>=5-1e-8&&evPct>=8-1e-8,
   price_status:edgePP>=5-1e-8&&evPct>=8-1e-8?'VALUE_CANDIDATE':'NO_VALUE'};
 }
+function wasEmitted(row){
+ const k=Date.parse(row.kickoff_utc),emitted=Date.parse(row.signal_utc),first=Date.parse(row.source_first_seen_utc),quoted=Date.parse(row.quote_captured_utc);
+ return !!row.signal_utc&&Number(row.event_id)>0&&Number.isFinite(k)&&Number.isFinite(emitted)&&Number.isFinite(first)&&Number.isFinite(quoted)&&
+  emitted>=first&&first<=k-300000&&quoted<=emitted&&emitted-quoted<=20*60000&&emitted>=k-45*60000&&emitted<k-300000&&
+  priceMetric(row).value_candidate;
+}
+function currentPriceMetric(row){
+ return priceMetric({...row,odds_at_signal:row.current_odds});
+}
 function ready(row,now){
-if(row.status!=='BET_NOW')return false;
-const id=Number(row.event_id),k=Date.parse(row.kickoff_utc),cap=Date.parse(row.quote_captured_utc),seen=Date.parse(row.source_first_seen_utc),last=Date.parse(row.source_last_seen_utc);
-return priceMetric(row).value_candidate&&Number.isSafeInteger(id)&&id>0&&Number(row.match_confidence)>=.98&&['1','2'].includes(row.market)&&Number(row.odds_at_signal)>1&&Number.isFinite(k)&&Number.isFinite(cap)&&Number.isFinite(seen)&&Number.isFinite(last)&&seen<=k-300000&&cap<=now&&now-cap<=20*60000&&last<=now&&now-last<=60*60000&&k-now>0&&k-now<=45*60000;
+ if(!wasEmitted(row))return false;
+ const id=Number(row.event_id),k=Date.parse(row.kickoff_utc),cap=Date.parse(row.current_quote_utc),last=Date.parse(row.source_last_seen_utc);
+ return currentPriceMetric(row).value_candidate&&Number.isSafeInteger(id)&&id>0&&Number(row.match_confidence)>=.98&&
+  ['1','2'].includes(row.market)&&Number(row.current_odds)>1&&
+  Number.isFinite(k)&&Number.isFinite(cap)&&Number.isFinite(last)&&cap<=now&&now-cap<=20*60000&&
+  last<=now&&now-last<=60*60000&&k-now>5*60000&&k-now<=45*60000;
+}
+function visibleStatus(row,now){
+ if(!wasEmitted(row))return row.status;
+ if(ready(row,now))return 'BET_NOW';
+ if(now>=Date.parse(row.kickoff_utc)-5*60000)return 'EXPIRED';
+ if(!Number.isFinite(Date.parse(row.current_quote_utc))||now-Date.parse(row.current_quote_utc)>20*60000)return 'QUOTE_STALE';
+ if(!currentPriceMetric(row).value_candidate)return 'PRICE_CHANGED';
+ return 'INACTIVE';
 }
 export async function registaMobileApi(req,env,who,path,slipDeviceFor){
 try{
@@ -39,7 +59,7 @@ const [records,sync]=await Promise.all([
  env.DB.prepare('SELECT started_utc,source_status,stored_rows,error FROM sb_regista_sync_runs_v1 ORDER BY id DESC LIMIT 1').first()
 ]);
 const now=Date.now();
-const rows=(records.results||[]).map(s=>({...s,...priceMetric(s),result_status:finish(s),status:ready(s,now)?'BET_NOW':s.status==='BET_NOW'?(Date.parse(s.kickoff_utc)>now?'MATCHED':'EXPIRED'):s.status})); // Gate active signals by expected value; no false alerts.
+const rows=(records.results||[]).map(s=>({...s,...priceMetric(s),current_price:currentPriceMetric(s),signal_emitted:wasEmitted(s),result_status:finish(s),status:visibleStatus(s,now)})); // A previously sent alert remains in history even if its live quote ages.
 if(path.endsWith('/alerts')){
  // One vibration per match, not one per Full/League/Top10 membership.
  const precedence={FULL:0,LEAGUE:1,TOP10:2};
@@ -54,7 +74,7 @@ if(path.endsWith('/alerts')){
 function performance(rows,now,filter=()=>true){
  // Deduplicate the same prediction if Regista lists it in multiple tabs.
  const map=new Map();
- for(const x of rows.filter(r=>r.signal_utc&&Number(r.event_id)>0&&filter(r))){
+ for(const x of rows.filter(r=>r.signal_emitted&&Number(r.event_id)>0&&filter(r))){
   const key=String(x.event_id)+':'+String(x.market),prior=map.get(key);
   if(!prior||Date.parse(x.signal_utc)<Date.parse(prior.signal_utc))map.set(key,x);
  }
@@ -63,7 +83,7 @@ function performance(rows,now,filter=()=>true){
  const graded=picks.filter(x=>['WIN','LOSS'].includes(x.result_status)&&Number(x.odds_at_signal)>1);
  const wins=graded.filter(x=>x.result_status==='WIN').length,losses=graded.length-wins;
  const net=graded.reduce((acc,x)=>acc+(x.result_status==='WIN'?50*(Number(x.odds_at_signal)-1):-50),0);
- return {betnow:picks.filter(x=>x.status==='BET_NOW').length,signals_24h:last24h,signals_7d:last7d,signals_total:picks.length,wins,losses,
+ return {betnow:picks.filter(x=>x.status==='BET_NOW').length,emitted_24h:last24h,emitted_7d:last7d,signals_24h:last24h,signals_7d:last7d,signals_total:picks.length,wins,losses,
    pending:picks.length-graded.length,settled:graded.length,stake_unit_lei:50,net_sim_lei:graded.length?Math.round(net*100)/100:null,
    roi_sim_pct:graded.length?Math.round((net/(50*graded.length))*10000)/100:null,
    roi_verified:false, note:'Simulare prospectivă cu miză fixă 50 lei pe selecție distinctă; nu este ROI real la Superbet.'};
@@ -86,11 +106,11 @@ for(const typ of Object.keys(counts)){
  const r=rows.filter(s=>s.list_code===typ),readyNow=r.filter(s=>s.status==='BET_NOW');
  counts[typ]={
   total:r.length,betnow:readyNow.length,
-  last24h:r.filter(s=>Date.parse(s.kickoff_utc)>=now-86400000&&Date.parse(s.kickoff_utc)<=now).length,
-  last7d:r.filter(s=>Date.parse(s.kickoff_utc)>=now-7*86400000&&Date.parse(s.kickoff_utc)<=now).length,
-  wins:r.filter(s=>s.result_status==='WIN').length,
-  losses:r.filter(s=>s.result_status==='LOSS').length,
-  pending:r.filter(s=>!s.result_status).length,
+  last24h:r.filter(s=>s.signal_emitted&&Date.parse(s.signal_utc)>=now-86400000).length,
+  last7d:r.filter(s=>s.signal_emitted&&Date.parse(s.signal_utc)>=now-7*86400000).length,
+  wins:r.filter(s=>s.signal_emitted&&s.result_status==='WIN').length,
+  losses:r.filter(s=>s.signal_emitted&&s.result_status==='LOSS').length,
+  pending:r.filter(s=>s.signal_emitted&&!s.result_status).length,
   roi:null, // Do not substitute the retrospective history with ROI real.
   prospective:performance(rows,now,s=>s.list_code===typ)
  };
