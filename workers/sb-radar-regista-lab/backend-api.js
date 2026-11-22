@@ -1,7 +1,7 @@
 /* REGISTA LAB V2 — owner-safe read API. Never creates bets or FCM. */
 const response=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const NOW=()=>new Date().toISOString();
-const PICK_SQL="SELECT s.signal_id,s.list_code,s.source_url,s.fixture,s.market,s.probability_pct,s.source_first_seen_utc,s.source_last_seen_utc,s.source_published_utc,s.kickoff_utc,s.event_id,s.match_confidence,s.quote_captured_utc,s.odds_at_signal,s.signal_utc,s.status,q.captured_utc AS current_quote_utc, CASE s.market WHEN '1' THEN q.p1 WHEN 'X' THEN q.px WHEN '2' THEN q.p2 ELSE NULL END AS current_odds,r.event_status,r.verified,r.home_score final_home,r.away_score final_away FROM sb_regista_signals_v1 s LEFT JOIN match_results r ON r.event_id=s.event_id LEFT JOIN quote_snapshots q ON q.id=(SELECT q2.id FROM quote_snapshots q2 WHERE q2.event_id=s.event_id AND q2.captured_utc<s.kickoff_utc ORDER BY q2.captured_utc DESC LIMIT 1) ORDER BY s.source_last_seen_utc DESC LIMIT 500";
+const PICK_SQL="SELECT s.signal_id,s.list_code,s.source_url,s.fixture,s.market,s.probability_pct,s.source_first_seen_utc,s.source_last_seen_utc,s.source_published_utc,s.kickoff_utc,s.event_id,s.match_confidence,s.quote_captured_utc,s.odds_at_signal,s.signal_utc,s.status,gp.price AS goal_market_price,gp.captured_utc AS goal_market_quote_utc,gp.source_market_id AS goal_market_id,q.captured_utc AS current_quote_utc, CASE s.market WHEN '1' THEN q.p1 WHEN 'X' THEN q.px WHEN '2' THEN q.p2 ELSE NULL END AS current_odds,r.event_status,r.verified,r.home_score final_home,r.away_score final_away FROM sb_regista_signals_v1 s LEFT JOIN match_results r ON r.event_id=s.event_id LEFT JOIN sb_regista_goal_prices_v1 gp ON gp.event_id=s.event_id AND gp.market=s.market AND gp.captured_utc=(SELECT MAX(z.captured_utc) FROM sb_regista_goal_prices_v1 z WHERE z.event_id=s.event_id AND z.market=s.market AND z.captured_utc<s.kickoff_utc AND z.captured_utc>=s.source_first_seen_utc) LEFT JOIN quote_snapshots q ON q.id=(SELECT q2.id FROM quote_snapshots q2 WHERE q2.event_id=s.event_id AND q2.captured_utc<s.kickoff_utc ORDER BY q2.captured_utc DESC LIMIT 1) ORDER BY s.source_last_seen_utc DESC LIMIT 500";
 function finish(row){
 if(row?.event_status!=='FINISHED'||Number(row.verified)!==1||!Number.isInteger(Number(row.final_home))||!Number.isInteger(Number(row.final_away))||row.final_home==null||row.final_away==null)return null;
 const h=Number(row.final_home),a=Number(row.final_away),m=String(row.market||'').toUpperCase().replace(/\s+/g,'');
@@ -65,17 +65,26 @@ function goalsResearch(rows,now){
    market,probability_pct:Number(x.probability_pct),kickoff_utc:x.kickoff_utc,
    source_first_seen_utc:x.source_first_seen_utc,prospective:pre,
    research_status:!pre?'RETROSPECTIVE_EXCLUDE_FROM_FORWARD':highProb?'OVER25_HIGH_P_RESEARCH':'MARKET_RESEARCH_ONLY',
-   result_status:x.result_status||null,odds_at_market:null,
-   market_price_source:'UNAVAILABLE_IN_D1',betnow:false};
+   result_status:x.result_status||null,
+   odds_at_market:Number(x.goal_market_price)>1?Number(x.goal_market_price):null,
+   market_quote_utc:x.goal_market_quote_utc||null,market_id:x.goal_market_id||null,
+   market_price_source:Number(x.goal_market_price)>1?'SUPERBET_V3_VERIFIED':'NOT_CAPTURED',
+   theoretical_ev_pct:Number(x.goal_market_price)>1?Math.round((Number(x.probability_pct)/100*Number(x.goal_market_price)-1)*10000)/100:null,
+   betnow:false};
  });
  const markets={};
  for(const market of typeSet){
   const sub=entries.filter(x=>x.market===market),forward=sub.filter(x=>x.prospective);
   const settled=forward.filter(x=>['WIN','LOSS'].includes(x.result_status)),wins=settled.filter(x=>x.result_status==='WIN').length;
   const high=forward.filter(x=>x.research_status==='OVER25_HIGH_P_RESEARCH');
+  const priced=forward.filter(x=>Number(x.odds_at_market)>1);
+  const pricedSettled=priced.filter(x=>['WIN','LOSS'].includes(x.result_status));
+  const net=pricedSettled.reduce((n,x)=>n+(x.result_status==='WIN'?Number(x.odds_at_market)-1:-1),0);
+  const probeRoi=pricedSettled.length?Math.round(net/pricedSettled.length*10000)/100:null;
   markets[market]={total_unique:sub.length,forward_seen:forward.length,forward_settled:settled.length,
    forward_wins:wins,forward_losses:settled.length-wins,forward_pending:forward.length-settled.length,
-   high_probability_watch:high.length,market_quotes_verified:0,roi_pct:null,
+   high_probability_watch:high.length,market_quotes_verified:priced.length,
+   priced_settled:pricedSettled.length,probe_roi_pct:probeRoi,roi_pct:pricedSettled.length>=30?probeRoi:null,
    market_status:market==='OVER25'?'PRIORITY_RESEARCH_NO_BETNOW':market==='BTTS'?'OBSERVE_ONLY_WEAK_PUBLIC_ACCURACY':'OBSERVE_ONLY_SMALL_SAMPLE'};
  }
  const upcoming=entries.filter(x=>x.prospective&&Date.parse(x.kickoff_utc)>now)
@@ -83,7 +92,7 @@ function goalsResearch(rows,now){
  return {mode:'SHADOW_NO_BETS_NO_ALERTS',version:'GOALS_RESEARCH_V1',
   why_no_betnow:'No verified Superbet market-specific Over/Under or BTTS price at the source time; 1X2 quotes cannot be reused.',
   markets,upcoming,distinct_picks:entries.length,
-  note:'Prospective WIN/LOSS is deduplicated by event_id+market. Results are verified by match_results. Historical imports do not enter prospective performance. ROI stays null until market-specific quotes are captured before kickoff.'};
+  note:'Prospective WIN/LOSS deduplicates event_id+market and uses verified finals. Imports after kickoff are excluded. Research prices are Superbet market-specific and taken before kickoff; ROI is validated only after at least 30 settled price-backed observations, and no goals BET NOW is enabled.'};
 }
 export async function registaMobileApi(req,env,who,path,slipDeviceFor){
 try{
@@ -96,9 +105,10 @@ if(path==='/api/mobile/regista/ack'&&req.method==='POST'){
  return response({ok:true});
 }
 if(!['/api/mobile/regista/summary','/api/mobile/regista/alerts'].includes(path)||req.method!=='GET')return response({error:'not_found'},404);
-const [records,sync]=await Promise.all([
+const [records,sync,goalProbe]=await Promise.all([
  env.DB.prepare(PICK_SQL).all(),
- env.DB.prepare('SELECT started_utc,source_status,stored_rows,error FROM sb_regista_sync_runs_v1 ORDER BY id DESC LIMIT 1').first()
+ env.DB.prepare('SELECT started_utc,source_status,stored_rows,error FROM sb_regista_sync_runs_v1 ORDER BY id DESC LIMIT 1').first(),
+ env.DB.prepare('SELECT checked_utc,requested_events,source_http_status,stored_quotes,verdict,error FROM sb_regista_goal_quote_audit_v1 ORDER BY id DESC LIMIT 1').first()
 ]);
 const now=Date.now();
 const rows=(records.results||[]).map(s=>({...s,...priceMetric(s),current_price:currentPriceMetric(s),signal_emitted:wasEmitted(s),result_status:finish(s),status:visibleStatus(s,now)})); // A previously sent alert remains in history even if its live quote ages.
@@ -164,6 +174,6 @@ for(const typ of Object.keys(counts)){
   prospective:performance(rows,now,s=>s.list_code===typ)
  };
 }
-return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,goals_lab:goalsResearch(rows,now),performance:{...performance(rows,now),real:actual},server_utc:NOW()});
+return response({mode:'LOCAL_VIBRATE_NO_FCM',source:'REGISTA',items:rows,sync:sync||null,counts,goals_lab:{...goalsResearch(rows,now),quote_probe:goalProbe||{verdict:'NOT_STARTED'}},performance:{...performance(rows,now),real:actual},server_utc:NOW()});
 }catch(e){console.error('REGISTA_READ_FAIL',String(e).slice(0,170));return response({error:'REGISTA_LAB_UNAVAILABLE',items:[],counts:{},sync:null},503);}
 }
