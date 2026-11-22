@@ -20,7 +20,8 @@ catch(e){error=String(e).slice(0,320)}
 await env.DB.prepare('INSERT INTO sb_regista_sync_runs_v1(started_utc,source_status,stored_rows,error) VALUES(?,?,?,?)').bind(now,status,count,error).run();
 }
 async function guardedSync(env){
-const now=new Date().toISOString(),before=new Date(Date.now()-20*60000).toISOString();
+// Allow the next */20 cron despite previous run starting seconds late; the 19m lock still prevents duplicate syncs.
+const now=new Date().toISOString(),before=new Date(Date.now()-19*60000).toISOString();
 const lock=await env.DB.prepare('UPDATE sb_regista_sync_lock_v1 SET last_triggered_utc=? WHERE id=1 AND last_triggered_utc<?').bind(now,before).run();
 if((lock.meta?.changes||0)!==1)return false;
 await syncRegistaV2(env);return true;
