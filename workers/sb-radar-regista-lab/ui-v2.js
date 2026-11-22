@@ -33,6 +33,48 @@ const STYLE=String.raw`
 #sbRegistaLab .rl-archive>summary{cursor:pointer;padding:11px;font-weight:850;background:#1b3640;list-style:none}
 #sbRegistaLab .rl-archive .rl-archive-body{padding:8px;max-height:340px;overflow:auto}
 @media(prefers-reduced-motion:reduce){#sbRegistaLab .rl-icon:after,#sbRegistaLab .rl-icon:before{animation:none!important}}
+
+/* REGISTA DESIGN V3: compact independent filter, native-feeling animated drawer. */
+#live #sbRegistaLab{margin:8px 0 14px!important;width:100%!important;grid-column:1/-1!important;background:linear-gradient(142deg,#0a2c34,#0d2536 57%,#142237)!important;border:1px solid #389c8a!important;box-shadow:0 7px 22px #0006,inset 0 1px #ffffff13!important;}
+#sbRegistaLab>details>summary{min-height:68px;position:relative;background:linear-gradient(90deg,#123b3c,#152b43);padding:10px 13px!important}
+#sbRegistaLab>details>summary:after{content:"";position:absolute;bottom:0;left:9px;right:9px;height:1px;background:linear-gradient(90deg,transparent,#5ecab76b,transparent);opacity:.6}
+#sbRegistaLab .rl-logo-image{width:31px;height:31px;object-fit:contain;filter:drop-shadow(0 1px 5px #95eecb44);z-index:1}
+#sbRegistaLab .rl-logo-fallback{font-weight:1000;font-style:italic;color:#e2ffef;font-family:Georgia,serif;font-size:28px;text-shadow:0 0 12px #9bf6d777}
+#sbRegistaLab .rl-icon{font-size:21px!important}
+#sbRegistaLab .rl-open-arrow{display:grid;place-items:center;color:#a6f7df;transition:transform .3s ease;font-size:15px;flex:0 0 10px}
+#sbRegistaLab:has(>details[open]) .rl-open-arrow{transform:rotate(180deg)}
+#sbRegistaLab:has(>details[open]){border-color:#79f9d4!important;box-shadow:0 5px 27px #39ccaa38!important}
+#sbRegistaLab>details[open]>.rl-body{animation:rl-reveal .36s cubic-bezier(.18,.88,.18,1) both;transform-origin:top}
+@keyframes rl-reveal{from{opacity:.12;transform:translateY(-10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+#sbRegistaLab .rl-head strong{font-size:14px;letter-spacing:.05em}
+#sbRegistaLab .rl-head small{font-size:10px}
+#sbRegistaLab .rl-statline{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+#sbRegistaLab .rl-stat{padding:8px 2px;background:linear-gradient(145deg,#173748,#1c3140);border-color:#396779}
+#sbRegistaLab .rl-stat b{font-size:15px;line-height:1.35}
+#sbRegistaLab .rl-stat small{font-size:9px}
+#sbRegistaLab .rl-roi-good b{color:#8ff5b3}#sbRegistaLab .rl-roi-bad b{color:#ffad9d}
+#sbRegistaLab .rl-featured{margin:12px 0 11px}
+#sbRegistaLab .rl-featured-title{display:flex;justify-content:space-between;align-items:center;margin:5px 1px 7px;gap:7px;font-size:12px;font-weight:900;color:#eafff4}
+#sbRegistaLab .rl-featured-title small{font-size:9px;font-weight:600;color:#a5bfc7}
+#sbRegistaLab .rl-featured .rl-card{border:1px solid #69e4bd;background:linear-gradient(135deg,#143f36,#14354b 72%,#203c50);padding:11px;box-shadow:0 4px 15px #001a1966}
+#sbRegistaLab .rl-featured .rl-card .rl-result{color:#b8ffe4}
+#sbRegistaLab .rl-featured .rl-top .rl-fixture{font-size:14px}
+#sbRegistaLab .rl-featured .rl-pct{font-size:18px;color:#c9ffe5}
+#sbRegistaLab .rl-featured-empty{border:1px dashed #4e837d;border-radius:12px;padding:13px;background:#12313d;color:#b6d7d1;font-size:11px;line-height:1.5}
+#sbRegistaLab .rl-observations{border:1px solid #315970;border-radius:12px;background:#132635;margin-top:10px;overflow:hidden}
+#sbRegistaLab .rl-observations>summary{display:flex;justify-content:space-between;gap:8px;list-style:none;cursor:pointer;padding:11px 10px;font-size:11px;color:#bbd7e1;font-weight:850}
+#sbRegistaLab .rl-observations>summary:after{content:"⌄";color:#8fe8ce}
+#sbRegistaLab .rl-observations[open]>.rl-observe-content{animation:rl-reveal .32s ease both;padding:2px 9px 9px}
+#sbRegistaLab .rl-archive[open]>.rl-archive-body{animation:rl-reveal .3s ease both}
+#sbRegistaLab .rl-bet{min-height:37px;box-shadow:0 3px 12px #42b78c22}
+#sbRegistaLab .rl-source-note{font-size:10px;color:#9bbebf;margin-top:10px}
+#sbPendingAlertList>.sb-pending-entry.regista{border-left:3px solid #65edbf;background:linear-gradient(120deg,#183b3b,#192e43);box-shadow:inset 0 1px #a2fbd113}
+#sbPendingAlertList>.sb-pending-entry.regista .sb-pending-filter{color:#91f4cf}
+#sbPendingAlertList>.sb-pending-entry.regista .sb-pending-meta{color:#9bdccc}
+#sbPendingAlertList>.sb-pending-entry.regista .sb-pending-actions{grid-column:2}
+#sbPendingAlertList>.sb-pending-entry.regista .sb-pending-actions button{background:#174d43;color:#eafff4;border:1px solid #479b80}
+@media(max-width:380px){#sbRegistaLab .rl-head strong{font-size:12px}#sbRegistaLab .rl-stat b{font-size:13px}}
+@media(prefers-reduced-motion:reduce){#sbRegistaLab>details[open]>.rl-body,#sbRegistaLab .rl-observations[open]>.rl-observe-content{animation:none}}
 `;
 const css=document.createElement('style');css.id='sbRegistaLabV2Css';css.textContent=STYLE;document.head.append(css);
 function mount(){
@@ -45,7 +87,7 @@ section.style.setProperty('opacity','1','important');
 section.style.setProperty('grid-column','1 / -1','important');
 section.style.setProperty('width','100%','important');
 section.removeAttribute('hidden');
-section.innerHTML='<details open id="rlDetails"><summary><span class="rl-icon">♜</span><span class="rl-head"><strong>REGISTA · BET NOW / VALUE</strong><small>FULL · LEAGUE · TOP 10 · value experimental</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span style="color:#c6e5df">⌄</span></summary><div class="rl-body"><div class="rl-statline"><div class="rl-stat"><b id="rl24">—</b><small>24h</small></div><div class="rl-stat"><b id="rl7d">—</b><small>7 zile</small></div><div class="rl-stat"><b id="rlWl">—</b><small>WIN / LOSS</small></div></div><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><div id="rlCards"></div><details class="rl-archive" id="rlArchive"><summary>▤ Arhivă Regista · contor și rezultate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div style="padding-top:12px"><a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa originală Regista</a></div></div></details>';
+section.innerHTML='<details id="rlDetails"><summary><span class="rl-icon"><img class="rl-logo-image" src="/api/public/regista-logo" alt="Regista" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="rl-logo-fallback" hidden>R</span></span><span class="rl-head"><strong>REGISTA · BET NOW</strong><small>Value experimental · selecții 1 / 2 · cote Superbet</small></span><span class="rl-summary-count" id="rlSummaryCount">—</span><span class="rl-open-arrow">⌄</span></summary><div class="rl-body"><div class="rl-statline"><div class="rl-stat"><b id="rl24">—</b><small>24h</small></div><div class="rl-stat"><b id="rl7d">—</b><small>7 zile</small></div><div class="rl-stat"><b id="rlWl">—</b><small>WIN / LOSS</small></div><div class="rl-stat rl-roi" id="rlRoiBox"><b id="rlRoi">—</b><small>ROI SIM 50 LEI</small></div></div><div class="rl-featured"><div class="rl-featured-title">✧ BET NOW CONFIRMATE <small>Doar cote cu edge estimat ≥5 pp · EV ≥8%</small></div><div id="rlFeaturedCards"></div></div><div id="rlSourceStatus" class="rl-warning">Verific sursa Regista…</div><details class="rl-observations" id="rlObservations"><summary>☷ Pronosticuri originale Regista · Full / League / Top 10</summary><div class="rl-observe-content"><div class="rl-tabs"><button class="rl-tab active" data-rlt="FULL">FULL</button><button class="rl-tab" data-rlt="LEAGUE">LEAGUE</button><button class="rl-tab" data-rlt="TOP10">TOP 10</button></div><div id="rlCards"></div></div></details><details class="rl-archive" id="rlArchive"><summary>▤ Istoric WIN / LOSS · selecții observate</summary><div class="rl-archive-body" id="rlArchiveBody">Se verifică…</div></details><div class="rl-source-note">ROI SIM = calcul prospectiv, nu profit real. <a href="https://www.registacalcio.it/en/schedina" target="_blank" rel="noopener noreferrer">Sursa Regista</a></div></div></details>';
 if(section.parentElement!==live)live.insertBefore(section,live.firstChild);
 else if(section!==live.firstElementChild)live.insertBefore(section,live.firstChild);
 section.querySelectorAll('.rl-tab').forEach(b=>b.onclick=()=>{section.querySelectorAll('.rl-tab').forEach(x=>x.classList.toggle('active',x===b));current=b.dataset.rlt;render();});
