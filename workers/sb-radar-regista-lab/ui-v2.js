@@ -169,8 +169,8 @@ let current='LEAGUE',model={items:[],counts:{},sync:null},busy=false,lastAt=0;
 function txt(el,s){if(el)el.textContent=String(s);}
 function resultName(item){if(item.result_status==='WIN')return '✓ WIN';if(item.result_status==='LOSS')return '✕ LOSS';if(item.signal_emitted){if(item.status==='BET_NOW')return '● BET NOW ACTIV · notificare emisă';if(item.status==='PRICE_CHANGED')return '◷ BET NOW EMIS · cota s-a schimbat';if(item.status==='QUOTE_STALE')return '◷ BET NOW EMIS · captură actuală lipsă';return '◷ BET NOW EMIS · fereastra închisă';}if(item.status==='MATCHED')return item.price_status==='NO_VALUE'?'PRONOSTIC · fără avantaj la cotă':item.price_status==='VALUE_CANDIDATE'?'PRONOSTIC VALUE · în observație':'PRONOSTIC · în observație';return item.status==='UNVERIFIED_SOURCE'?'Sursă neconfirmată':'Pronostic informativ · neconfirmat';}
 function fillRegistaSlip(item){
- const eventId=Number(item?.event_id),selection=String(item?.market||'').toUpperCase(),odds=Number(item?.odds_at_signal);
- if(!Number.isSafeInteger(eventId)||eventId<1||!['1','X','2'].includes(selection)||!Number.isFinite(odds)||odds<=1)return false;
+ const eventId=Number(item?.event_id),market=String(item?.market||'').toUpperCase(),selection=market==='OVER25'?'Peste 2.5':market,odds=Number(item?.odds_at_signal);
+ if(!Number.isSafeInteger(eventId)||eventId<1||!['1','X','2','Peste 2.5'].includes(selection)||!Number.isFinite(odds)||odds<=1)return false;
  const old=document.getElementById('fixture');
  if(old&&old.value.trim()&&old.value.trim()!==String(item.fixture||'').trim()&&typeof sbBetSaved!=='undefined'&&!sbBetSaved){
   if(!window.confirm('Înlocuiești biletul incomplet din Slip cu selecția Regista?'))return false;
@@ -180,7 +180,7 @@ function fillRegistaSlip(item){
  const sel=document.getElementById('selection');
  if(sel){
   if(!Array.from(sel.options).some(o=>o.value===selection)){
-   const opt=document.createElement('option');opt.value=selection;opt.textContent=selection==='1'?'1 • Victorie gazde':selection==='2'?'2 • Victorie oaspeți':'X • Egal';sel.append(opt);
+   const opt=document.createElement('option');opt.value=selection;opt.textContent=selection==='1'?'1 • Victorie gazde':selection==='2'?'2 • Victorie oaspeți':selection==='Peste 2.5'?'Peste 2,5 goluri':'X • Egal';sel.append(opt);
   }
   sel.value=selection;sel.dispatchEvent(new Event('change',{bubbles:true}));
  }
@@ -197,7 +197,7 @@ function fillRegistaSlip(item){
 function registaMatchPanel(eventId){
  const id=Number(eventId),root=document.getElementById('routeBody');
  if(!Number.isSafeInteger(id)||id<1||!root||document.getElementById('routeBackdrop')?.classList.contains('hidden'))return;
- const candidates=(model.items||[]).filter(x=>Number(x.event_id)===id&&x.signal_emitted&&['1','X','2'].includes(String(x.market||'').toUpperCase())&&Number(x.odds_at_signal)>1);
+ const candidates=(model.items||[]).filter(x=>Number(x.event_id)===id&&x.signal_emitted&&['1','X','2','OVER25'].includes(String(x.market||'').toUpperCase())&&Number(x.odds_at_signal)>1);
  if(!candidates.length)return;
  const seq={LEAGUE:0,FULL:1,TOP10:2},item=candidates.sort((a,b)=>(seq[a.list_code]??9)-(seq[b.list_code]??9))[0];
  const existing=root.querySelector('[data-regista-event]');
@@ -233,7 +233,7 @@ function card(item){
  prob.textContent=Number.isFinite(Number(item.probability_pct))?Number(item.probability_pct).toFixed(0)+'%':'—';
  title.append(name,prob);el.append(title);
  const meta=document.createElement('div');meta.className=item.signal_emitted?'rl-alert-meta':'rl-meta';
- const market=String(item.market||'').toUpperCase(),markets={'1':'Victorie gazde','2':'Victorie oaspeți','X':'Egal'};
+ const market=String(item.market||'').toUpperCase(),markets={'1':'Victorie gazde','2':'Victorie oaspeți','X':'Egal','OVER25':'Peste 2,5 goluri'};
  meta.textContent=(markets[market]||market||'Selecție')+' · '+market+(Number(item.odds_at_signal)>1?' @ '+Number(item.odds_at_signal).toFixed(2)+' · COTĂ LA SEMNAL':' · cotă neconfirmată');
  el.append(meta);
  if(item.signal_emitted){
@@ -246,9 +246,9 @@ function card(item){
  const result=document.createElement('div');result.className='rl-result';
  result.textContent=resultName(item)+(item.result_status==='WIN'||item.result_status==='LOSS'?' · '+(item.final_home??'—')+'–'+(item.final_away??'—'):'');el.append(result);
  const actions=document.createElement('div');actions.className='rl-actions';
- if(item.signal_emitted&&Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0&&['1','X','2'].includes(market)&&Number(item.odds_at_signal)>1){
+ if(item.signal_emitted&&Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0&&['1','X','2','OVER25'].includes(market)&&Number(item.odds_at_signal)>1){
   const btn=document.createElement('button');btn.className='rl-bet';btn.type='button';
-  btn.textContent='▤ În Slip · '+market+' @'+Number(item.odds_at_signal).toFixed(2)+' · 50 lei';btn.onclick=()=>fillRegistaSlip(item);actions.append(btn);
+  btn.textContent='▤ În Slip · '+(market==='OVER25'?'OVER 2,5':market)+' @'+Number(item.odds_at_signal).toFixed(2)+' · 50 lei';btn.onclick=()=>fillRegistaSlip(item);actions.append(btn);
  }
  if(Number.isSafeInteger(Number(item.event_id))&&Number(item.event_id)>0){
   const btn=document.createElement('button');btn.className='rl-bet';btn.type='button';btn.textContent='Fișa';
@@ -275,11 +275,11 @@ function renderRegistaChecklist(){
   if(!x.signal_emitted)return false;
   const at=Date.parse(x.signal_utc||'');
   return Number.isSafeInteger(Number(x.event_id))&&Number(x.event_id)>0&&Number(x.odds_at_signal)>1&&
-   Number.isFinite(at)&&at<=now&&at>=now-48*3600000&&['1','X','2'].includes(String(x.market||'').toUpperCase());
+   Number.isFinite(at)&&at<=now&&at>=now-48*3600000&&['1','X','2','OVER25'].includes(String(x.market||'').toUpperCase());
  }).sort((a,b)=>Date.parse(b.signal_utc)-Date.parse(a.signal_utc))
   .filter(x=>{const key=String(x.event_id)+':'+String(x.market);if(seen.has(key))return false;seen.add(key);return true;});
  const betList=(typeof dashboard!=='undefined'&&Array.isArray(dashboard?.bets))?dashboard.bets:[];
- const sig=items.map(x=>[x.event_id,x.market,x.status,x.result_status,x.signal_utc,x.odds_at_signal,betList.find(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===String(x.market))?.id||0]).join('|');
+ const sig=items.map(x=>[x.event_id,x.market,x.status,x.result_status,x.signal_utc,x.odds_at_signal,betList.find(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===(x.market==='OVER25'?'Peste 2.5':String(x.market)))?.id||0]).join('|');
  const existing=[...root.querySelectorAll('[data-regista-checklist]')];
  if(root.dataset.sbRegistaSignature===sig&&existing.length===items.length)return;
  existing.forEach(el=>el.remove());
@@ -288,7 +288,7 @@ function renderRegistaChecklist(){
   root.querySelectorAll(':scope > .sb-pending-empty').forEach(el=>{el.style.display='none';});
  }
  for(const item of items){
-  const id=Number(item.event_id),inSlip=betList.find(b=>Number(b.event_id)===id&&String(b.selection)===String(item.market)),key='sb_regista_manual_check_'+id+':'+String(item.market);
+  const id=Number(item.event_id),inSlip=betList.find(b=>Number(b.event_id)===id&&String(b.selection)===(item.market==='OVER25'?'Peste 2.5':String(item.market))),key='sb_regista_manual_check_'+id+':'+String(item.market);
   let manually=false;try{manually=localStorage.getItem(key)==='1'}catch(_){}
   const row=document.createElement('div');row.className='sb-pending-entry regista'+(inSlip||manually?' checked':'');row.dataset.registaChecklist=String(id);row.dataset.registaSelection=String(item.market);
   const check=document.createElement('input');check.type='checkbox';check.className='sb-pending-checkbox';check.checked=!!inSlip||manually;check.disabled=!!inSlip;
@@ -314,7 +314,7 @@ function renderRegistaChecklist(){
  const clock=box.querySelector('.sb-radar-last-head time');
  if(clock){
   const base=(clock.textContent||'').replace(/ · ♜ \d+ REGISTA(?:.*)?$/,'');
-  clock.textContent=base+(items.length?' · ♜ '+items.filter(x=>!betList.some(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===String(x.market))).length+' REGISTA':'');
+  clock.textContent=base+(items.length?' · ♜ '+items.filter(x=>!betList.some(b=>Number(b.event_id)===Number(x.event_id)&&String(b.selection)===(x.market==='OVER25'?'Peste 2.5':String(x.market)))).length+' REGISTA':'');
  }
 }
 
@@ -513,9 +513,11 @@ function localPulse(rows){
   try{
     const installed=String(window.DrixNative?.getAppVersion?.()||'');
     const v=installed.split('.').map(Number);
-    if(v.length===3&&v[0]===2&&v[1]===3&&v[2]>=51)return; // New APK uses OS notifications.
     for(const item of rows){
       if(item.status!=='BET_NOW'||Number(item.event_id)<=0||Number(item.odds_at_signal)<=1)continue;
+      // APK v2.3.51 native supports 1/2; Over2.5 can only vibrate in foreground until signed v2.3.52.
+      const isOver=String(item.market)==='OVER25';
+      if(v.length===3&&v[0]===2&&v[1]===3&&v[2]>=51&&(!isOver||v[2]>=52))continue;
       const key='sb_regista_web_vibrate_event_'+String(item.event_id);
       if(localStorage.getItem(key))continue;
       localStorage.setItem(key,'1');
