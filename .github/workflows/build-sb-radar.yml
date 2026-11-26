@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: sb-radar-build
+  group: sb-radar-build-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build:

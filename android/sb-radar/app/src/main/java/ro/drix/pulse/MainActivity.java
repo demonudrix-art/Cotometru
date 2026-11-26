@@ -36,12 +36,13 @@ public class MainActivity extends Activity implements SensorEventListener {
   LinearLayout nativeSplash;
   android.animation.AnimatorSet splashAnimator;
   LinearLayout nativeBottomTabs;
-  final LinearLayout[] nativeTabCells=new LinearLayout[4];
-  final TextView[] nativeTabGlyphs=new TextView[4];
-  final TextView[] nativeTabLabels=new TextView[4];
-  static final String[] NATIVE_ROUTES={"live","slip","roi","profile"};
-  static final String[] NATIVE_LABELS={"RADAR","SLIP","ROI","PROFIL"};
-  static final String[] NATIVE_GLYPHS={"◎","▤","⌁","♙"};
+  LottoPanel lottoPanel;
+  final LinearLayout[] nativeTabCells=new LinearLayout[5];
+  final TextView[] nativeTabGlyphs=new TextView[5];
+  final TextView[] nativeTabLabels=new TextView[5];
+  static final String[] NATIVE_ROUTES={"live","lotto","slip","roi","profile"};
+  static final String[] NATIVE_LABELS={"RADAR","LOTTO","SLIP","ROI","PROFIL"};
+  static final String[] NATIVE_GLYPHS={"◎","⚄","▤","⌁","♙"};
   boolean nativeTabsVisible=false;
   String nativeActiveRoute="live";
   // Native gravity sensor: 3D radar moves from launch, without a screen tap.
@@ -371,10 +372,15 @@ public class MainActivity extends Activity implements SensorEventListener {
    * Simply calling tab() on them changes the native highlight but not the
    * WebView page, leaving Admin stuck over Radar/Slip/ROI.
    */
+  private boolean isLottoOpen(){return lottoPanel!=null&&lottoPanel.getParent()==nativeSurface;}
+  private void openLotto(){if(lottoPanel==null)lottoPanel=new LottoPanel(this);if(!isLottoOpen())nativeSurface.addView(lottoPanel,new FrameLayout.LayoutParams(-1,-1));lottoPanel.start();showNativeTabs(true);}
+  private void closeLotto(){if(isLottoOpen()){lottoPanel.stop();nativeSurface.removeView(lottoPanel);}}
   private void selectNativeTab(String route){
     boolean valid=false;
     for(String candidate:NATIVE_ROUTES)if(candidate.equals(route)){valid=true;break;}
     if(!valid||web==null)return;
+    if("lotto".equals(route)){nativeActiveRoute=route;renderNativeTabState();openLotto();return;}
+    closeLotto();
     nativeActiveRoute=route;
     renderNativeTabState();
     if(!isAppWebPage(web.getUrl())){
@@ -389,12 +395,14 @@ public class MainActivity extends Activity implements SensorEventListener {
   }
 
   private void showNativeTabs(boolean enabled){
+    if(isLottoOpen())enabled=true;
     nativeTabsVisible=enabled;
     if(nativeBottomTabs!=null)
       nativeBottomTabs.setVisibility(enabled?View.VISIBLE:View.GONE);
   }
 
   private void selectNativeTabFromWeb(String route){
+    if(isLottoOpen()||"lotto".equals(route))return;
     for(String candidate:NATIVE_ROUTES)if(candidate.equals(route)){
       nativeActiveRoute=route;renderNativeTabState();return;
     }
@@ -429,8 +437,9 @@ public class MainActivity extends Activity implements SensorEventListener {
     if(id>0)AlertService.dismiss(this,id);
     else AlertService.silence(this);
   }
-  @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);acknowledgeAlert(i);if(web!=null)openIntent(i);}
+  @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);acknowledgeAlert(i);closeLotto();if(web!=null)openIntent(i);}
   @Override public void onBackPressed(){
+    if(isLottoOpen()){selectNativeTab("live");return;}
     if(web!=null&&web.getUrl()!=null&&web.getUrl().startsWith(BASE)&&!isAppWebPage(web.getUrl())){
       // Android back from Chrome/Admin returns to the profile in the SB Radar app.
       selectNativeTab("profile");
@@ -439,6 +448,7 @@ public class MainActivity extends Activity implements SensorEventListener {
   }
   @Override protected void onResume(){
     super.onResume();
+    if(isLottoOpen())lottoPanel.start();
     appForeground=true;
     pulseTimer.removeCallbacks(pulseTick);
     pulseTimer.post(pulseTick);
@@ -451,6 +461,7 @@ public class MainActivity extends Activity implements SensorEventListener {
       tiltSensorManager.registerListener(this,gravitySensor,SensorManager.SENSOR_DELAY_GAME);
   }
   @Override protected void onPause(){
+    if(isLottoOpen())lottoPanel.stop();
     appForeground=false;
     pulseTimer.removeCallbacks(pulseTick);
     SystemPulse.heartbeat(this,false);
