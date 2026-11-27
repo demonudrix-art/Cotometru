@@ -34,7 +34,7 @@ public class RadarFirebaseMessagingService extends FirebaseMessagingService {
       return;
     }
     // Independent X57 research alert: never masquerades as BET_NOW, ML, GAP or Golden.
-    if("X57_HALF".equals(d.get("stage")) || "X57_CONFIRM".equals(d.get("stage"))){
+    if("X57_HALF".equals(d.get("stage")) || "X57_CONFIRM".equals(d.get("stage")) || "XCOREA_HT".equals(d.get("stage"))){
       X57CoreaNotifier.post(this,d);
       return;
     }
